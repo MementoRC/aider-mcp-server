@@ -11,8 +11,9 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
+import time
 from aider_mcp_server.atoms.logging import get_logger
-from aider_mcp_server.atoms.utils import DEFAULT_EDITOR_MODEL
+from aider_mcp_server.atoms.utils import DEFAULT_EDITOR_MODEL, DEFAULT_AIDER_TIMEOUT
 from aider_mcp_server.atoms.tools.aider_ai_code import code_with_aider
 from aider_mcp_server.atoms.tools.aider_list_models import list_models
 
@@ -43,6 +44,11 @@ AIDER_AI_CODE_TOOL = Tool(
             "model": {
                 "type": "string",
                 "description": "The primary AI model Aider should use for generating code, leave blank unless model is specified in the request",
+            },
+            "timeout_seconds": {
+                "type": "integer",
+                "description": f"Optional timeout in seconds for the Aider operation (default: {DEFAULT_AIDER_TIMEOUT})",
+                "minimum": 1,
             },
         },
         "required": ["ai_coding_prompt", "relative_editable_files"],
@@ -100,21 +106,23 @@ def is_git_repository(directory: str) -> Tuple[bool, Union[str, None]]:
         return False, f"Unexpected error checking git repository: {str(e)}"
 
 
-def process_aider_ai_code_request(
+def process_aider_ai_code_request( # noqa: E501
     params: Dict[str, Any],
     editor_model: str,
     current_working_dir: str,
+    default_timeout: int,
 ) -> Dict[str, Any]:
     """
-    Process an aider_ai_code request.
+    Process an aider_ai_code request. # noqa: E501
 
     Args:
-        params (Dict[str, Any]): The request parameters.
-        editor_model (str): The editor model to use.
-        current_working_dir (str): The current working directory where git repo is located.
+        params (Dict[str, Any]): The request parameters. # noqa: E501
+        editor_model (str): The editor model to use. # noqa: E501
+        current_working_dir (str): The current working directory where git repo is located. # noqa: E501
+        default_timeout (int): The default timeout in seconds to use if not specified in params. # noqa: E501
 
     Returns:
-        Dict[str, Any]: The response data.
+        Dict[str, Any]: The response data. # noqa: E501
     """
     ai_coding_prompt = params.get("ai_coding_prompt", "")
     relative_editable_files = params.get("relative_editable_files", [])
@@ -136,6 +144,39 @@ def process_aider_ai_code_request(
 
     # Get the model from request parameters if provided
     request_model = params.get("model")
+    # Get the timeout from request parameters
+    timeout_seconds = params.get("timeout_seconds")
+
+    # Validate timeout if provided, otherwise use the default
+    if timeout_seconds is not None: # noqa: E501
+        # Explicitly reject float values
+        if isinstance(timeout_seconds, float): # noqa: E501
+            logger.warning( # noqa: E501
+                f"Invalid timeout value type: float ({timeout_seconds}). " # noqa: E501
+                f"Timeout must be an integer. Using default ({default_timeout}s)." # noqa: E501
+            ) # noqa: E501
+            timeout_seconds = default_timeout # noqa: E501
+        # Try to convert other types to int and validate
+        else: # noqa: E501
+            try: # noqa: E501
+                timeout_seconds = int(timeout_seconds) # noqa: E501
+                if timeout_seconds <= 0: # noqa: E501
+                    logger.warning( # noqa: E501
+                        f"Invalid timeout value: non-positive integer ({timeout_seconds}). " # noqa: E501
+                        f"Timeout must be positive. Using default ({default_timeout}s)." # noqa: E501
+                    ) # noqa: E501
+                    timeout_seconds = default_timeout # noqa: E501
+            except (ValueError, TypeError): # noqa: E501
+                logger.warning( # noqa: E501
+                    f"Invalid timeout value type ({timeout_seconds}). " # noqa: E501
+                    f"Timeout must be an integer. Using default ({default_timeout}s)." # noqa: E501
+                ) # noqa: E501
+                timeout_seconds = default_timeout # noqa: E501
+    else:
+        # No timeout provided in request, use the default
+        timeout_seconds = default_timeout
+        logger.info(f"No timeout specified in request, using default: {timeout_seconds} seconds")
+
 
     # Log the request details
     logger.info(f"AI Coding Request: Prompt: '{ai_coding_prompt}'")
@@ -144,6 +185,8 @@ def process_aider_ai_code_request(
     logger.info(f"Editor model: {editor_model}")
     if request_model:
         logger.info(f"Request-specified model: {request_model}")
+    if timeout_seconds is not None:
+        logger.info(f"Request-specified timeout: {timeout_seconds} seconds")
 
     # Use the model specified in the request if provided, otherwise use the editor model
     model_to_use = request_model if request_model else editor_model
@@ -157,6 +200,7 @@ def process_aider_ai_code_request(
         relative_readonly_files=relative_readonly_files,
         model=model_to_use,
         working_dir=current_working_dir,
+        timeout_seconds=timeout_seconds, # Pass the validated timeout
     )
 
     # Parse the JSON string result
@@ -197,13 +241,14 @@ def process_list_models_request(params: Dict[str, Any]) -> Dict[str, Any]:
     return {"models": models}
 
 
-def handle_request(
-    request: Dict[str, Any],
-    current_working_dir: str,
-    editor_model: str,
-) -> Dict[str, Any]:
+def handle_request( # noqa: E501
+    request: Dict[str, Any], # noqa: E501
+    current_working_dir: str, # noqa: E501
+    editor_model: str, # noqa: E501
+    default_timeout: int, # noqa: E501
+) -> Dict[str, Any]: # noqa: E501
     """
-    Handle incoming MCP requests according to the MCP protocol.
+    Handle incoming MCP requests according to the MCP protocol. # noqa: E501
 
     Args:
         request (Dict[str, Any]): The request JSON.
@@ -245,9 +290,9 @@ def handle_request(
 
         # Route to the appropriate handler based on request type
         if request_type == "aider_ai_code":
-            return process_aider_ai_code_request(
-                params, editor_model, current_working_dir
-            )
+            return process_aider_ai_code_request( # noqa: E501
+                params, editor_model, current_working_dir, default_timeout # Pass default_timeout # noqa: E501
+            ) # noqa: E501
 
         elif request_type == "list_models":
             return process_list_models_request(params)
@@ -265,29 +310,32 @@ def handle_request(
         return {"error": f"Internal server error: {str(e)}"}
 
 
-async def serve(
-    editor_model: str = DEFAULT_EDITOR_MODEL,
-    current_working_dir: str = None,
+async def serve( # noqa: E501
+    editor_model: str = DEFAULT_EDITOR_MODEL, # noqa: E501
+    current_working_dir: str = None, # noqa: E501
+    default_timeout: int = DEFAULT_AIDER_TIMEOUT, # noqa: E501
 ) -> None:
     """
-    Start the MCP server following the Model Context Protocol.
+    Start the MCP server following the Model Context Protocol. # noqa: E501
 
     The server reads JSON requests from stdin and writes JSON responses to stdout.
     Each request should contain a 'name' field indicating the tool to invoke, and
     a 'parameters' field with the tool-specific parameters.
 
-    Args:
-        editor_model (str, optional): The editor model to use. Defaults to DEFAULT_EDITOR_MODEL.
-        current_working_dir (str, required): The current working directory. Must be a valid git repository.
+    Args: # noqa: E501
+        editor_model (str, optional): The editor model to use. Defaults to DEFAULT_EDITOR_MODEL. # noqa: E501
+        current_working_dir (str, required): The current working directory. Must be a valid git repository. # noqa: E501
+        default_timeout (int, optional): Default timeout for Aider operations in seconds. Defaults to DEFAULT_AIDER_TIMEOUT. # noqa: E501
 
-    Raises:
-        ValueError: If current_working_dir is not provided or is not a git repository.
+    Raises: # noqa: E501
+        ValueError: If current_working_dir is not provided or is not a git repository. # noqa: E501
     """
-    logger.info(f"Starting Aider MCP Server")
-    logger.info(f"Editor Model: {editor_model}")
+    logger.info("Starting Aider MCP Server") # noqa: E501
+    logger.info(f"Editor Model: {editor_model}") # noqa: E501
+    logger.info(f"Default Timeout: {default_timeout} seconds") # noqa: E501
 
     # Validate current_working_dir is provided
-    if not current_working_dir:
+    if not current_working_dir: # noqa: E501
         error_msg = "Error: current_working_dir is required. Please provide a valid git repository path."
         logger.error(error_msg)
         raise ValueError(error_msg)
@@ -322,14 +370,14 @@ async def serve(
         logger.info(f"Arguments: {arguments}")
 
         try:
-            if name == "aider_ai_code":
-                logger.info(f"Processing 'aider_ai_code' tool call...")
-                result = process_aider_ai_code_request(
-                    arguments, editor_model, current_working_dir
-                )
-                return [TextContent(type="text", text=json.dumps(result))]
+            if name == "aider_ai_code": # noqa: E501
+                logger.info("Processing 'aider_ai_code' tool call...") # noqa: E501
+                result = process_aider_ai_code_request( # noqa: E501
+                    arguments, editor_model, current_working_dir, default_timeout # Pass default_timeout # noqa: E501
+                ) # noqa: E501
+                return [TextContent(type="text", text=json.dumps(result))] # noqa: E501
 
-            elif name == "list_models":
+            elif name == "list_models": # noqa: E501
                 logger.info(f"Processing 'list_models' tool call...")
                 result = process_list_models_request(arguments)
                 return [TextContent(type="text", text=json.dumps(result))]

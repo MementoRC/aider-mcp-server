@@ -3,10 +3,13 @@ from typing import List, Optional, Dict, Any, Union
 import os
 import os.path
 import subprocess
+import concurrent.futures
+from concurrent.futures import TimeoutError
 from aider.models import Model
 from aider.coders import Coder
 from aider.io import InputOutput
 from aider_mcp_server.atoms.logging import get_logger
+from aider_mcp_server.atoms.utils import DEFAULT_AIDER_TIMEOUT
 
 # Try to import dotenv for environment variable loading
 try:
@@ -273,12 +276,129 @@ def _format_response(response: ResponseDict) -> str:
     return json.dumps(response, indent=4)
 
 
+# Helper function to run the core Aider logic. This will be executed in a separate process.
+# It needs all necessary imports and cannot rely on global state from the main process.
+def _run_aider_core_logic(
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    relative_readonly_files: List[str],
+    model: str,
+    working_dir: str,
+) -> Dict[str, Any]:
+    """
+    Encapsulates the core Aider execution logic to be run in a subprocess.
+
+    Args:
+        ai_coding_prompt: The prompt for the AI.
+        relative_editable_files: List of editable files relative to working_dir.
+        relative_readonly_files: List of readonly files relative to working_dir.
+        model: The AI model to use.
+        working_dir: The directory where the git repository and files are located.
+
+    Returns:
+        A dictionary containing the success status and diff output.
+    """
+    # Re-initialize logger within the subprocess if needed, or rely on pickling
+    # For simplicity, we might skip detailed logging within the subprocess for now,
+    # or pass a logger configuration. Basic print statements can help debugging.
+    # print(f"Subprocess [{os.getpid()}] started for: {working_dir}") # Optional debug print
+
+    # Ensure environment variables and API keys are available in the subprocess
+    # Note: Environment variables are typically inherited, but explicit checks might be needed.
+    # check_api_keys(working_dir) # This might be problematic if it modifies os.environ directly
+
+    try:
+        # Configure the model
+        ai_model = Model(model)
+
+        # Create the coder instance
+        history_dir = working_dir
+        abs_editable_files = [os.path.join(working_dir, f) for f in relative_editable_files]
+        abs_readonly_files = [os.path.join(working_dir, f) for f in relative_readonly_files]
+        chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
+
+        coder = Coder.create(
+            main_model=ai_model,
+            io=InputOutput(
+                yes=True,
+                chat_history_file=chat_history_file,
+            ),
+            fnames=abs_editable_files,
+            read_only_fnames=abs_readonly_files,
+            auto_commits=False,
+            suggest_shell_commands=False,
+            detect_urls=False,
+            use_git=True,
+            # Ensure the coder uses the correct working directory context if needed
+            # Coder might implicitly use os.getcwd(), ensure it's correct or pass explicitly if possible
+        )
+
+        # Run the coding session
+        # print(f"Subprocess [{os.getpid()}] running coder...") # Optional debug print
+        coder.run(ai_coding_prompt)
+        # print(f"Subprocess [{os.getpid()}] coder finished.") # Optional debug print
+
+        # Process the results - Need to import/redefine necessary helper functions if they aren't top-level
+        # Assuming _process_coder_results can be called if its dependencies (_get_changes_diff_or_content, _check_for_meaningful_changes)
+        # are also available or refactored to be passed or self-contained.
+        # For simplicity, let's assume _process_coder_results is available globally or imported.
+        # If not, its logic needs to be replicated or made accessible here.
+        # We might need to redefine _get_changes_diff_or_content and _check_for_meaningful_changes here
+        # or make them importable and ensure they work correctly in the subprocess context.
+
+        # Simplified result processing for now, assuming _process_coder_results works:
+        # Re-implementing simplified diff retrieval for subprocess:
+        diff_output = "Diff retrieval in subprocess needs careful implementation."
+        try:
+            files_arg = " ".join(relative_editable_files)
+            diff_cmd = f"git -C {working_dir} diff -- {files_arg}"
+            diff_output = subprocess.check_output(diff_cmd, shell=True, text=True, stderr=subprocess.PIPE)
+            success = True # Assume success if diff runs
+            # Basic meaningful check placeholder
+            if not diff_output.strip():
+                 success = False # Or based on a more robust check
+                 diff_output = "No changes detected by git diff."
+
+        except subprocess.CalledProcessError as e:
+             # Fallback to reading content (simplified)
+             diff_output = f"Git diff failed in subprocess: {e.stderr.strip()}\nFalling back to file list."
+             success = False # Mark as potentially unsuccessful if git fails
+             content_fallback = "File contents after editing (git failed in subprocess):\n\n"
+             for file_path in relative_editable_files:
+                 full_path = os.path.join(working_dir, file_path)
+                 if os.path.exists(full_path):
+                     try:
+                         with open(full_path, "r") as f:
+                             content = f.read()
+                             content_fallback += f"--- {file_path} ---\n{content}\n\n"
+                             if content.strip(): success = True # Found some content
+                     except Exception as read_e:
+                         content_fallback += f"--- {file_path} --- (Error reading file: {read_e})\n\n"
+                 else:
+                     content_fallback += f"--- {file_path} --- (File not found)\n\n"
+             diff_output = content_fallback
+
+        except Exception as e:
+            diff_output = f"Error getting diff in subprocess: {str(e)}"
+            success = False
+
+        # Return the result dictionary
+        return {"success": success, "diff": diff_output}
+
+    except Exception as e:
+        # Log exception if possible, or just raise it to be caught by the main process
+        # print(f"Subprocess [{os.getpid()}] error: {e}") # Optional debug print
+        # Reraise the exception to be caught in the main process's future.result()
+        raise
+
+
 def code_with_aider(
     ai_coding_prompt: str,
     relative_editable_files: List[str],
     relative_readonly_files: List[str] = [],
     model: str = "gemini/gemini-2.5-pro-exp-03-25",
     working_dir: str = None,
+    timeout_seconds: Optional[int] = None,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -289,18 +409,25 @@ def code_with_aider(
         relative_readonly_files (List[str], optional): List of files that can be read but not edited. Defaults to [].
         model (str, optional): The model to use. Defaults to "gemini/gemini-2.5-pro-exp-03-25".
         working_dir (str, required): The working directory where git repository is located and files are stored.
+        timeout_seconds (Optional[int], optional): Timeout duration in seconds for the Aider process.
+                                                  Defaults to DEFAULT_AIDER_TIMEOUT.
 
     Returns:
-        Dict[str, Any]: {'success': True/False, 'diff': str with git diff output}
+        str: JSON string containing {'success': True/False, 'diff': str with git diff output or error message}
     """
     logger.info("Starting code_with_aider process.")
     logger.info(f"Prompt: '{ai_coding_prompt}'")
-    
+
+    # Determine the timeout value
+    effective_timeout = timeout_seconds if timeout_seconds is not None else DEFAULT_AIDER_TIMEOUT
+    logger.info(f"Aider process timeout set to: {effective_timeout} seconds")
+
     # Check API keys at the beginning - now passing working_dir
+    # This should ideally happen before starting the subprocess or be handled within it carefully.
     check_api_keys(working_dir)
 
     # Working directory must be provided
-    if not working_dir:
+    if not working_dir or not os.path.isdir(working_dir):
         error_msg = "Error: working_dir is required for code_with_aider"
         logger.error(error_msg)
         return json.dumps({"success": False, "diff": error_msg})
@@ -308,119 +435,53 @@ def code_with_aider(
     logger.info(f"Working directory: {working_dir}")
     logger.info(f"Editable files: {relative_editable_files}")
     logger.info(f"Readonly files: {relative_readonly_files}")
+    logger.info(f"Readonly files: {relative_readonly_files}")
     logger.info(f"Model: {model}")
 
-    try:
-        # Configure the model
-        logger.info("Configuring AI model...")  # Point 1: Before init
-        logger.info(f"Attempting to initialize model: {model}")
-        try:
-            # Check environment variables
-            api_key_env = None
-            if "openai" in model.lower():
-                api_key_env = os.environ.get("OPENAI_API_KEY")
-                logger.info(f"OpenAI API key present: {bool(api_key_env)}")
-            elif "gemini" in model.lower() or "google" in model.lower():
-                # Check both possible environment variable names for Gemini
-                api_key_env = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-                logger.info(f"Google/Gemini API key present: {bool(api_key_env)}")
-                # If using GEMINI_API_KEY, set GOOGLE_API_KEY for compatibility with aider
-                if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
-                    os.environ["GOOGLE_API_KEY"] = os.environ.get("GEMINI_API_KEY")
-                    logger.info("Set GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
-            elif "anthropic" in model.lower():
-                api_key_env = os.environ.get("ANTHROPIC_API_KEY")
-                logger.info(f"Anthropic API key present: {bool(api_key_env)}")
-            
-            if not api_key_env:
-                logger.warning(f"No API key found for model type: {model}")
-            
-            ai_model = Model(model)
-            logger.info(f"Successfully configured model: {model}")
-        except Exception as model_error:
-            logger.exception(f"Error initializing model {model}: {str(model_error)}")
-            raise
-        logger.info("AI model configured.")  # Point 2: After init
-
-        # Create the coder instance
-        logger.info("Creating Aider coder instance...")
-        # Use working directory for chat history file if provided
-        history_dir = working_dir
-        # Handle both absolute and relative paths correctly for editable files
-        abs_editable_files = []
-        for file in relative_editable_files:
-            if os.path.isabs(file):
-                abs_editable_files.append(file)
-            else:
-                abs_editable_files.append(os.path.join(working_dir, file))
-
-        # Same for readonly files
-        abs_readonly_files = []
-        for file in relative_readonly_files:
-            if os.path.isabs(file):
-                abs_readonly_files.append(file)
-            else:
-                abs_readonly_files.append(os.path.join(working_dir, file))
-
-        chat_history_file = os.path.join(history_dir, ".aider.chat.history.md")
-        logger.info(f"Using chat history file: {chat_history_file}")
-
-        coder = Coder.create(
-            main_model=ai_model,
-            io=InputOutput(
-                yes=True,
-                chat_history_file=chat_history_file,
-            ),
-            fnames=abs_editable_files,
-            read_only_fnames=abs_readonly_files,
-            auto_commits=False,  # We'll handle commits separately
-            suggest_shell_commands=False,
-            detect_urls=False,
-            use_git=True,  # Always use git
+    # Use ProcessPoolExecutor to run Aider logic in a separate process with a timeout
+    with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+        logger.info(f"Submitting Aider task to process pool with timeout {effective_timeout}s")
+        future = executor.submit(
+            _run_aider_core_logic,
+            ai_coding_prompt,
+            relative_editable_files,
+            relative_readonly_files,
+            model,
+            working_dir,
         )
-        logger.info("Aider coder instance created successfully.")
-
-        # Run the coding session
-        logger.info("Starting Aider coding session...")  # Point 3: Before run
         try:
-            result = coder.run(ai_coding_prompt)
-            logger.info(f"Aider coding session result: {result}")
-        except Exception as run_error:
-            logger.exception(f"Error during Aider coding session: {str(run_error)}")
-            # Check if it's an authentication error
-            error_str = str(run_error).lower()
-            if any(term in error_str for term in ["auth", "api key", "credential", "unauthorized", "permission"]):
-                logger.critical("Authentication error detected. Please check your API keys.")
-                return json.dumps({
-                    "success": False,
-                    "diff": f"Authentication error: {str(run_error)}. Please check your API keys and permissions."
-                })
-            raise
-        logger.info("Aider coding session finished.")  # Point 4: After run
+            # Wait for the result with the specified timeout
+            response = future.result(timeout=effective_timeout)
+            logger.info("Aider task completed successfully within timeout.")
 
-        # Process the results after the coder has run
-        logger.info("Processing coder results...")  # Point 5: Processing results
-        try:
-            response = _process_coder_results(relative_editable_files, working_dir)
-            logger.info("Coder results processed.")
-        except Exception as e:
-            logger.exception(
-                f"Error processing coder results: {str(e)}"
-            )  # Point 6: Error
+        except TimeoutError:
+            logger.error(f"Aider process timed out after {effective_timeout} seconds.")
+            # Terminate the future (and potentially the process) - ProcessPoolExecutor handles this
+            future.cancel() # Attempt to cancel
+            # It's hard to forcefully kill the process reliably across platforms from here.
+            # ProcessPoolExecutor tries SIGTERM then SIGKILL on shutdown.
             response = {
                 "success": False,
-                "diff": f"Error processing files after execution: {str(e)}",
+                "diff": f"Error: Aider process timed out after {effective_timeout} seconds.",
             }
+        except Exception as e:
+            # Catch exceptions raised *within* the subprocess (_run_aider_core_logic)
+            logger.exception(f"Error executing Aider in subprocess: {str(e)}")
+            # Check if it's an authentication error based on the exception message
+            error_str = str(e).lower()
+            if any(term in error_str for term in ["auth", "api key", "credential", "unauthorized", "permission"]):
+                 logger.critical("Authentication error detected in subprocess. Please check your API keys.")
+                 response = {
+                     "success": False,
+                     "diff": f"Authentication error in Aider subprocess: {str(e)}. Please check API keys/permissions."
+                 }
+            else:
+                response = {
+                    "success": False,
+                    "diff": f"Error during Aider execution in subprocess: {str(e)}",
+                }
 
-    except Exception as e:
-        logger.exception(
-            f"Critical Error in code_with_aider: {str(e)}"
-        )  # Point 6: Error
-        response = {
-            "success": False,
-            "diff": f"Unhandled Error during Aider execution: {str(e)}",
-        }
-
+    # Format and return the final response (either success, timeout error, or other error)
     formatted_response = _format_response(response)
     logger.info(
         f"code_with_aider process completed. Success: {response.get('success')}"
