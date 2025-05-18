@@ -497,7 +497,6 @@ def _setup_aider_coder(
         yes=True,  # Always say yes to prompts
         fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
         chat_history_file=chat_history_file,  # Set chat history file if available
-
     )
     io.yes_to_all = True  # Automatically say yes to all prompts
     io.tool_error = False  # Disable tool error messages that could interfere with JSON
