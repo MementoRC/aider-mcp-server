@@ -1,3 +1,7 @@
+import time
+from asyncio.subprocess import Process as AsyncioProcess
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel, Field
@@ -8,7 +12,7 @@ T = TypeVar("T")
 
 
 # MCP Protocol Base Types
-class MCPRequest(Generic[T], BaseModel):
+class MCPRequest(BaseModel, Generic[T]):
     """Base class for MCP protocol requests."""
 
     name: str
@@ -108,3 +112,59 @@ class ListModelsRequest(MCPRequest[ListModelsParams]):
 
 # Union type for all possible MCP responses
 MCPToolResponse = Union[AICodeResponse, ListModelsResponse, MCPErrorResponse]
+
+
+# Multi-client HTTP server data types
+class ClientRequest(BaseModel):
+    """Request from a client to create or manage a session."""
+
+    client_id: str
+    workspace_id: Optional[str] = None
+    request_data: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: float = Field(default_factory=time.time)
+
+
+class SessionInfo(BaseModel):
+    """Information about an active client session."""
+
+    session_id: str
+    client_id: str
+    workspace_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_activity: datetime = Field(default_factory=datetime.now)
+    status: str = "active"  # "active", "idle", "disconnected"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ServerInfo(BaseModel):
+    """Information about a running HTTP server instance."""
+
+    server_id: str
+    host: str
+    port: int
+    actual_port: Optional[int] = None
+    status: str = "starting"  # "starting", "running", "stopping", "stopped"
+    workspace_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    active_clients: int = 0
+    transport_adapter_id: Optional[str] = None  # Reference to adapter instance
+
+
+# Process Manager data types
+class ProcessInfo(BaseModel):
+    """Information about a managed server process."""
+
+    process_id: str
+    client_id: Optional[str] = None
+    port: int
+    workspace_path: Path
+    process: AsyncioProcess  # The actual asyncio.subprocess.Process object
+    status: str  # e.g., "starting", "running", "stopping", "stopped", "failed"
+    command: List[str]  # The command used to start the process
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_health_check: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    restart_count: int = 0
+
+    class Config:
+        arbitrary_types_allowed = True
