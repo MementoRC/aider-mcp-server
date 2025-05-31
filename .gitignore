@@ -8,7 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
-
 .env
 
 # Development and session-specific files (kept locally but not in PR)
@@ -68,6 +67,7 @@ dmypy.json
 
 prompts/responses
 .aider*
+ai_docs/
 
 focus_output/
 
@@ -100,10 +100,13 @@ tasks/
 
 # Session-specific files
 CLAUDE.md
+CLAUDE.local.md
+.claude/
 .mcp.json
 .roomodes
 .taskmasterconfig
 .windsurfrules
+.python-version
 
 # Local workflow and tracking files
 /.roo/
