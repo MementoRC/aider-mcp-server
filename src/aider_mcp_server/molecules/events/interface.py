@@ -17,10 +17,10 @@ from aider_mcp_server.atoms.types.internal_types import InternalEvent
 @runtime_checkable
 class IEventHandler(Protocol):
     """Protocol for components that process internal events.
-    
+
     This protocol defines the core contract that event handler implementations
     must implement to process events in the system.
-    
+
     Moved from interfaces/event_handler.py as part of the Atomic Design
     Compliance Refactoring to be colocated with event implementations.
     """

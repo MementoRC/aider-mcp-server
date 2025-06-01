@@ -17,10 +17,10 @@ from aider_mcp_server.atoms.types.internal_types import ErrorContext
 @runtime_checkable
 class IErrorHandler(Protocol):
     """Protocol for components that handle errors.
-    
+
     This protocol defines the core contract that error handler implementations
     must implement to process and handle errors in the system.
-    
+
     Moved from interfaces/error_handler.py as part of the Atomic Design
     Compliance Refactoring to be colocated with handler implementations.
     """

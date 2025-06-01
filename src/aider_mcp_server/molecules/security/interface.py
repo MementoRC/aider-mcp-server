@@ -18,10 +18,10 @@ from aider_mcp_server.atoms.security.context import SecurityContext
 @runtime_checkable
 class ISecurityService(Protocol):
     """Interface for security service operations.
-    
+
     This protocol defines the core contract that security service implementations
     must implement to handle authentication, authorization, and security logging.
-    
+
     Moved from interfaces/security_service.py as part of the Atomic Design
     Compliance Refactoring to be colocated with security implementations.
     """
