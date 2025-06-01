@@ -111,3 +111,10 @@ CLAUDE.local.md
 # Local workflow and tracking files
 /.roo/
 /.cursor/
+# Local development and debug scripts
+scripts/example_prd.txt
+scripts/generate_import_aliases.py
+scripts/migrate_interfaces.py
+scripts/prd.txt
+scripts/test_import_aliases.py
+scripts/scripts/
