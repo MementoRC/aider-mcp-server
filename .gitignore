@@ -108,6 +108,10 @@ CLAUDE.local.md
 .windsurfrules
 .python-version
 
+# Project-specific PRD files (unique per sub-project)
+scripts/prd.txt
+scripts/example_prd.txt
+
 # Local workflow and tracking files
 /.roo/
 /.cursor/
@@ -118,3 +122,4 @@ scripts/migrate_interfaces.py
 scripts/prd.txt
 scripts/test_import_aliases.py
 scripts/scripts/
+/.claude/
