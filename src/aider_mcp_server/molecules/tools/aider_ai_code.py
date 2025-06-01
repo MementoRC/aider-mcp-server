@@ -208,29 +208,45 @@ def load_env_files(working_dir: Optional[str] = None) -> None:
         logger.warning("python-dotenv not installed. Cannot load .env files.")
         return
 
-    # List of potential locations for .env files in order of precedence
+    # Use a set to avoid duplicate directories
     env_locations = []
+    seen = set()
 
     # Add working_dir if provided
-    if working_dir:
+    if working_dir and working_dir not in seen:
         env_locations.append(working_dir)
+        seen.add(working_dir)
 
     # Add current directory
-    env_locations.append(os.getcwd())
+    cwd = os.getcwd()
+    if cwd not in seen:
+        env_locations.append(cwd)
+        seen.add(cwd)
 
     # Add parent directory of current directory
-    env_locations.append(os.path.dirname(os.getcwd()))
+    parent_cwd = os.path.dirname(cwd)
+    if parent_cwd not in seen:
+        env_locations.append(parent_cwd)
+        seen.add(parent_cwd)
 
     # Add user's home directory
-    env_locations.append(os.path.expanduser("~"))
+    home_dir = os.path.expanduser("~")
+    if home_dir not in seen:
+        env_locations.append(home_dir)
+        seen.add(home_dir)
 
-    # Load .env from each location if it exists
+    # Add script directory (directory containing this file)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if script_dir not in seen:
+        env_locations.append(script_dir)
+        seen.add(script_dir)
+
+    # Load .env from each location if it exists, with debug logging
     for location in env_locations:
         env_path = os.path.join(location, ".env")
         if os.path.isfile(env_path):
-            logger.info(f"Loading environment variables from {env_path}")
             load_dotenv(env_path)
-            # Don't break - load all .env files to allow for overrides
+            logger.info(f"Loaded environment variables from {env_path}")
 
 
 def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
@@ -1536,6 +1552,9 @@ async def code_with_aider(  # noqa: C901
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
     """
+    # --- Ensure .env is loaded before any API key checks or model instantiations ---
+    load_env_files(working_dir)
+
     if relative_readonly_files is None:
         relative_readonly_files = []
 
