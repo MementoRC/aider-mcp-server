@@ -19,7 +19,7 @@ from aider_mcp_server.atoms.security import Permissions
 @dataclass
 class AuthToken:
     """Authentication token containing user identity and permissions.
-    
+
     Moved from interfaces/authentication_provider.py as part of the Atomic Design
     Compliance Refactoring.
     """
@@ -51,7 +51,7 @@ class AuthToken:
 @dataclass
 class UserInfo:
     """User information retrieved from authentication.
-    
+
     Moved from interfaces/authentication_provider.py as part of the Atomic Design
     Compliance Refactoring.
     """
@@ -73,10 +73,10 @@ class UserInfo:
 @runtime_checkable
 class IAuthenticationProvider(Protocol):
     """Interface for authentication providers.
-    
+
     This protocol specifies the core contract that all authentication providers
     must implement to handle authentication in the MCP server.
-    
+
     Moved from interfaces/authentication_provider.py as part of the Atomic Design
     Compliance Refactoring.
     """

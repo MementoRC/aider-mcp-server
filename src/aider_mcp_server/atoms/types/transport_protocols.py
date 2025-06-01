@@ -18,10 +18,10 @@ from aider_mcp_server.atoms.types.event_types import EventTypes
 @runtime_checkable
 class ITransportAdapter(Protocol):
     """Protocol defining the interface for transport adapters.
-    
+
     This protocol specifies the core contract that all transport adapters
     must implement to handle communication in the MCP server.
-    
+
     Moved from interfaces/transport_adapter.py as part of the Atomic Design
     Compliance Refactoring.
     """
@@ -48,14 +48,14 @@ class ITransportAdapter(Protocol):
 
 class TransportAdapterBase(ITransportAdapter):
     """Base implementation of the transport adapter protocol.
-    
+
     Provides common functionality for transport adapters while requiring
     concrete implementations to define transport-specific behavior.
-    
+
     Moved from interfaces/transport_adapter.py as part of the Atomic Design
     Compliance Refactoring.
     """
-    
+
     _transport_id: str
     _transport_type: str
 

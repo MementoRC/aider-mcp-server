@@ -17,10 +17,10 @@ from aider_mcp_server.atoms.types.internal_types import InternalRequest, Interna
 @runtime_checkable
 class IRequestHandler(Protocol):
     """Protocol for components that process internal requests.
-    
+
     This protocol specifies the core contract that all request handlers
     must implement to process requests in the MCP server.
-    
+
     Moved from interfaces/request_handler.py as part of the Atomic Design
     Compliance Refactoring.
     """
