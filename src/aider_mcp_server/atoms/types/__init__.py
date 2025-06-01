@@ -7,7 +7,7 @@ __all__ = [
     "ProviderConfig",
     # Authentication protocols
     "AuthToken",
-    "IAuthenticationProvider", 
+    "IAuthenticationProvider",
     "UserInfo",
     # Handler protocols
     "IRequestHandler",
