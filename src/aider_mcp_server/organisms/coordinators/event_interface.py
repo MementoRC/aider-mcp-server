@@ -19,10 +19,10 @@ from aider_mcp_server.molecules.events.interface import IEventHandler
 @runtime_checkable
 class IEventCoordinator(Protocol):
     """Protocol for the event coordinator.
-    
+
     Manages event subscriptions and publishing of internal events
     at the organism level for high-level event orchestration.
-    
+
     Moved from interfaces/event_coordinator.py as part of the Atomic Design
     Compliance Refactoring to be colocated with event coordinator implementations.
     """

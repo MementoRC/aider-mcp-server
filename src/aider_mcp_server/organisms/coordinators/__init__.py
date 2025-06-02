@@ -9,7 +9,7 @@ from .event_interface import IEventCoordinator
 
 __all__ = [
     "IApplicationCoordinator",
-    "IEventCoordinator", 
+    "IEventCoordinator",
     "IDependencyContainer",
     "Scope",
 ]

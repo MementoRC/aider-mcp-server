@@ -18,10 +18,10 @@ from aider_mcp_server.atoms.types.transport_protocols import ITransportAdapter
 @runtime_checkable
 class ITransportRegistry(Protocol):
     """Protocol for transport registry implementations.
-    
+
     Manages transport adapter registration, discovery, and lifecycle
     at the organism level for high-level transport orchestration.
-    
+
     Created as part of the Atomic Design Compliance Refactoring to properly
     organize transport registry interfaces with their implementations.
     """

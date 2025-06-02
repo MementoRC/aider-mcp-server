@@ -22,10 +22,10 @@ from aider_mcp_server.atoms.types.transport_protocols import ITransportAdapter
 @runtime_checkable
 class IApplicationCoordinator(Protocol):
     """Protocol for the central application coordinator.
-    
+
     Manages transport adapters, request processing, and event broadcasting
     at the organism level for high-level orchestration.
-    
+
     Moved from interfaces/application_coordinator.py as part of the Atomic Design
     Compliance Refactoring to be colocated with coordinator implementations.
     """

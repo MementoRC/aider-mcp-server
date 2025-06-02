@@ -28,10 +28,10 @@ class Scope(Enum):
 @runtime_checkable
 class IDependencyContainer(Protocol):
     """Interface for dependency container.
-    
+
     Manages dependency registration, resolution, and lifecycle management
     at the organism level for high-level dependency coordination.
-    
+
     Moved from interfaces/dependency_container.py as part of the Atomic Design
     Compliance Refactoring to be colocated with dependency container implementations.
     """
