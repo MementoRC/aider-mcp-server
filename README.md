@@ -86,3 +86,6 @@ pytest
 ## License
 
 MIT
+
+<!-- CI Verification Note -->
+<!-- This minor addition verifies CI pipeline integration with development branch. -->
