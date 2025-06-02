@@ -1,49 +1,39 @@
+# ==============================================================================
+# Python Project .gitignore
+# ==============================================================================
+
+# -----------------------------------------------------------------------------
 # Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-.env
-
-# Development and session-specific files (kept locally but not in PR)
-IMPLEMENTATION_TRACKING.md
-src/aider_mcp_server/SUMMARY_DI_CONTAINER.md
-src/aider_mcp_server/aider_mcp_server/
-src/aider_mcp_server/*example*.py
-
-# Byte-compiled / optimized / DLL files
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
+# -----------------------------------------------------------------------------
 # Distribution / packaging
-dist/
+# -----------------------------------------------------------------------------
+.Python
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
 *.egg
+MANIFEST
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environments
+# -----------------------------------------------------------------------------
+# Virtual environments
+# -----------------------------------------------------------------------------
 .env
 .venv
 env/
@@ -52,74 +42,152 @@ ENV/
 env.bak/
 venv.bak/
 
-# mypy
+# -----------------------------------------------------------------------------
+# Testing and coverage
+# -----------------------------------------------------------------------------
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# -----------------------------------------------------------------------------
+# Type checking
+# -----------------------------------------------------------------------------
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
-# IDE specific files
-.idea/
+# -----------------------------------------------------------------------------
+# Jupyter Notebook
+# -----------------------------------------------------------------------------
+.ipynb_checkpoints
+
+# -----------------------------------------------------------------------------
+# Environment variables
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+
+# -----------------------------------------------------------------------------
+# IDE and editor files
+# -----------------------------------------------------------------------------
+# VSCode
 .vscode/
+
+# PyCharm
+.idea/
+
+# Vim
 *.swp
 *.swo
-.DS_Store
 
+# Emacs
+*~
 
-prompts/responses
-.aider*
-ai_docs/
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
 
-focus_output/
-
-# Log files
-logs/
-*.log
-
-# Added by Claude Task Master
-# Logs
-logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-dev-debug.log
-# Dependency directories
-node_modules/
-# Environment variables
-# Editor directories and files
-.idea
-.vscode
+# Visual Studio
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-# OS specific
-# Task files
-tasks.json
-tasks/
 
-# Session-specific files
+# -----------------------------------------------------------------------------
+# Operating system files
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# -----------------------------------------------------------------------------
+# Log files
+# -----------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+
+# -----------------------------------------------------------------------------
+# Node.js (if used for tooling)
+# -----------------------------------------------------------------------------
+node_modules/
+
+# -----------------------------------------------------------------------------
+# AI and Development Tools
+# -----------------------------------------------------------------------------
+# Aider AI
+.aider*
+
+# AI documentation and prompts
+ai_docs/
+prompts/responses
+focus_output/
+
+# -----------------------------------------------------------------------------
+# Project Management and Session Files
+# -----------------------------------------------------------------------------
+# TaskMaster AI
+tasks/
+tasks.json
+.taskmasterconfig
+
+# Claude Code session files
+.claude/
 CLAUDE.md
 CLAUDE.local.md
-.claude/
 .mcp.json
+
+# Other development tools
 .roomodes
-.taskmasterconfig
 .windsurfrules
 .python-version
-
-# Project-specific PRD files (unique per sub-project)
-scripts/prd.txt
-scripts/example_prd.txt
-
-# Local workflow and tracking files
 /.roo/
 /.cursor/
-# Local development and debug scripts
+
+# -----------------------------------------------------------------------------
+# Project-specific Development Files
+# -----------------------------------------------------------------------------
+# Development tracking and documentation (kept locally)
+IMPLEMENTATION_TRACKING.md
+src/aider_mcp_server/SUMMARY_DI_CONTAINER.md
+
+# Example and template files
+src/aider_mcp_server/*example*.py
 scripts/example_prd.txt
+scripts/prd.txt
+
+# Migration and generation scripts (temporary)
 scripts/generate_import_aliases.py
 scripts/migrate_interfaces.py
-scripts/prd.txt
 scripts/test_import_aliases.py
 scripts/scripts/
-/.claude/
+
+# Temporary or experimental directories
+src/aider_mcp_server/aider_mcp_server/
