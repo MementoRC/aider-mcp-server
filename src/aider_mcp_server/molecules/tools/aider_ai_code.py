@@ -265,6 +265,10 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
     """
     # First load any .env files
     load_env_files(working_dir)
+    
+    # Configure LiteLLM to prevent browser popups and interactive authentication
+    os.environ["LITELLM_MODE"] = "PRODUCTION"
+    os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
 
     keys_to_check = {
         "OPENAI_API_KEY": "OpenAI",
@@ -1554,6 +1558,10 @@ async def code_with_aider(  # noqa: C901
     """
     # --- Ensure .env is loaded before any API key checks or model instantiations ---
     load_env_files(working_dir)
+    
+    # Configure LiteLLM to prevent browser popups and interactive authentication
+    os.environ["LITELLM_MODE"] = "PRODUCTION"
+    os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
 
     if relative_readonly_files is None:
         relative_readonly_files = []
