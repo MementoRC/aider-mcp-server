@@ -12,7 +12,7 @@ The module is organized into focused components:
 
 Future modules will include:
 - rate_limiting: Rate limit handling and fallback
-- response_formatting: Response processing and formatting  
+- response_formatting: Response processing and formatting
 - cache_management: Diff cache integration
 - api_validation: API key validation and setup
 - session_coordination: Session lifecycle and events
@@ -20,11 +20,11 @@ Future modules will include:
 
 from .core_execution import CoreExecutor
 from .shared import (
-    ResponseDict,
     ExecutionConfig,
-    ModelConfig,
     ExecutionResult,
     FileInfo,
+    ModelConfig,
+    ResponseDict,
     RetryConfig,
     SilentInputOutput,
 )
@@ -35,7 +35,7 @@ __all__ = [
     "ExecutionConfig",
     "ModelConfig",
     "ExecutionResult",
-    "FileInfo", 
+    "FileInfo",
     "RetryConfig",
     "SilentInputOutput",
 ]

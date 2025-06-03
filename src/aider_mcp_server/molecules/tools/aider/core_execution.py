@@ -5,11 +5,11 @@ This module contains the CoreExecutor class that handles the main execution
 logic extracted from the original aider_ai_code.py file.
 """
 
+import asyncio
 import os
 import sys
-import asyncio
 from io import StringIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from aider.coders import Coder
 from aider.models import Model
@@ -19,10 +19,38 @@ try:
 except ImportError:
     GitRepo = None
 
-from .shared.types import ResponseDict
 from aider_mcp_server.atoms.logging.logger import get_logger
 
+from .shared.types import ResponseDict
+
 logger = get_logger(__name__)
+
+
+# Define a base class that matches the interface used for SilentInputOutput
+class BaseSilentInputOutput:
+    def __init__(self, pretty: bool, yes: bool, fancy_input: bool, chat_history_file: Optional[str]) -> None:
+        # These attributes are set later, but mypy might want them to exist
+        self.yes_to_all: bool = False
+        self.dry_run: bool = False
+        self.quiet: bool = False
+        self.output: Callable[..., None] = lambda *args, **kwargs: None
+        self.tool_output: Callable[..., None] = lambda *args, **kwargs: None
+
+    def tool_error(self, message: str = "", strip: bool = True) -> None:
+        pass
+
+
+# Use a variable to hold the actual class to instantiate
+_SilentInputOutputClass: Type[BaseSilentInputOutput] = BaseSilentInputOutput
+
+try:
+    from aider_ai_code import SilentInputOutput as AiderSilentInputOutput
+
+    _SilentInputOutputClass = AiderSilentInputOutput
+except ImportError:
+    # If aider_ai_code.SilentInputOutput is not available, BaseSilentInputOutput will be used.
+    pass
+
 
 class CoreExecutor:
     """Handles the core execution logic for Aider AI operations."""
@@ -30,9 +58,7 @@ class CoreExecutor:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
 
-    def convert_to_absolute_paths(
-        self, relative_paths: List[str], working_dir: Optional[str]
-    ) -> List[str]:
+    def convert_to_absolute_paths(self, relative_paths: List[str], working_dir: Optional[str]) -> List[str]:
         """
         Convert relative file paths to absolute paths.
 
@@ -56,6 +82,132 @@ class CoreExecutor:
                 absolute_paths.append(os.path.abspath(os.path.join(working_dir, path)))
 
         return absolute_paths
+
+    def _setup_chat_history_file(self, working_dir: str) -> Optional[str]:
+        chat_history_file = None
+        if working_dir:
+            try:
+                chat_history_dir = os.path.join(working_dir, ".aider")
+                os.makedirs(chat_history_dir, exist_ok=True)
+                chat_history_file = os.path.join(chat_history_dir, "chat_history.md")
+            except Exception as e:
+                logger.warning(f"Could not create chat history directory: {e}")
+        return chat_history_file
+
+    def _setup_silent_io(self, chat_history_file: Optional[str]) -> Any:
+        # Use the determined SilentInputOutput class
+        io = _SilentInputOutputClass(
+            pretty=False,  # Disable fancy output
+            yes=True,  # Always say yes to prompts
+            fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
+            chat_history_file=chat_history_file,  # Set chat history file if available
+        )
+
+        io.yes_to_all = True  # Automatically say yes to all prompts
+        io.dry_run = False  # Ensure we're not in dry-run mode
+
+        # Create no-op functions for output methods to suppress output
+        def noop(*args: Any, **kwargs: Any) -> None:
+            pass
+
+        # Redirect output to no-op functions
+        io.output = noop
+        io.tool_output = noop
+
+        # Set quiet mode to True to suppress unnecessary output
+        io.quiet = True
+        return io
+
+    def _setup_git_repo_instance(
+        self, io: Any, working_dir: str, abs_editable_files: List[str], model: Model
+    ) -> Optional[GitRepo]:
+        git_repo = None
+        if GitRepo is not None:
+            try:
+                # Check if a .git folder exists to determine if this is a git repo
+                git_dir = os.path.join(working_dir, ".git")
+                is_git_repo = os.path.isdir(git_dir)
+
+                if is_git_repo:
+                    logger.info(f"Found git repository at {working_dir}")
+                    git_repo = GitRepo(
+                        io=io,
+                        fnames=abs_editable_files,
+                        git_dname=working_dir,
+                        models=model.commit_message_models(),
+                    )
+                    logger.info(f"Successfully initialized GitRepo with root: {git_repo.root}")
+                else:
+                    logger.warning(f"No .git directory found at {working_dir}, will set repo=None")
+                    git_repo = None
+            except Exception as e:
+                logger.warning(f"Could not initialize GitRepo: {e}, will set repo=None")
+                git_repo = None
+        else:
+            logger.warning("Could not import GitRepo from aider.repo, will set repo=None")
+            git_repo = None
+        return git_repo
+
+    def _create_coder_with_filtered_params(
+        self,
+        model: Model,
+        io: Any,
+        abs_editable_files: List[str],
+        abs_readonly_files: List[str],
+        git_repo: Optional[GitRepo],
+        architect_mode: bool,
+        auto_accept_architect: bool,
+    ) -> Coder:
+        from aider_mcp_server.molecules.tools.aider_compatibility import (
+            filter_supported_params,
+            get_supported_coder_create_params,
+            get_supported_coder_params,
+        )
+
+        create_params = {
+            "main_model": model,
+            "io": io,
+            "edit_format": "architect" if architect_mode else None,
+        }
+
+        # Parameters that go directly to Coder.__init__ via kwargs
+        init_params = {
+            "fnames": abs_editable_files,
+            "read_only_fnames": abs_readonly_files,
+            "repo": git_repo,
+            "show_diffs": True,  # Show diffs to help debugging
+            "auto_commits": False,
+            "dirty_commits": False,
+            "use_git": True if git_repo else False,
+            "stream": False,
+            "suggest_shell_commands": False,
+            "detect_urls": False,
+            "verbose": True,  # Enable verbose mode for more debugging info
+            "auto_accept_architect": auto_accept_architect if architect_mode else True,
+        }
+
+        logger.info(f"Setting up Aider Coder with params: create_params={create_params}, init_params={init_params}")
+
+        # Get supported parameters for create method
+        supported_create_params = get_supported_coder_create_params()
+        logger.info(f"Supported Coder.create parameters: {supported_create_params}")
+
+        # Get supported parameters for init method
+        supported_init_params = get_supported_coder_params()
+        logger.info(f"Supported Coder.__init__ parameters: {supported_init_params}")
+
+        # Filter parameters based on what's actually supported
+        filtered_create = filter_supported_params(create_params, supported_create_params)
+        filtered_init = filter_supported_params(init_params, supported_init_params)
+
+        # Combine create params with init params as kwargs
+        final_params = filtered_create.copy()
+        final_params.update(filtered_init)
+
+        logger.info(f"Creating Coder with parameters: {list(final_params.keys())}")
+
+        # Create the Coder instance using parameters compatible with the installed version
+        return Coder.create(**final_params)
 
     def setup_aider_coder(
         self,
@@ -84,129 +236,23 @@ class CoreExecutor:
 
         # Log aider version for debugging
         try:
-            from aider_mcp_server.molecules.tools.aider_compatibility import get_aider_version, filter_supported_params, get_supported_coder_create_params, get_supported_coder_params
+            from aider_mcp_server.molecules.tools.aider_compatibility import (
+                get_aider_version,
+            )
+
             aider_version = get_aider_version()
         except ImportError:
             aider_version = "unknown"
         logger.info(f"Using aider version: {aider_version}")
 
-        # Set chat history file path in the working directory if possible
-        chat_history_file = None
-        if working_dir:
-            try:
-                chat_history_dir = os.path.join(working_dir, ".aider")
-                os.makedirs(chat_history_dir, exist_ok=True)
-                chat_history_file = os.path.join(chat_history_dir, "chat_history.md")
-            except Exception as e:
-                logger.warning(f"Could not create chat history directory: {e}")
+        chat_history_file = self._setup_chat_history_file(working_dir)
+        io = self._setup_silent_io(chat_history_file)
+        git_repo = self._setup_git_repo_instance(io, working_dir, abs_editable_files, model)
 
-        # Create no-op functions to replace output methods
-        def noop_output(*args: Any, **kwargs: Any) -> None:
-            pass
-
-        # Create an IO instance for the Coder that won't require interactive prompting
-        # Add verbose=False to suppress progress output
         try:
-            from aider_ai_code import SilentInputOutput
-        except ImportError:
-            class SilentInputOutput:
-                def tool_error(self, message: str = "", strip: bool = True) -> None:
-                    pass
-
-        io = SilentInputOutput(
-            pretty=False,  # Disable fancy output
-            yes=True,  # Always say yes to prompts
-            fancy_input=False,  # Disable fancy input to avoid prompt_toolkit usage
-            chat_history_file=chat_history_file,  # Set chat history file if available
-        )
-
-        io.yes_to_all = True  # Automatically say yes to all prompts
-        io.dry_run = False  # Ensure we're not in dry-run mode
-
-        # Create no-op functions for output methods to suppress output
-        def noop(*args: Any, **kwargs: Any) -> None:
-            pass
-
-        # Redirect output to no-op functions
-        io.output = noop
-        io.tool_output = noop
-
-        # Set quiet mode to True to suppress unnecessary output
-        io.quiet = True
-        # For the GitRepo, we need to import the class from aider (if available)
-        git_repo = None
-        if GitRepo is not None:
-            try:
-                # Check if a .git folder exists to determine if this is a git repo
-                git_dir = os.path.join(working_dir, ".git")
-                is_git_repo = os.path.isdir(git_dir)
-
-                if is_git_repo:
-                    logger.info(f"Found git repository at {working_dir}")
-                    git_repo = GitRepo(
-                        io=io,
-                        fnames=abs_editable_files,
-                        git_dname=working_dir,
-                        models=model.commit_message_models(),
-                    )
-                    logger.info(f"Successfully initialized GitRepo with root: {git_repo.root}")
-                else:
-                    logger.warning(f"No .git directory found at {working_dir}, will set repo=None")
-                    git_repo = None
-            except Exception as e:
-                logger.warning(f"Could not initialize GitRepo: {e}, will set repo=None")
-                git_repo = None
-        else:
-            logger.warning("Could not import GitRepo from aider.repo, will set repo=None")
-            git_repo = None
-
-        # Parameters for Coder.create method (different from __init__)
-        try:
-            from aider_mcp_server.molecules.tools.aider_compatibility import filter_supported_params, get_supported_coder_create_params, get_supported_coder_params
-            create_params = {
-                "main_model": model,
-                "io": io,
-                "edit_format": "architect" if architect_mode else None,
-            }
-
-            # Parameters that go directly to Coder.__init__ via kwargs
-            init_params = {
-                "fnames": abs_editable_files,
-                "read_only_fnames": abs_readonly_files,
-                "repo": git_repo,
-                "show_diffs": True,  # Show diffs to help debugging
-                "auto_commits": False,
-                "dirty_commits": False,
-                "use_git": True if git_repo else False,
-                "stream": False,
-                "suggest_shell_commands": False,
-                "detect_urls": False,
-                "verbose": True,  # Enable verbose mode for more debugging info
-                "auto_accept_architect": auto_accept_architect if architect_mode else True,
-            }
-
-            logger.info(f"Setting up Aider Coder with params: create_params={create_params}, init_params={init_params}")
-
-            # Get supported parameters for create method
-            supported_create_params = get_supported_coder_create_params()
-            logger.info(f"Supported Coder.create parameters: {supported_create_params}")
-
-            # Get supported parameters for init method
-            supported_init_params = get_supported_coder_params()
-            logger.info(f"Supported Coder.__init__ parameters: {supported_init_params}")
-
-            # Filter parameters based on what's actually supported
-            filtered_create = filter_supported_params(create_params, supported_create_params)
-            filtered_init = filter_supported_params(init_params, supported_init_params)
-
-            # Combine create params with init params as kwargs
-            final_params = filtered_create.copy()
-            final_params.update(filtered_init)
-
-            logger.info(f"Creating Coder with parameters: {list(final_params.keys())}")
-
-            # Create the Coder instance using parameters compatible with the installed version
-            coder = Coder.create(**final_params)
+            coder = self._create_coder_with_filtered_params(
+                model, io, abs_editable_files, abs_readonly_files, git_repo, architect_mode, auto_accept_architect
+            )
         except Exception as e:
             logger.error(f"Failed to create Coder instance: {e}")
             raise
@@ -363,6 +409,117 @@ class CoreExecutor:
         }
         return response
 
+    def _initialize_response_dict(self) -> ResponseDict:
+        try:
+            from aider_ai_code import summarize_changes
+        except ImportError:
+
+            def summarize_changes(x: str) -> Dict[str, Any]:
+                return {}
+
+        empty_summary = summarize_changes("")
+        empty_status = {"has_changes": False, "status_summary": "No changes detected."}
+        return {
+            "success": False,
+            "changes_summary": empty_summary,
+            "file_status": empty_status,
+            "is_cached_diff": False,
+            "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
+        }
+
+    def _get_retry_config(self, provider: str) -> Dict[str, Any]:
+        fallback_config_val: Dict[str, Any] = {}  # Initialize here
+        try:
+            from aider_ai_code import fallback_config as imported_fallback_config
+
+            fallback_config_val = imported_fallback_config
+        except ImportError:
+            pass  # fallback_config_val is already initialized
+
+        return {
+            "max_retries": fallback_config_val.get(provider, {}).get("max_retries", 3),
+            "initial_delay": fallback_config_val.get(provider, {}).get("initial_delay", 1),
+            "backoff_factor": fallback_config_val.get(provider, {}).get("backoff_factor", 2),
+        }
+
+    def _handle_rate_limit_check_and_fallback(
+        self,
+        e: Exception,
+        provider: str,
+        attempt: int,
+        max_retries: int,
+        current_model: str,
+        response: ResponseDict,
+    ) -> str:
+        """
+        Checks for rate limit error, updates response, and returns the next model to try.
+        Raises an exception if max retries are reached for a rate limit error or if it's a non-rate-limit error.
+        """
+        try:
+            from aider_ai_code import detect_rate_limit_error, get_fallback_model
+        except ImportError:
+
+            def detect_rate_limit_error(e_arg: Exception, p_arg: str) -> bool:
+                return False
+
+            def get_fallback_model(m_arg: str, p_arg: str) -> str:
+                return m_arg
+
+        rli = response.get("rate_limit_info")
+        if not isinstance(rli, dict):
+            rli = {"encountered": False, "retries": 0, "fallback_model": None}
+            response["rate_limit_info"] = rli
+
+        if not isinstance(rli.get("retries"), int):
+            rli["retries"] = 0
+
+        if detect_rate_limit_error(e, provider):
+            logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
+            rli["encountered"] = True
+            rli["retries"] = rli.get("retries", 0) + 1
+
+            if attempt < max_retries:
+                new_model = get_fallback_model(current_model, provider)
+                rli["fallback_model"] = new_model
+                logger.info(f"Falling back to model: {new_model}")
+                return str(new_model)  # Explicitly cast to str
+            else:
+                error_msg = f"Max retries ({max_retries}) reached for rate limit. Unable to complete request."
+                logger.error(f"{error_msg} Last error: {str(e)}")
+                self._update_response_on_error(e, response, True, error_msg)
+                raise Exception(f"{error_msg} Last error: {str(e)}") from e
+        else:
+            # Non-rate-limit error
+            error_msg = f"Unhandled error during Aider execution: {str(e)}"
+            logger.error(error_msg, exc_info=True)  # Log with traceback
+            self._update_response_on_error(e, response, False, error_msg)
+            raise  # Re-raise the original exception
+
+    def _update_response_on_error(
+        self, e: Exception, response: ResponseDict, is_rate_limit: bool, error_msg: str
+    ) -> None:
+        try:
+            from aider_ai_code import summarize_changes
+        except ImportError:
+
+            def summarize_changes(x: str) -> Dict[str, Any]:
+                return {}
+
+        response["success"] = False
+        response["diff"] = response.get("diff") or f"Error: {error_msg}"
+
+        cs = response.get("changes_summary")
+        # Ensure cs is a dictionary. If it's None or not a dict, initialize it.
+        if not isinstance(cs, dict):
+            cs = summarize_changes("")  # This returns Dict[str, Any]
+            cs["summary"] = f"Error: {error_msg}"
+        elif not cs.get("summary"):
+            # If cs is a dict but 'summary' key is missing or falsy
+            cs["summary"] = f"Error: {error_msg}"
+
+        # In all cases, cs is now a Dict[str, Any] with a 'summary' key
+        response["changes_summary"] = cs
+
     async def execute_with_retry(
         self,
         ai_coding_prompt: str,
@@ -403,26 +560,30 @@ class CoreExecutor:
         """
         # The following fallback_config and summarize_changes are assumed to be available in the context.
         try:
-            from aider_ai_code import summarize_changes, get_fallback_model, detect_rate_limit_error, fallback_config
+            from aider_ai_code import (  # Removed fallback_config
+                detect_rate_limit_error,
+                get_fallback_model,
+                summarize_changes,
+            )
         except ImportError:
-            summarize_changes = lambda x: {}
-            get_fallback_model = lambda m, p: m
-            detect_rate_limit_error = lambda e, p: False
-            fallback_config = {}
 
-        empty_summary = summarize_changes("")
-        empty_status = {"has_changes": False, "status_summary": "No changes detected."}
-        response: ResponseDict = {
-            "success": False,
-            "changes_summary": empty_summary,
-            "file_status": empty_status,
-            "is_cached_diff": False,
-            "rate_limit_info": {"encountered": False, "retries": 0, "fallback_model": None},
-        }
+            def summarize_changes(x: str) -> Dict[str, Any]:
+                return {}
 
-        max_retries = fallback_config.get(provider, {}).get("max_retries", 3)  # Default retries
-        initial_delay = fallback_config.get(provider, {}).get("initial_delay", 1)
-        backoff_factor = fallback_config.get(provider, {}).get("backoff_factor", 2)
+            def get_fallback_model(m_arg: str, p_arg: str) -> str:
+                return m_arg
+
+            def detect_rate_limit_error(e_arg: Exception, p_arg: str) -> bool:
+                return False
+
+            # No need to define fallback_config here, as _get_retry_config handles it internally.
+            pass
+
+        response = self._initialize_response_dict()
+        retry_config = self._get_retry_config(provider)
+        max_retries = retry_config["max_retries"]
+        initial_delay = retry_config["initial_delay"]
+        backoff_factor = retry_config["backoff_factor"]
         current_model = model
 
         for attempt in range(max_retries + 1):
@@ -448,51 +609,20 @@ class CoreExecutor:
                     break
 
             except Exception as e:
-                # Rate limit and fallback logic
-                rli = response.get("rate_limit_info")
-                if not isinstance(rli, dict):
-                    rli = {"encountered": False, "retries": 0, "fallback_model": None}
-                    response["rate_limit_info"] = rli
-
-                if not isinstance(rli.get("retries"), int):
-                    rli["retries"] = 0
-
-                if detect_rate_limit_error(e, provider):
-                    logger.info(f"Rate limit detected for {provider}. Attempting fallback...")
-                    rli["encountered"] = True
-                    rli["retries"] = rli.get("retries", 0) + 1  # type: ignore
-
-                    if attempt < max_retries:
-                        delay = initial_delay * (backoff_factor**attempt)
-                        logger.info(f"Retrying after {delay:.2f} seconds...")
-                        await asyncio.sleep(delay)
-                        new_model = get_fallback_model(current_model, provider)
-                        rli["fallback_model"] = new_model
-                        logger.info(f"Falling back to model: {new_model}")
-                        current_model = new_model
-                        continue
-                    else:
-                        error_msg = f"Max retries ({max_retries}) reached for rate limit. Unable to complete request."
-                        logger.error(f"{error_msg} Last error: {str(e)}")
-                        response["success"] = False
-                        response["diff"] = response.get("diff") or f"Error: {error_msg}"
-                        cs = response.get("changes_summary")
-                        if not isinstance(cs, dict) or not cs.get("summary"):
-                            cs = summarize_changes("")
-                            cs["summary"] = f"Error: {error_msg}"
-                            response["changes_summary"] = cs
-                        raise Exception(f"{error_msg} Last error: {str(e)}") from e
-                else:
-                    # Non-rate-limit error
-                    error_msg = f"Unhandled error during Aider execution: {str(e)}"
-                    logger.error(error_msg, exc_info=True)  # Log with traceback
-                    response["success"] = False
-                    response["diff"] = response.get("diff") or f"Error: {error_msg}"
-                    cs = response.get("changes_summary")
-                    if not isinstance(cs, dict) or not cs.get("summary"):
-                        cs = summarize_changes("")
-                        cs["summary"] = f"Error: {error_msg}"
-                        response["changes_summary"] = cs
-                    raise  # Re-raise the original exception
-
+                # Attempt to handle rate limit errors and fallbacks
+                try:
+                    new_model = self._handle_rate_limit_check_and_fallback(
+                        e, provider, attempt, max_retries, current_model, response
+                    )
+                    # If a new model was returned, it means a retry is needed with fallback
+                    current_model = new_model
+                    delay = initial_delay * (backoff_factor**attempt)
+                    logger.info(f"Retrying after {delay:.2f} seconds...")
+                    await asyncio.sleep(delay)
+                    continue  # Continue to the next attempt with the new model
+                except Exception:
+                    # If _handle_rate_limit_check_and_fallback raised an exception,
+                    # it means either max retries were hit for rate limit, or it was a non-rate-limit error.
+                    # The response dict should already be updated by the helper.
+                    raise  # Re-raise the exception to the caller
         return response
