@@ -19,6 +19,8 @@ Future modules will include:
 """
 
 from .core_execution import CoreExecutor
+from .rate_limiting import RateLimiter
+from .response_formatting import ResponseFormatter
 from .shared import (
     ExecutionConfig,
     ExecutionResult,
@@ -31,6 +33,8 @@ from .shared import (
 
 __all__ = [
     "CoreExecutor",
+    "RateLimiter",
+    "ResponseFormatter",
     "ResponseDict",
     "ExecutionConfig",
     "ModelConfig",
