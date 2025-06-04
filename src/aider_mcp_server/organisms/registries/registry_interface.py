@@ -92,3 +92,10 @@ class ITransportRegistry(Protocol):
     async def shutdown_all(self) -> None:
         """Shutdown all registered transport adapters."""
         ...
+
+
+# Re-export the concrete implementation for backward compatibility
+# This allows imports like: from ...registry_interface import TransportAdapterRegistry
+from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
+
+__all__ = ["ITransportRegistry", "TransportAdapterRegistry"]
