@@ -13,6 +13,7 @@ from typing_extensions import runtime_checkable
 
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.transport_protocols import ITransportAdapter
+from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 
 
 @runtime_checkable
@@ -93,9 +94,5 @@ class ITransportRegistry(Protocol):
         """Shutdown all registered transport adapters."""
         ...
 
-
-# Re-export the concrete implementation for backward compatibility
-# This allows imports like: from ...registry_interface import TransportAdapterRegistry
-from aider_mcp_server.interfaces.transport_registry import TransportAdapterRegistry
 
 __all__ = ["ITransportRegistry", "TransportAdapterRegistry"]

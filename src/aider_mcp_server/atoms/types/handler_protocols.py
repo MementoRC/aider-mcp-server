@@ -17,10 +17,10 @@ from aider_mcp_server.atoms.types.internal_types import ErrorContext, InternalEv
 @runtime_checkable
 class IErrorHandler(Protocol):
     """Protocol for components that handle errors.
-    
+
     This protocol specifies the core contract that all error handlers
     must implement to process errors in the MCP server.
-    
+
     Moved from interfaces/error_handler.py as part of the Atomic Design
     Compliance Refactoring.
     """
@@ -39,10 +39,10 @@ class IErrorHandler(Protocol):
 @runtime_checkable
 class IEventHandler(Protocol):
     """Protocol for components that process internal events.
-    
+
     This protocol specifies the core contract that all event handlers
     must implement to process events in the MCP server.
-    
+
     Moved from interfaces/event_handler.py as part of the Atomic Design
     Compliance Refactoring.
     """
