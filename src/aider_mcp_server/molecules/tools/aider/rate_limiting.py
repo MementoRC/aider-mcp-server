@@ -12,34 +12,39 @@ This module provides comprehensive rate limiting functionality including:
 import asyncio
 import json
 import os
-import random
+import secrets
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
+
 
 # Placeholder for a logger. In a real system, this would integrate with
 # the existing logging infrastructure, e.g., from aider_mcp_server.atoms.logging.logger.
 class _Logger:
-    def info(self, msg: str, **kwargs: Any):
+    def info(self, msg: str, **kwargs: Any) -> None:
         print(f"INFO: {msg}")
 
-    def warning(self, msg: str, **kwargs: Any):
+    def warning(self, msg: str, **kwargs: Any) -> None:
         print(f"WARNING: {msg}")
 
-    def error(self, msg: str, exc_info: bool = False, **kwargs: Any):
+    def error(self, msg: str, exc_info: bool = False, **kwargs: Any) -> None:
         print(f"ERROR: {msg}")
         if exc_info:
             import traceback
+
             traceback.print_exc()
+
 
 logger = _Logger()
 
 
 # --- 1. RateLimitConfig dataclass for configuration ---
 
+
 class ProviderConfigDict(TypedDict):
     """
     Defines the structure for provider-specific rate limit and fallback settings.
     """
+
     rate_limit_errors: List[str]
     backoff_factor: float
     initial_delay: float
@@ -53,9 +58,10 @@ class RateLimitConfig:
     Manages the configuration for rate limiting and fallback behavior across different providers.
     Loads default settings and can be overridden by a .rate-limit-fallback.json file.
     """
+
     provider_configs: Dict[str, ProviderConfigDict] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Default fallback configuration - this will be overridden by .rate-limit-fallback.json if available
         default_config: Dict[str, ProviderConfigDict] = {
             "openai": {
@@ -83,7 +89,7 @@ class RateLimitConfig:
         self.provider_configs.update(default_config)
         self._load_config_from_file()
 
-    def _load_config_from_file(self):
+    def _load_config_from_file(self) -> None:
         """
         Attempts to load and update configuration from a .rate-limit-fallback.json file.
         Searches in the current directory and parent directories.
@@ -94,9 +100,20 @@ class RateLimitConfig:
             ".rate-limit-fallback.json",
             os.path.join(os.path.dirname(os.path.abspath(__file__)), ".rate-limit-fallback.json"),
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".rate-limit-fallback.json"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".rate-limit-fallback.json"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), ".rate-limit-fallback.json"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))), ".rate-limit-fallback.json"),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                ".rate-limit-fallback.json",
+            ),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+                ".rate-limit-fallback.json",
+            ),
+            os.path.join(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+                ),
+                ".rate-limit-fallback.json",
+            ),
         ]
 
         mcp_json_path = None
@@ -133,14 +150,18 @@ class RateLimitConfig:
 
 # --- 2. BackoffCalculator class for exponential backoff ---
 
+
 class BackoffCalculator:
     """
     Calculates retry delays using exponential backoff with optional jitter.
     """
+
     def __init__(self, config: RateLimitConfig):
         self._config = config
 
-    def get_retry_delay(self, attempt: int, provider: str, max_delay: float = 60.0, jitter_factor: float = 0.1) -> float:
+    def get_retry_delay(
+        self, attempt: int, provider: str, max_delay: float = 60.0, jitter_factor: float = 0.1
+    ) -> float:
         """
         Calculate the retry delay using exponential backoff with jitter.
 
@@ -165,7 +186,7 @@ class BackoffCalculator:
         delay = initial_delay * (backoff_factor**attempt)
 
         # Add jitter: a random value between -jitter_factor*delay and +jitter_factor*delay
-        jitter = delay * jitter_factor * (random.random() * 2 - 1)
+        jitter = delay * jitter_factor * (secrets.SystemRandom().random() * 2 - 1)
         delay = delay + jitter
 
         return max(0.0, min(delay, max_delay))  # Ensure delay is non-negative and capped
@@ -173,10 +194,12 @@ class BackoffCalculator:
 
 # --- 3. ErrorClassifier class for rate limit error detection ---
 
+
 class ErrorClassifier:
     """
     Detects if a given exception is a rate limit error based on provider-specific patterns.
     """
+
     def __init__(self, config: RateLimitConfig):
         self._config = config
 
@@ -203,10 +226,12 @@ class ErrorClassifier:
 
 # --- 4. FallbackManager class for model fallback chains ---
 
+
 class FallbackManager:
     """
     Manages the selection of fallback models for a given provider.
     """
+
     def __init__(self, config: RateLimitConfig):
         self._config = config
 
@@ -247,12 +272,14 @@ class FallbackManager:
 
 # --- 5. RateLimiter main orchestrator class ---
 
+
 class RateLimiter:
     """
     Orchestrates rate limiting, backoff, and model fallback logic.
     This class determines if a retry is needed, calculates the delay,
     and suggests a fallback model based on the encountered error and provider configuration.
     """
+
     def __init__(self, config: Optional[RateLimitConfig] = None):
         self._config = config if config else RateLimitConfig()
         self._backoff_calculator = BackoffCalculator(self._config)
@@ -333,7 +360,9 @@ class RateLimiter:
                 await asyncio.sleep(delay)  # Use asyncio.sleep for async context
                 return True, delay, next_model
             else:
-                error_msg = f"Max retries ({max_retries}) reached for rate limit on {provider}. Unable to complete request."
+                error_msg = (
+                    f"Max retries ({max_retries}) reached for rate limit on {provider}. Unable to complete request."
+                )
                 logger.error(f"{error_msg} Last error: {str(error)}")
                 self._broadcast_event(
                     "rate_limit_max_retries_exceeded",
