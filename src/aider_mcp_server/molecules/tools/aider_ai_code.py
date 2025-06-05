@@ -145,7 +145,6 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
 def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
     return api_validator._check_individual_api_keys(keys_to_check, result)
 
-
 def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
     return api_validator._handle_gemini_api_key_alias(result)
 
@@ -1360,6 +1359,13 @@ async def code_with_aider(  # noqa: C901
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
     """
+    # --- Ensure .env is loaded before any API key checks or model instantiations ---
+    load_env_files(working_dir)
+
+    # Configure LiteLLM to prevent browser popups and interactive authentication
+    os.environ["LITELLM_MODE"] = "PRODUCTION"
+    os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
+
     if relative_readonly_files is None:
         relative_readonly_files = []
 
