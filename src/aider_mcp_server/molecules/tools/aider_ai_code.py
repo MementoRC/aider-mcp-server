@@ -22,12 +22,12 @@ from aider_mcp_server.atoms.logging.logger import get_logger
 # Internal imports
 from aider_mcp_server.atoms.types.event_types import EventTypes
 from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType, FileChangesSummary
-from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 from aider_mcp_server.atoms.utils.fallback_config import (
     detect_rate_limit_error,
     get_fallback_model,
 )
 from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
+from aider_mcp_server.molecules.tools.aider.cache_management import CacheManager
 from aider_mcp_server.molecules.tools.aider_compatibility import (
     filter_supported_params,
     get_aider_version,
@@ -38,6 +38,20 @@ from aider_mcp_server.molecules.tools.changes_summarizer import (
     get_file_status_summary,
     summarize_changes,
 )
+
+# Instantiate a global CacheManager
+cache_manager = CacheManager()
+
+
+# Backward compatibility exports for existing tests
+async def init_diff_cache() -> None:
+    """Backward compatibility function for tests. Delegates to cache_manager."""
+    await cache_manager.initialize_cache()
+
+
+async def shutdown_diff_cache() -> None:
+    """Backward compatibility function for tests. Delegates to cache_manager."""
+    await cache_manager.shutdown_cache()
 
 
 # Create a subclass of InputOutput that overrides tool_error to do nothing
@@ -165,41 +179,6 @@ except Exception as e:
             "fallback_models": ["gemini-pro", "gemini-1.0-pro"],
         },
     }
-
-
-# Initialize to None, will be set by init_diff_cache
-diff_cache: Optional[DiffCache] = None
-
-
-async def init_diff_cache() -> None:
-    """Initializes the module-level DiffCache."""
-    global diff_cache
-    if diff_cache is not None:
-        # Already initialized
-        logger.warning("DiffCache already initialized.")
-        return
-
-    logger.info("Initializing DiffCache...")
-    # Create the instance
-    new_cache = DiffCache()
-    # Await the start method
-    await new_cache.start()
-    # Assign to the module-level variable
-    diff_cache = new_cache
-    logger.info("DiffCache initialized.")
-
-
-async def shutdown_diff_cache() -> None:
-    """Shuts down the module-level DiffCache."""
-    global diff_cache
-    if diff_cache is None:
-        logger.warning("DiffCache not initialized, nothing to shut down.")
-        return
-
-    logger.info("Shutting down DiffCache...")
-    await diff_cache.shutdown()
-    diff_cache = None  # Reset the global variable
-    logger.info("DiffCache shut down.")
 
 
 def load_env_files(working_dir: Optional[str] = None) -> None:
@@ -744,57 +723,6 @@ def _check_for_meaningful_changes(relative_editable_files: List[str], working_di
     return False
 
 
-async def _handle_diff_cache_processing(
-    cache_key: str,
-    raw_diff_output: str,
-    use_diff_cache: bool,
-    clear_cached_for_unchanged: bool,
-) -> tuple[str, bool]:
-    """Handles diff cache logic and returns final diff content and cache status."""
-    global diff_cache
-    is_cached_diff = False
-    final_diff_content = raw_diff_output or "No git-tracked changes detected."
-
-    if use_diff_cache and diff_cache is not None:
-        logger.info(f"Attempting to use diff cache for key: {cache_key}")
-        try:
-            changes_from_cache = await diff_cache.compare_and_cache(
-                cache_key,
-                {"diff": raw_diff_output},  # Wrap the diff string in a dict as expected by cache
-                clear_cached_for_unchanged,
-            )
-            is_cached_diff = True
-            logger.info("Diff cache operation successful.")
-
-            if diff_cache is not None:  # Log cache stats
-                stats = diff_cache.get_stats()
-                logger.info(
-                    f"Diff cache stats: Hits={stats.get('hits')}, Misses={stats.get('misses')}, Total={stats.get('total_accesses')}, Size={stats.get('current_size')} bytes, Max Size={stats.get('max_size')} bytes, Hit Rate={stats.get('hit_rate', 0.0):.2f}"
-                )
-
-            if not changes_from_cache:  # Empty dict or None means no changes detected by cache
-                logger.info("Cache comparison detected no changes.")
-                final_diff_content = "No git-tracked changes detected by cache comparison."
-            else:  # Changes were detected by cache
-                logger.info("Cache comparison detected changes.")
-                final_diff_content = changes_from_cache.get("diff", "Error retrieving changes from cache.")
-                if not final_diff_content:  # Should not happen if changes_from_cache is not empty
-                    logger.warning(
-                        "Cache comparison returned empty diff string despite changes_from_cache not being empty."
-                    )
-                    final_diff_content = "No git-tracked changes detected by cache comparison."
-        except Exception as e:
-            logger.error(f"Error using diff cache for key {cache_key}: {e}")
-            # Fallback to using the raw diff_output if cache fails
-            final_diff_content = raw_diff_output or "No git-tracked changes detected."
-            logger.warning("Falling back to raw diff output due to cache error.")
-    else:
-        logger.info("Diff cache is disabled or not initialized.")
-        # Use the raw diff_output if cache is disabled
-        final_diff_content = raw_diff_output or "No git-tracked changes detected."
-    return final_diff_content, is_cached_diff
-
-
 def _update_summary_from_file_status(
     changes_summary: Dict[str, Any], file_status: Dict[str, Any], success: bool
 ) -> None:
@@ -885,13 +813,12 @@ async def _process_coder_results(
     Returns:
         Dictionary with success status and diff output
     """
-    global diff_cache
     logger.info("Processing coder results...")
 
     # Initialize diff_cache if it's None and we're using it
-    if use_diff_cache and diff_cache is None:
+    if use_diff_cache and cache_manager.diff_cache is None:
         logger.info("Initializing diff_cache in _process_coder_results")
-        await init_diff_cache()
+        await cache_manager.initialize_cache()
 
     raw_diff_output = get_changes_diff_or_content(relative_editable_files, working_dir)
     logger.info(f"Raw diff output obtained (length: {len(raw_diff_output)}).")
@@ -899,8 +826,8 @@ async def _process_coder_results(
     has_meaningful_content = _check_for_meaningful_changes(relative_editable_files, working_dir)
     logger.info(f"Meaningful content detected: {has_meaningful_content}")
 
-    cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
-    final_diff_content, is_cached_diff = await _handle_diff_cache_processing(
+    cache_key = cache_manager.generate_cache_key(working_dir, relative_editable_files)
+    final_diff_content, is_cached_diff = await cache_manager.process_diff_cache(
         cache_key, raw_diff_output, use_diff_cache, clear_cached_for_unchanged
     )
 
@@ -1691,9 +1618,9 @@ async def _initial_setup_and_logging(
     logger.info("--- Starting code_with_aider ---")
     logger.info(f"Prompt: '{ai_coding_prompt[:100]}...'")  # Log truncated prompt
 
-    if use_diff_cache and diff_cache is None:
+    if use_diff_cache and cache_manager.diff_cache is None:
         logger.info("Initializing DiffCache for code_with_aider...")
-        await init_diff_cache()  # Ensure this is awaited
+        await cache_manager.initialize_cache()  # Ensure this is awaited
 
     if not working_dir:
         logger.error("CRITICAL: working_dir is None in _initial_setup_and_logging. This should not happen.")
