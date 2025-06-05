@@ -27,6 +27,7 @@ from aider_mcp_server.atoms.utils.fallback_config import (
     get_fallback_model,
 )
 from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
+from aider_mcp_server.molecules.tools.aider.api_validation import APIValidator
 from aider_mcp_server.molecules.tools.aider.cache_management import CacheManager
 from aider_mcp_server.molecules.tools.aider_compatibility import (
     filter_supported_params,
@@ -78,59 +79,11 @@ class ResponseDict(TypedDict, total=False):
     warnings: Optional[List[str]]  # List of warnings to display to the user
 
 
-# Try to import dotenv for environment variable loading
-try:
-    from dotenv import load_dotenv
-
-    HAS_DOTENV = True
-except ImportError:
-    HAS_DOTENV = False
-
-
-def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
-    """Helper to check individual API keys and update result."""
-    logger.info("Checking API keys in environment...")
-    for key, provider in keys_to_check.items():
-        if os.environ.get(key):
-            logger.info(f"✓ {provider} API key found ({key})")
-            result["found"].append(key)
-            result["any_keys_found"] = True
-        else:
-            logger.warning(f"✗ {provider} API key missing ({key})")
-            result["missing"].append(key)
-
-
-def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
-    """Helper to handle GEMINI_API_KEY and GOOGLE_API_KEY aliasing."""
-    if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        gemini_key = os.environ.get("GEMINI_API_KEY")
-        if gemini_key is not None:  # Explicit check for None
-            logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
-            os.environ["GOOGLE_API_KEY"] = gemini_key
-            missing_list = result["missing"]
-            if isinstance(missing_list, list) and "GOOGLE_API_KEY" in missing_list:
-                missing_list.remove("GOOGLE_API_KEY")
-                found_list = result["found"]
-                if isinstance(found_list, list):
-                    found_list.append("GOOGLE_API_KEY")
-
-
-def _determine_available_providers(provider_keys: Dict[str, List[str]], result: Dict[str, Any]) -> None:
-    """Helper to determine available providers based on found keys."""
-    for provider, keys in provider_keys.items():
-        found_list = result["found"]
-        available_providers = result["available_providers"]
-        missing_providers = result["missing_providers"]
-
-        if isinstance(found_list, list) and any(key in found_list for key in keys):
-            if isinstance(available_providers, list):
-                available_providers.append(provider)
-        elif isinstance(missing_providers, list):
-            missing_providers.append(provider)
-
-
 # Configure logging for this module
 logger = get_logger(__name__)
+
+# Create API validator instance
+api_validator = APIValidator()
 
 # Load fallback configuration
 try:
@@ -182,82 +135,57 @@ except Exception as e:
 
 
 def load_env_files(working_dir: Optional[str] = None) -> None:
-    """Load environment variables from .env files in relevant directories."""
-    if not HAS_DOTENV:
-        logger.warning("python-dotenv not installed. Cannot load .env files.")
-        return
-
-    # List of potential locations for .env files in order of precedence
-    env_locations = []
-
-    # Add working_dir if provided
-    if working_dir:
-        env_locations.append(working_dir)
-
-    # Add current directory
-    env_locations.append(os.getcwd())
-
-    # Add parent directory of current directory
-    env_locations.append(os.path.dirname(os.getcwd()))
-
-    # Add user's home directory
-    env_locations.append(os.path.expanduser("~"))
-
-    # Load .env from each location if it exists
-    for location in env_locations:
-        env_path = os.path.join(location, ".env")
-        if os.path.isfile(env_path):
-            logger.info(f"Loading environment variables from {env_path}")
-            load_dotenv(env_path)
-            # Don't break - load all .env files to allow for overrides
+    return api_validator.load_env_files(working_dir)
 
 
 def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
-    """Check if necessary API keys are set in the environment and return status.
+    return api_validator.check_api_keys(working_dir)
 
-    Args:
-        working_dir: Optional working directory to search for .env files
 
-    Returns:
-        Dict with API key status info including:
-        - missing: List of missing API key env vars
-        - found: List of found API key env vars
-        - available_providers: List of providers with valid keys
-        - missing_providers: List of providers with missing keys
-        - any_keys_found: Boolean indicating if any keys were found
-    """
-    # First load any .env files
-    load_env_files(working_dir)
+def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
+    return api_validator._check_individual_api_keys(keys_to_check, result)
 
-    keys_to_check = {
-        "OPENAI_API_KEY": "OpenAI",
-        "GOOGLE_API_KEY": "Google/Gemini",
-        "GEMINI_API_KEY": "Google/Gemini (alternative)",
-        "ANTHROPIC_API_KEY": "Anthropic/Claude",
-        "AZURE_OPENAI_API_KEY": "Azure OpenAI",
-        "VERTEX_AI_API_KEY": "Vertex AI",
-    }
 
-    provider_keys = {
-        "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-        "openai": ["OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"],
-        "anthropic": ["ANTHROPIC_API_KEY"],
-        "vertexai": ["VERTEX_AI_API_KEY"],
-    }
+def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
+    return api_validator._handle_gemini_api_key_alias(result)
 
-    result: Dict[str, Any] = {
-        "missing": [],
-        "found": [],
-        "available_providers": [],
-        "missing_providers": [],
-        "any_keys_found": False,
-    }
 
-    _check_individual_api_keys(keys_to_check, result)
-    _handle_gemini_api_key_alias(result)
-    _determine_available_providers(provider_keys, result)
+def _determine_available_providers(provider_keys: Dict[str, List[str]], result: Dict[str, Any]) -> None:
+    return api_validator._determine_available_providers(provider_keys, result)
 
-    return result
+
+def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
+    return api_validator.validate_working_dir_and_api_keys(working_dir, provider)
+
+
+def _handle_api_key_checks_and_warnings(
+    working_dir: Optional[str], provider_requested: str
+) -> tuple[Dict[str, Any], bool]:
+    return api_validator.handle_api_key_checks_and_warnings(working_dir, provider_requested)
+
+
+def _update_api_key_status_in_response(
+    response: ResponseDict,
+    key_status: Dict[str, Any],
+    requested_provider: str,
+    actual_model_used: str,
+    original_model_requested: str,
+) -> None:
+    return api_validator.update_api_key_status_in_response(
+        response, key_status, requested_provider, actual_model_used, original_model_requested
+    )
+
+
+def _add_provider_warning_to_response(
+    response: ResponseDict,
+    key_status: Dict[str, Any],
+    requested_provider: str,
+    actual_provider_used: str,
+    actual_model_used: str,
+) -> None:
+    return api_validator.add_provider_warning_to_response(
+        response, key_status, requested_provider, actual_provider_used, actual_model_used
+    )
 
 
 def _normalize_file_paths(relative_editable_files: List[str], working_dir: Optional[str] = None) -> List[str]:
@@ -1331,37 +1259,6 @@ async def _broadcast_changes_summary(
         logger.warning(f"Failed to broadcast changes_summary event: {e}")
 
 
-def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
-    """Validate working directory and API keys. Returns error JSON string if validation fails."""
-    if not working_dir:
-        error_msg = "Error: working_dir is required for code_with_aider"
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "changes_summary": {"summary": error_msg},
-                "error": error_msg,
-                "api_key_status": check_api_keys(None),
-            }
-        )
-
-    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
-    if not key_status["any_keys_found"]:
-        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "error": error_msg,
-                "api_key_status": key_status,
-                "warnings": [error_msg],
-                "changes_summary": {"summary": error_msg},
-            }
-        )
-
-    return None  # No error
-
-
 async def _execute_aider_with_coordination(
     ai_coding_prompt: str,
     abs_editable_files: List[str],
@@ -1636,73 +1533,6 @@ async def _initial_setup_and_logging(
     if architect_mode:
         logger.info(f"Editor model: {editor_model if editor_model else 'Same as main model'}")
         logger.info(f"Auto accept architect: {auto_accept_architect}")
-
-
-def _handle_api_key_checks_and_warnings(  # This function is mostly for initial check
-    working_dir: Optional[str],
-    provider_requested: str,  # No response needed here
-) -> tuple[Dict[str, Any], bool]:
-    """Checks API keys. Returns key_status and if requested provider has keys."""
-    key_status = check_api_keys(working_dir)  # Loads .env files
-
-    # Log general API key status
-    if not key_status["any_keys_found"]:
-        logger.error("CRITICAL: No API keys found for ANY provider.")
-    else:
-        logger.info(f"Available providers with keys: {key_status['available_providers']}")
-        if key_status["missing_providers"]:
-            logger.warning(f"Providers missing keys: {key_status['missing_providers']}")
-
-    # Check for the specifically requested provider
-    provider_has_keys = provider_requested in key_status["available_providers"]
-    if not provider_has_keys:
-        logger.warning(
-            f"API key for the initially requested provider '{provider_requested}' is missing or invalid."
-            " Fallback mechanisms will be attempted if other provider keys are available."
-        )
-    return key_status, provider_has_keys
-
-
-def _update_api_key_status_in_response(
-    response: ResponseDict,
-    key_status: Dict[str, Any],
-    requested_provider: str,
-    actual_model_used: str,
-    original_model_requested: str,
-) -> None:
-    """Updates the API key status information in the response."""
-    actual_provider_used = _determine_provider(actual_model_used)
-    response["api_key_status"] = {
-        "available_providers": key_status.get("available_providers", []),
-        "missing_providers": key_status.get("missing_providers", []),
-        "requested_provider": requested_provider,
-        "used_provider": actual_provider_used,
-        "original_model_requested": original_model_requested,
-        "actual_model_used": actual_model_used,
-    }
-
-
-def _add_provider_warning_to_response(
-    response: ResponseDict,
-    key_status: Dict[str, Any],
-    requested_provider: str,
-    actual_provider_used: str,
-    actual_model_used: str,
-) -> None:
-    """Adds a warning if the requested provider's key was missing."""
-    if requested_provider not in key_status.get("available_providers", []):
-        warning_msg = (
-            f"Warning: API key for the initially requested provider '{requested_provider}' was missing. "
-            f"The system attempted to use provider '{actual_provider_used}' with model '{actual_model_used}'."
-        )
-        if "warnings" not in response:
-            response["warnings"] = []
-        # Ensure warnings is a list
-        if not isinstance(response.get("warnings"), list):
-            response["warnings"] = []
-
-        if warning_msg not in response["warnings"]:  # type: ignore
-            response["warnings"].append(warning_msg)  # type: ignore
 
 
 def _handle_diff_field_in_response(response: ResponseDict, include_raw_diff: bool) -> None:
