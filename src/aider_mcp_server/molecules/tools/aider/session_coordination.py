@@ -23,14 +23,14 @@ class SessionCoordinator:
 
     def __init__(self, coordinator: Optional["IApplicationCoordinator"] = None):
         """Initialize the session coordinator.
-        
+
         Args:
             coordinator: Application coordinator for event broadcasting
         """
         self.coordinator = coordinator
         self.request_monitor: Optional[RequestMonitor] = None
         self.current_request_id: Optional[str] = None
-        
+
         if coordinator:
             self.request_monitor = RequestMonitor(coordinator)
 
@@ -44,7 +44,7 @@ class SessionCoordinator:
         architect_mode: bool,
     ) -> Optional[str]:
         """Start a new aider session and broadcast the session start event.
-        
+
         Args:
             ai_coding_prompt: The coding prompt for this session
             relative_editable_files: List of files that can be edited
@@ -52,7 +52,7 @@ class SessionCoordinator:
             original_model: The AI model being used
             working_dir: Working directory for the session
             architect_mode: Whether architect mode is enabled
-            
+
         Returns:
             Request ID if monitoring is enabled, None otherwise
         """
@@ -84,7 +84,7 @@ class SessionCoordinator:
 
     async def update_progress(self, stage: str, model: str, files_count: int) -> None:
         """Update session progress.
-        
+
         Args:
             stage: Current stage of processing
             model: Model being used
@@ -109,7 +109,7 @@ class SessionCoordinator:
         success: bool = True,
     ) -> None:
         """Complete a session and broadcast completion events.
-        
+
         Args:
             response: Response data from aider execution
             actual_model_used: The model that was actually used
@@ -133,14 +133,12 @@ class SessionCoordinator:
                 "files_changed": len(response.get("changes_summary", {}).get("files", [])),
                 "rate_limit_encountered": bool(response.get("rate_limit_info")),
             }
-            await self.request_monitor.complete_request(
-                self.current_request_id, success=success, result=result_data
-            )
+            await self.request_monitor.complete_request(self.current_request_id, success=success, result=result_data)
             self.current_request_id = None
 
     async def handle_session_error(self, error: Exception) -> None:
         """Handle session errors and ensure proper cleanup.
-        
+
         Args:
             error: The exception that occurred
         """
@@ -151,9 +149,7 @@ class SessionCoordinator:
                 "error": str(error),
                 "error_type": type(error).__name__,
             }
-            await self.request_monitor.complete_request(
-                self.current_request_id, success=False, result=error_result
-            )
+            await self.request_monitor.complete_request(self.current_request_id, success=False, result=error_result)
             self.current_request_id = None
 
     async def broadcast_rate_limit_event(
@@ -168,7 +164,7 @@ class SessionCoordinator:
         will_retry: bool,
     ) -> None:
         """Broadcast a rate limit detection event.
-        
+
         Args:
             provider: The AI provider that hit the rate limit
             current_model: Current model being used
