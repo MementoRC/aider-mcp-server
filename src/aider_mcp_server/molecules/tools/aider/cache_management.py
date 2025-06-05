@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache
 
+
 class CacheManager:
     """
     Manages a DiffCache instance for diff caching, key generation, and statistics.
