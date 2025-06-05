@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 # Try to import dotenv for environment variable loading
 try:
     from dotenv import load_dotenv
+
     HAS_DOTENV = True
 except ImportError:
     HAS_DOTENV = False
@@ -17,6 +18,7 @@ except ImportError:
 
 class ResponseDict(TypedDict, total=False):
     """Type for Aider response dictionary."""
+
     success: bool
     changes_summary: Dict[str, Any]
     file_status: Dict[str, Any]
@@ -29,7 +31,7 @@ class ResponseDict(TypedDict, total=False):
 
 class APIValidator:
     """Handles validation and setup of API credentials for various providers."""
-    
+
     def __init__(self) -> None:
         """Initialize the API validator."""
         self.provider_keys = {
@@ -47,19 +49,15 @@ class APIValidator:
             return
 
         directories_to_check = []
-        
+
         if working_dir:
             directories_to_check.append(working_dir)
-        
+
         # Add current directory, parent directory, and home directory
-        directories_to_check.extend([
-            os.getcwd(),
-            os.path.dirname(os.getcwd()),
-            os.path.expanduser("~")
-        ])
+        directories_to_check.extend([os.getcwd(), os.path.dirname(os.getcwd()), os.path.expanduser("~")])
 
         logger.info("Loading .env files from relevant directories...")
-        
+
         for directory in directories_to_check:
             env_file_path = os.path.join(directory, ".env")
             if os.path.exists(env_file_path):
@@ -74,16 +72,16 @@ class APIValidator:
     def check_api_keys(self, working_dir: Optional[str] = None) -> Dict[str, Any]:
         """Check if necessary API keys are set in the environment."""
         logger.info("Checking API key availability...")
-        
+
         # Load environment files first
         self.load_env_files(working_dir)
-        
+
         result = {
             "found": [],
             "missing": [],
             "any_keys_found": False,
             "available_providers": [],
-            "missing_providers": []
+            "missing_providers": [],
         }
 
         # Check individual API keys
@@ -93,17 +91,17 @@ class APIValidator:
             "GEMINI_API_KEY": "Google/Gemini (alternative)",
             "ANTHROPIC_API_KEY": "Anthropic/Claude",
             "AZURE_OPENAI_API_KEY": "Azure OpenAI",
-            "VERTEX_AI_API_KEY": "Vertex AI"
+            "VERTEX_AI_API_KEY": "Vertex AI",
         }
-        
+
         self._check_individual_api_keys(keys_to_check, result)
-        
+
         # Handle Gemini API key alias
         self._handle_gemini_api_key_alias(result)
-        
+
         # Determine available providers
         self._determine_available_providers(self.provider_keys, result)
-        
+
         logger.info(f"API key check completed. Found keys: {result['found']}")
         return result
 
@@ -132,11 +130,11 @@ class APIValidator:
     def _determine_available_providers(self, provider_keys: Dict[str, List[str]], result: Dict[str, Any]) -> None:
         """Determine available providers based on found keys."""
         logger.info("Determining available providers...")
-        
+
         for provider, required_keys in provider_keys.items():
             # Check if any of the required keys for this provider are available
             provider_has_key = any(key in result["found"] for key in required_keys)
-            
+
             if provider_has_key:
                 result["available_providers"].append(provider)
                 logger.info(f"✓ Provider {provider} is available")
@@ -149,28 +147,34 @@ class APIValidator:
         if not working_dir:
             error_msg = "Error: working_dir is required for code_with_aider"
             logger.error(error_msg)
-            return json.dumps({
-                "success": False,
-                "changes_summary": {"summary": error_msg},
-                "error": error_msg,
-                "api_key_status": self.check_api_keys(None),
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "changes_summary": {"summary": error_msg},
+                    "error": error_msg,
+                    "api_key_status": self.check_api_keys(None),
+                }
+            )
 
         key_status, _ = self.handle_api_key_checks_and_warnings(working_dir, provider)
         if not key_status["any_keys_found"]:
             error_msg = "Error: No API keys found for any provider. Please set at least one API key."
             logger.error(error_msg)
-            return json.dumps({
-                "success": False,
-                "error": error_msg,
-                "api_key_status": key_status,
-                "warnings": [error_msg],
-                "changes_summary": {"summary": error_msg},
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": error_msg,
+                    "api_key_status": key_status,
+                    "warnings": [error_msg],
+                    "changes_summary": {"summary": error_msg},
+                }
+            )
 
         return None  # No error
 
-    def handle_api_key_checks_and_warnings(self, working_dir: Optional[str], provider_requested: str) -> tuple[Dict[str, Any], bool]:
+    def handle_api_key_checks_and_warnings(
+        self, working_dir: Optional[str], provider_requested: str
+    ) -> tuple[Dict[str, Any], bool]:
         """Checks API keys and returns status with provider-specific warnings."""
         key_status = self.check_api_keys(working_dir)  # Loads .env files
 
@@ -201,7 +205,7 @@ class APIValidator:
     ) -> None:
         """Updates the API key status information in the response."""
         from aider_mcp_server.molecules.tools.aider_ai_code import _determine_provider
-        
+
         actual_provider_used = _determine_provider(actual_model_used)
         response["api_key_status"] = {
             "available_providers": key_status.get("available_providers", []),

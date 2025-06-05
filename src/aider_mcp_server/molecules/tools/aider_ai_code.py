@@ -145,6 +145,7 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
 def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
     return api_validator._check_individual_api_keys(keys_to_check, result)
 
+
 def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
     return api_validator._handle_gemini_api_key_alias(result)
 
