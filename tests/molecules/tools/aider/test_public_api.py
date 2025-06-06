@@ -53,7 +53,7 @@ class TestAiderToolPublicAPI:
             aider_tool.session_coordinator.complete_session = AsyncMock()
             aider_tool.session_coordinator.handle_session_error = AsyncMock()
             aider_tool.core_executor.execute_with_retry = AsyncMock()
-            
+
             yield aider_tool
 
     def test_initialization(self, aider_tool):
@@ -71,7 +71,7 @@ class TestAiderToolPublicAPI:
     async def test_initialize_success(self, mock_components):
         """Test successful initialization of all components."""
         await mock_components.initialize()
-        
+
         assert mock_components._initialized
         mock_components.cache_manager.initialize_cache.assert_called_once()
         mock_components.api_validator.load_env_files.assert_called_once_with("/tmp/test")
@@ -81,7 +81,7 @@ class TestAiderToolPublicAPI:
         """Test that initialize can be called multiple times safely."""
         await mock_components.initialize()
         await mock_components.initialize()  # Should not re-initialize
-        
+
         assert mock_components._initialized
         # Should only be called once despite multiple initialize calls
         assert mock_components.cache_manager.initialize_cache.call_count == 1
@@ -91,7 +91,7 @@ class TestAiderToolPublicAPI:
         """Test successful shutdown of all components."""
         await mock_components.initialize()
         await mock_components.shutdown()
-        
+
         assert not mock_components._initialized
         mock_components.cache_manager.shutdown_cache.assert_called_once()
 
@@ -102,25 +102,25 @@ class TestAiderToolPublicAPI:
         mock_components.api_validator.check_api_keys.return_value = {"any_keys_found": True}
         mock_components.cache_manager.generate_cache_key.return_value = "test-cache-key"
         mock_components.cache_manager.diff_cache = MagicMock()
-        
+
         execution_result = {"success": True, "changes": ["file1.py"]}
         mock_components.core_executor.execute_with_retry.return_value = execution_result
-        
+
         formatted_result = {"success": True, "changes_summary": {"modified": ["file1.py"]}}
         mock_components.response_formatter.finalize_aider_response.return_value = formatted_result
-        
+
         # Execute command
         result = await mock_components.execute_command(
             ai_coding_prompt="Test prompt",
             relative_editable_files=["file1.py"],
             relative_readonly_files=["readme.md"],
             model="gpt-4",
-            working_dir="/tmp/test"
+            working_dir="/tmp/test",
         )
-        
+
         # Verify result
         assert result == formatted_result
-        
+
         # Verify component calls
         mock_components.session_coordinator.start_session.assert_called_once()
         mock_components.api_validator.check_api_keys.assert_called_once_with("/tmp/test")
@@ -137,18 +137,17 @@ class TestAiderToolPublicAPI:
         # Setup API validation failure
         api_status = {"any_keys_found": False, "error": "No API key found"}
         mock_components.api_validator.check_api_keys.return_value = api_status
-        
+
         # Execute command
         result = await mock_components.execute_command(
-            ai_coding_prompt="Test prompt",
-            relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
         )
-        
+
         # Verify error handling
         assert result["success"] is False
         assert result["error"] == "API key validation failed"
         assert result["api_key_status"] == api_status
-        
+
         # Verify core execution was not called
         mock_components.core_executor.execute_with_retry.assert_not_called()
 
@@ -159,22 +158,21 @@ class TestAiderToolPublicAPI:
         mock_components.api_validator.check_api_keys.return_value = {"any_keys_found": True}
         mock_components.cache_manager.generate_cache_key.return_value = "test-cache-key"
         mock_components.cache_manager.diff_cache = MagicMock()
-        
+
         execution_result = {"success": True, "changes": ["file1.py"]}
         mock_components.core_executor.execute_with_retry.return_value = execution_result
-        
+
         formatted_result = {"success": True, "changes_summary": {"modified": ["file1.py"]}, "diff": "test diff"}
         mock_components.response_formatter.finalize_aider_response.return_value = formatted_result
-        
+
         # Execute command
         result = await mock_components.execute_command(
-            ai_coding_prompt="Test prompt",
-            relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
         )
-        
+
         # Verify result is returned
         assert result == formatted_result
-        
+
         # Verify caching was attempted for successful result with diff
         mock_components.cache_manager.process_diff_cache.assert_called_once()
 
@@ -184,13 +182,12 @@ class TestAiderToolPublicAPI:
         # Setup exception during execution
         mock_components.api_validator.check_api_keys.return_value = {"any_keys_found": True}
         mock_components.core_executor.execute_with_retry.side_effect = Exception("Test error")
-        
+
         # Execute command
         result = await mock_components.execute_command(
-            ai_coding_prompt="Test prompt",
-            relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
         )
-        
+
         # Verify error handling
         assert result["success"] is False
         assert result["error"] == "Test error"
@@ -205,13 +202,12 @@ class TestAiderToolPublicAPI:
         mock_components.cache_manager.generate_cache_key.return_value = "test-key"
         mock_components.core_executor.run_aider_session.return_value = {"success": True}
         mock_components.response_formatter.finalize_aider_response.return_value = formatted_result
-        
+
         # Use legacy method name
         result = await mock_components.aider_ai_code(
-            ai_coding_prompt="Test prompt",
-            relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
         )
-        
+
         assert result == formatted_result
 
     def test_get_component_success(self, aider_tool):
@@ -240,13 +236,11 @@ class TestConvenienceFunction:
             mock_tool.execute_command = AsyncMock(return_value={"success": True})
             mock_tool.shutdown = AsyncMock()
             mock_tool_class.return_value = mock_tool
-            
+
             result = await execute_aider_command(
-                ai_coding_prompt="Test prompt",
-                relative_editable_files=["file1.py"],
-                config={"test": "config"}
+                ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"], config={"test": "config"}
             )
-            
+
             # Verify tool creation and cleanup
             mock_tool_class.assert_called_once_with({"test": "config"})
             mock_tool.execute_command.assert_called_once()
@@ -261,13 +255,10 @@ class TestConvenienceFunction:
             mock_tool.execute_command = AsyncMock(side_effect=Exception("Test error"))
             mock_tool.shutdown = AsyncMock()
             mock_tool_class.return_value = mock_tool
-            
+
             with pytest.raises(Exception, match="Test error"):
-                await execute_aider_command(
-                    ai_coding_prompt="Test prompt",
-                    relative_editable_files=["file1.py"]
-                )
-            
+                await execute_aider_command(ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"])
+
             # Verify cleanup still happened
             mock_tool.shutdown.assert_called_once()
 
@@ -278,25 +269,25 @@ class TestPublicAPIExports:
     def test_all_exports_available(self):
         """Test that all items in __all__ are importable."""
         from aider_mcp_server.molecules.tools.aider import __all__
-        
+
         expected_exports = {
             "AiderTool",
-            "CoreExecutor", 
+            "CoreExecutor",
             "RateLimiter",
             "ResponseFormatter",
-            "CacheManager", 
+            "CacheManager",
             "APIValidator",
             "SessionCoordinator",
             "ResponseDict",
             "ExecutionConfig",
             "ModelConfig",
-            "ExecutionResult", 
+            "ExecutionResult",
             "FileInfo",
             "RetryConfig",
             "SilentInputOutput",
             "execute_aider_command",
         }
-        
+
         assert set(__all__) == expected_exports
 
 
@@ -311,29 +302,32 @@ class TestIntegrationScenarios:
             test_file = os.path.join(temp_dir, "test.py")
             with open(test_file, "w") as f:
                 f.write("# Test file\n")
-            
+
             # Mock external dependencies but use real internal orchestration
-            with patch("aider_mcp_server.molecules.tools.aider.core_execution.CoreExecutor.execute_with_retry") as mock_core, \
-                 patch("aider_mcp_server.molecules.tools.aider.api_validation.APIValidator.check_api_keys") as mock_api:
-                
+            with (
+                patch(
+                    "aider_mcp_server.molecules.tools.aider.core_execution.CoreExecutor.execute_with_retry"
+                ) as mock_core,
+                patch("aider_mcp_server.molecules.tools.aider.api_validation.APIValidator.check_api_keys") as mock_api,
+            ):
                 mock_api.return_value = {"any_keys_found": True, "provider": "openai"}
                 mock_core.return_value = {
                     "success": True,
                     "changes": ["test.py"],
-                    "diff": "--- test.py\n+++ test.py\n@@ -1 +1,2 @@\n # Test file\n+print('Hello World')"
+                    "diff": "--- test.py\n+++ test.py\n@@ -1 +1,2 @@\n # Test file\n+print('Hello World')",
                 }
-                
+
                 # Test the full workflow
                 tool = AiderTool({"working_dir": temp_dir})
-                
+
                 result = await tool.execute_command(
                     ai_coding_prompt="Add a print statement to the file",
                     relative_editable_files=["test.py"],
-                    model="gpt-4"
+                    model="gpt-4",
                 )
-                
+
                 await tool.shutdown()
-                
+
                 # Verify the result structure
                 assert result["success"] is True
                 assert "api_key_status" in result
