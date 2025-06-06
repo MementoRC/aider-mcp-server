@@ -5,7 +5,7 @@ This module contains common type definitions and data structures used across
 the decomposed Aider modules following atomic design principles.
 """
 
-from typing import Any, Dict, Optional, Type, TypedDict
+from typing import Any, Dict, List, Optional, Type, TypedDict
 
 
 class ResponseDict(TypedDict, total=False):
@@ -22,6 +22,8 @@ class ResponseDict(TypedDict, total=False):
     diff: str
     rate_limit_info: Dict[str, Any]
     api_key_status: Dict[str, Any]
+    error: str
+    warnings: List[str]
 
 
 class ExecutionConfig(TypedDict, total=False):
