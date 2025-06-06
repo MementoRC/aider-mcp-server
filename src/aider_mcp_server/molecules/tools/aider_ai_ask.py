@@ -4,6 +4,32 @@ import os
 import os.path
 import pathlib
 import time
+import webbrowser
+from typing import Any
+
+# CRITICAL: Prevent browser launches before any other imports
+# This must be done BEFORE importing aider/litellm to prevent contamination
+os.environ["LITELLM_MODE"] = "PRODUCTION"
+os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""  # Disable ADC
+os.environ["BROWSER"] = ""  # Disable browser launching
+
+# Monkey patch webbrowser to prevent any browser launches
+_original_open = webbrowser.open
+
+
+def _blocked_browser_open(*args: Any, **kwargs: Any) -> bool:
+    """Block browser opens and log the attempt"""
+    from aider_mcp_server.atoms.logging.logger import get_logger
+
+    logger = get_logger(__name__)
+    logger.warning(f"🚨 BLOCKED BROWSER LAUNCH: {args}")
+    return False
+
+
+webbrowser.open = _blocked_browser_open
+webbrowser.open_new = _blocked_browser_open
+webbrowser.open_new_tab = _blocked_browser_open
 
 # External imports
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
@@ -49,8 +75,25 @@ class AskResponseDict(TypedDict, total=False):
     warnings: Optional[List[str]]  # List of warnings to display to the user
 
 
-# Configure logging for this module
-logger = get_logger(__name__)
+# Configure logging for this module - enable verbose mode for detailed browser popup debugging
+logger = get_logger(__name__, verbose=True)
+
+
+def _log_browser_popup_phase_ask(phase: str, details: Optional[Dict[str, Any]] = None) -> None:
+    """Log a phase in the browser popup investigation for Ask Mode with detailed context."""
+    logger.info(f"🔍 ASK_MODE_BROWSER_POPUP_DEBUG: {phase}")
+    if details:
+        for key, value in details.items():
+            logger.verbose(f"    {key}: {value}")
+    logger.verbose("    Environment variables relevant to auth:")
+    logger.verbose(f"      LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+    logger.verbose(
+        f"      GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+    )
+    logger.verbose(f"      GOOGLE_API_KEY set: {'YES' if os.environ.get('GOOGLE_API_KEY') else 'NO'}")
+    logger.verbose(f"      GEMINI_API_KEY set: {'YES' if os.environ.get('GEMINI_API_KEY') else 'NO'}")
+    logger.verbose(f"      Current working directory: {os.getcwd()}")
+
 
 # Try to import dotenv for environment variable loading
 try:
@@ -258,24 +301,55 @@ def _determine_provider(model: str) -> str:
 
 def _configure_model(model: str, architect_mode: bool = False) -> Model:
     """Configure the Aider model based on the model name."""
+    _log_browser_popup_phase_ask(
+        "PHASE 3: Ask Mode Model Configuration Start", {"model": model, "architect_mode": architect_mode}
+    )
+
     logger.info(f"Configuring model for Ask Mode: {model}, architect_mode={architect_mode}")
 
     # For testing purposes (when we know the model will fail), use a simple model name
     if model == "non_existent_model_123456789":
         logger.info(f"Using deliberately non-existent model for testing: {model}")
+        logger.warning("⚠️ This is a test model that will intentionally fail")
         return Model(model)
 
     # Use the actual requested model
     aider_model_name = model
     logger.info(f"Using requested model: {aider_model_name}")
 
+    # Log critical environment state before model instantiation
+    logger.verbose("🔍 ASK MODE: Environment state before Model() instantiation:")
+    logger.verbose(f"    LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+    logger.verbose(
+        f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+    )
+    logger.verbose(f"    GOOGLE_API_KEY: {'SET' if os.environ.get('GOOGLE_API_KEY') else 'NOT_SET'}")
+    logger.verbose(f"    GEMINI_API_KEY: {'SET' if os.environ.get('GEMINI_API_KEY') else 'NOT_SET'}")
+
     # For Ask Mode, we don't need architect mode typically, but support it if requested
-    if architect_mode:
-        logger.info(f"Using model with architect mode: {aider_model_name}")
-        return Model(aider_model_name, editor_model=aider_model_name)
-    else:
-        # Standard configuration for Ask Mode
-        return Model(aider_model_name)
+    logger.info("🚀 ASK MODE: About to instantiate aider.models.Model() - CRITICAL BROWSER POPUP RISK POINT")
+    try:
+        if architect_mode:
+            logger.info(f"Using model with architect mode: {aider_model_name}")
+            model_instance = Model(aider_model_name, editor_model=aider_model_name)
+        else:
+            # Standard configuration for Ask Mode
+            logger.info("Creating standard Model instance for Ask Mode")
+            model_instance = Model(aider_model_name)
+
+        logger.info("✅ ASK MODE: Model instantiation completed successfully - no browser popup occurred")
+        _log_browser_popup_phase_ask(
+            "PHASE 3: Ask Mode Model Configuration Success", {"model_created": True, "model_name": aider_model_name}
+        )
+        return model_instance
+
+    except Exception as e:
+        logger.error(f"❌ ASK MODE: Model instantiation FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue")
+        _log_browser_popup_phase_ask(
+            "PHASE 3: Ask Mode Model Configuration FAILED", {"error": str(e), "error_type": type(e).__name__}
+        )
+        raise
 
 
 def _convert_to_absolute_paths(relative_paths: List[str], working_dir: Optional[str]) -> List[str]:
@@ -674,10 +748,29 @@ async def ask_with_aider(
     Returns:
         str: JSON string containing 'success' and 'response' with the explanation.
     """
+    # ========== ASK MODE BROWSER POPUP INVESTIGATION START ==========
+    logger.info("🔍 ========== ASK MODE EXECUTION START - BROWSER POPUP INVESTIGATION ==========")
+    _log_browser_popup_phase_ask(
+        "PHASE 0: Ask Mode Initial Setup",
+        {
+            "function": "ask_with_aider",
+            "model": model,
+            "working_dir": working_dir,
+            "readonly_files_count": len(relative_readonly_files) if relative_readonly_files else 0,
+            "architect_mode": architect_mode,
+        },
+    )
+
     # --- Ensure .env is loaded before any API key checks or model instantiations ---
     load_env_files(working_dir)
 
     # Configure LiteLLM to prevent browser popups and interactive authentication
+    logger.info("🔧 ASK MODE: Setting LiteLLM production mode configuration:")
+    logger.verbose(f"    Setting LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')} -> PRODUCTION")
+    logger.verbose(
+        f"    Setting GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')} -> true"
+    )
+
     os.environ["LITELLM_MODE"] = "PRODUCTION"
     os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
 

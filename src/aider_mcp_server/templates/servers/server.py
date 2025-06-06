@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys  # Import sys for stderr
@@ -22,6 +23,82 @@ from ...organisms.processors.handlers import (
 
 # Configure logging
 logger = get_logger(__name__)
+
+
+def safe_json_dumps(data: Dict[str, Any]) -> str:
+    """
+    Safely serialize data to JSON, filtering out any browser launch contamination.
+
+    This function prevents browser launch output from contaminating the JSON response
+    that gets sent to ClaudeCode, which would cause MCP server failure.
+    """
+    try:
+        # First, serialize normally
+        json_str = json.dumps(data)
+
+        # Define patterns that indicate browser launch contamination
+        browser_contamination_patterns = [
+            r"Opening in.*browser",
+            r"Opening in.*tab",
+            r"Opening.*default.*browser",
+            r"Starting.*browser",
+            r"Launching.*browser",
+            r"xdg-open",
+            r"open.*https?://",
+            r"Starting.*Google.*Chrome",
+            r"Starting.*Firefox",
+            r"Starting.*Safari",
+        ]
+
+        # Check if the JSON string contains browser launch indicators
+        contaminated = False
+        for pattern in browser_contamination_patterns:
+            if re.search(pattern, json_str, re.IGNORECASE):
+                contaminated = True
+                logger.warning(f"🚨 BROWSER CONTAMINATION DETECTED: Pattern '{pattern}' found in JSON response")
+                break
+
+        if contaminated:
+            # If contaminated, clean the response and add a warning
+            logger.error("🚨 CRITICAL: Browser launch output contaminated JSON response - cleaning...")
+
+            # Remove browser launch text that might have been mixed in
+            for pattern in browser_contamination_patterns:
+                json_str = re.sub(pattern + r".*?(?=\{|\}|$)", "", json_str, flags=re.IGNORECASE | re.DOTALL)
+
+            # If the JSON is still malformed, create a clean error response
+            try:
+                json.loads(json_str)  # Test if it's valid JSON
+            except json.JSONDecodeError:
+                logger.error("🚨 JSON still malformed after cleaning - creating error response")
+                clean_data = {
+                    "success": False,
+                    "error": "Browser launch contamination detected and removed from response",
+                    "original_success": data.get("success", False),
+                    "changes_summary": data.get(
+                        "changes_summary", {"summary": "Response was contaminated by browser launch output"}
+                    ),
+                    "file_status": data.get(
+                        "file_status", {"has_changes": False, "status_summary": "Unknown due to browser contamination"}
+                    ),
+                    "browser_contamination_detected": True,
+                }
+                json_str = json.dumps(clean_data)
+
+            logger.info("✅ Browser contamination cleaned from JSON response")
+
+        return json_str
+
+    except Exception as e:
+        logger.error(f"🚨 CRITICAL ERROR in safe_json_dumps: {e}")
+        # Fallback to a safe error response
+        fallback_response = {
+            "success": False,
+            "error": f"JSON serialization failed due to browser contamination: {str(e)}",
+            "browser_contamination_detected": True,
+        }
+        return json.dumps(fallback_response)
+
 
 # Define MCP tools
 AIDER_AI_CODE_TOOL = Tool(
@@ -300,13 +377,13 @@ async def serve(
                 }
             )
 
-            return [TextContent(type="text", text=json.dumps(result_dict))]
+            return [TextContent(type="text", text=safe_json_dumps(result_dict))]
         except Exception as e:
             logger.exception(f"Error: Exception during stdio tool call '{name}': {e}")
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps(
+                    text=safe_json_dumps(
                         {
                             "success": False,
                             "error": f"Error processing tool {name}: {str(e)}",

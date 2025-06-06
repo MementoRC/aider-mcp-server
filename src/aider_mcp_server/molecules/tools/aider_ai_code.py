@@ -5,6 +5,32 @@ import os.path
 import pathlib
 import subprocess
 import time
+import webbrowser
+from typing import Any
+
+# CRITICAL: Prevent browser launches before any other imports
+# This must be done BEFORE importing aider/litellm to prevent contamination
+os.environ["LITELLM_MODE"] = "PRODUCTION"
+os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""  # Disable ADC
+os.environ["BROWSER"] = ""  # Disable browser launching
+
+# Monkey patch webbrowser to prevent any browser launches
+_original_open = webbrowser.open
+
+
+def _blocked_browser_open(*args: Any, **kwargs: Any) -> bool:
+    """Block browser opens and log the attempt"""
+    from aider_mcp_server.atoms.logging.logger import get_logger
+
+    logger = get_logger(__name__)
+    logger.warning(f"🚨 BLOCKED BROWSER LAUNCH: {args}")
+    return False
+
+
+webbrowser.open = _blocked_browser_open
+webbrowser.open_new = _blocked_browser_open
+webbrowser.open_new_tab = _blocked_browser_open
 
 # External imports - no stubs available
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
@@ -115,8 +141,25 @@ def _determine_available_providers(provider_keys: Dict[str, List[str]], result: 
             missing_providers.append(provider)
 
 
-# Configure logging for this module
-logger = get_logger(__name__)
+# Configure logging for this module - enable verbose mode for detailed browser popup debugging
+logger = get_logger(__name__, verbose=True)
+
+
+def _log_browser_popup_phase(phase: str, details: Optional[Dict[str, Any]] = None) -> None:
+    """Log a phase in the browser popup investigation with detailed context."""
+    logger.info(f"🔍 BROWSER_POPUP_DEBUG: {phase}")
+    if details:
+        for key, value in details.items():
+            logger.verbose(f"    {key}: {value}")
+    logger.verbose("    Environment variables relevant to auth:")
+    logger.verbose(f"      LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+    logger.verbose(
+        f"      GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+    )
+    logger.verbose(f"      GOOGLE_API_KEY set: {'YES' if os.environ.get('GOOGLE_API_KEY') else 'NO'}")
+    logger.verbose(f"      GEMINI_API_KEY set: {'YES' if os.environ.get('GEMINI_API_KEY') else 'NO'}")
+    logger.verbose(f"      Current working directory: {os.getcwd()}")
+
 
 # Load fallback configuration
 try:
@@ -204,8 +247,13 @@ async def shutdown_diff_cache() -> None:
 
 def load_env_files(working_dir: Optional[str] = None) -> None:
     """Load environment variables from .env files in relevant directories."""
+    _log_browser_popup_phase(
+        "PHASE 1: Environment Loading Start", {"working_dir": working_dir, "HAS_DOTENV": HAS_DOTENV}
+    )
+
     if not HAS_DOTENV:
         logger.warning("python-dotenv not installed. Cannot load .env files.")
+        _log_browser_popup_phase("PHASE 1: Environment Loading Failed - No dotenv")
         return
 
     # Use a set to avoid duplicate directories
@@ -241,12 +289,57 @@ def load_env_files(working_dir: Optional[str] = None) -> None:
         env_locations.append(script_dir)
         seen.add(script_dir)
 
+    logger.verbose(f"🔍 Searching for .env files in {len(env_locations)} locations: {env_locations}")
+
     # Load .env from each location if it exists, with debug logging
+    loaded_files = []
     for location in env_locations:
         env_path = os.path.join(location, ".env")
+        logger.verbose(f"    Checking .env at: {env_path}")
         if os.path.isfile(env_path):
+            # Store env state before loading
+            google_key_before = os.environ.get("GOOGLE_API_KEY")
+            gemini_key_before = os.environ.get("GEMINI_API_KEY")
+            openai_key_before = os.environ.get("OPENAI_API_KEY")
+            anthropic_key_before = os.environ.get("ANTHROPIC_API_KEY")
+
+            # Show file contents for debugging
+            try:
+                with open(env_path, "r") as f:
+                    content = f.read()
+                logger.verbose(f"    .env file contents (first 200 chars): {content[:200]}")
+            except Exception as e:
+                logger.verbose(f"    Could not read .env file contents: {e}")
+
             load_dotenv(env_path)
+            loaded_files.append(env_path)
+
+            # Check what changed
+            google_key_after = os.environ.get("GOOGLE_API_KEY")
+            gemini_key_after = os.environ.get("GEMINI_API_KEY")
+            openai_key_after = os.environ.get("OPENAI_API_KEY")
+            anthropic_key_after = os.environ.get("ANTHROPIC_API_KEY")
+
             logger.info(f"Loaded environment variables from {env_path}")
+            logger.verbose(
+                f"    GOOGLE_API_KEY: {'[HIDDEN]' if google_key_before else 'None'} -> {'[HIDDEN]' if google_key_after else 'None'}"
+            )
+            logger.verbose(
+                f"    GEMINI_API_KEY: {'[HIDDEN]' if gemini_key_before else 'None'} -> {'[HIDDEN]' if gemini_key_after else 'None'}"
+            )
+            logger.verbose(
+                f"    OPENAI_API_KEY: {'[HIDDEN]' if openai_key_before else 'None'} -> {'[HIDDEN]' if openai_key_after else 'None'}"
+            )
+            logger.verbose(
+                f"    ANTHROPIC_API_KEY: {'[HIDDEN]' if anthropic_key_before else 'None'} -> {'[HIDDEN]' if anthropic_key_after else 'None'}"
+            )
+        else:
+            logger.verbose(f"    No .env file found at: {env_path}")
+
+    _log_browser_popup_phase(
+        "PHASE 1: Environment Loading Complete",
+        {"loaded_files": loaded_files, "total_locations_checked": len(env_locations)},
+    )
 
 
 def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
@@ -263,12 +356,28 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
         - missing_providers: List of providers with missing keys
         - any_keys_found: Boolean indicating if any keys were found
     """
+    _log_browser_popup_phase("PHASE 2: API Key Check Start", {"working_dir": working_dir})
+
     # First load any .env files
     load_env_files(working_dir)
+
+    _log_browser_popup_phase(
+        "PHASE 2: LiteLLM Configuration",
+        {
+            "LITELLM_MODE_before": os.environ.get("LITELLM_MODE"),
+            "GOOGLE_AUTH_SUPPRESS_before": os.environ.get("GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"),
+        },
+    )
 
     # Configure LiteLLM to prevent browser popups and interactive authentication
     os.environ["LITELLM_MODE"] = "PRODUCTION"
     os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
+
+    logger.info("🔧 Configured LiteLLM to prevent browser popups:")
+    logger.verbose(f"    LITELLM_MODE set to: {os.environ['LITELLM_MODE']}")
+    logger.verbose(
+        f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS set to: {os.environ['GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS']}"
+    )
 
     keys_to_check = {
         "OPENAI_API_KEY": "OpenAI",
@@ -525,29 +634,61 @@ def _configure_model(model: str, editor_model: Optional[str] = None, architect_m
     Returns:
         Aider Model instance
     """
+    _log_browser_popup_phase(
+        "PHASE 3: Model Configuration Start",
+        {"model": model, "editor_model": editor_model, "architect_mode": architect_mode},
+    )
+
     logger.info(f"Configuring model: {model}, architect_mode={architect_mode}")
 
     # For testing purposes (when we know the model will fail), use a simple model name
     if model == "non_existent_model_123456789":
         logger.info(f"Using deliberately non-existent model for testing: {model}")
+        logger.warning("⚠️ This is a test model that will intentionally fail")
         return Model(model)
 
     # Use the actual requested model instead of hardcoding
     aider_model_name = model
     logger.info(f"Using requested model: {aider_model_name}")
 
+    # Log critical environment state before model instantiation
+    logger.verbose("🔍 Environment state before Model() instantiation:")
+    logger.verbose(f"    LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+    logger.verbose(
+        f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+    )
+    logger.verbose(f"    GOOGLE_API_KEY: {'SET' if os.environ.get('GOOGLE_API_KEY') else 'NOT_SET'}")
+    logger.verbose(f"    GEMINI_API_KEY: {'SET' if os.environ.get('GEMINI_API_KEY') else 'NOT_SET'}")
+
     # Configure model based on architect mode setting
-    if architect_mode:
-        if editor_model:
-            logger.info(f"Using editor model: {editor_model}")
-            return Model(aider_model_name, editor_model=editor_model)
+    logger.info("🚀 About to instantiate aider.models.Model() - CRITICAL BROWSER POPUP RISK POINT")
+    try:
+        if architect_mode:
+            if editor_model:
+                logger.info(f"Using editor model: {editor_model}")
+                model_instance = Model(aider_model_name, editor_model=editor_model)
+            else:
+                # Use the same model for both architect and editor roles
+                logger.info(f"Using same model for architect and editor: {aider_model_name}")
+                model_instance = Model(aider_model_name, editor_model=aider_model_name)
         else:
-            # Use the same model for both architect and editor roles
-            logger.info(f"Using same model for architect and editor: {aider_model_name}")
-            return Model(aider_model_name, editor_model=aider_model_name)
-    else:
-        # Standard (non-architect) configuration
-        return Model(aider_model_name)
+            # Standard (non-architect) configuration
+            logger.info("Creating standard Model instance")
+            model_instance = Model(aider_model_name)
+
+        logger.info("✅ Model instantiation completed successfully - no browser popup occurred")
+        _log_browser_popup_phase(
+            "PHASE 3: Model Configuration Success", {"model_created": True, "model_name": aider_model_name}
+        )
+        return model_instance
+
+    except Exception as e:
+        logger.error(f"❌ Model instantiation FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue")
+        _log_browser_popup_phase(
+            "PHASE 3: Model Configuration FAILED", {"error": str(e), "error_type": type(e).__name__}
+        )
+        raise
 
 
 def _convert_to_absolute_paths(relative_paths: List[str], working_dir: Optional[str]) -> List[str]:
@@ -598,6 +739,17 @@ def _setup_aider_coder(
     Returns:
         Configured Aider Coder instance
     """
+    _log_browser_popup_phase(
+        "PHASE 4: Coder Setup Start",
+        {
+            "working_dir": working_dir,
+            "editable_files_count": len(abs_editable_files),
+            "readonly_files_count": len(abs_readonly_files),
+            "architect_mode": architect_mode,
+            "auto_accept_architect": auto_accept_architect,
+        },
+    )
+
     logger.info("Setting up Aider coder...")
 
     # Log aider version for debugging
@@ -711,11 +863,25 @@ def _setup_aider_coder(
     final_params.update(filtered_init)
 
     logger.info(f"Creating Coder with parameters: {list(final_params.keys())}")
+    logger.verbose(f"🔍 Full Coder creation parameters: {final_params}")
 
     # Create the Coder instance using parameters compatible with the installed version
-    coder = Coder.create(**final_params)
-
-    return coder
+    logger.info("🚀 About to call Coder.create() - ANOTHER CRITICAL BROWSER POPUP RISK POINT")
+    try:
+        coder = Coder.create(**final_params)
+        logger.info("✅ Coder.create() completed successfully - no browser popup occurred")
+        _log_browser_popup_phase(
+            "PHASE 4: Coder Setup Success", {"coder_created": True, "parameters_used": list(final_params.keys())}
+        )
+        return coder
+    except Exception as e:
+        logger.error(f"❌ Coder.create() FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue during Coder setup")
+        _log_browser_popup_phase(
+            "PHASE 4: Coder Setup FAILED",
+            {"error": str(e), "error_type": type(e).__name__, "parameters_attempted": list(final_params.keys())},
+        )
+        raise
 
 
 def _check_for_meaningful_changes(relative_editable_files: List[str], working_dir: Optional[str] = None) -> bool:
@@ -1003,6 +1169,14 @@ async def _run_aider_session(
 
 def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Optional[str]:
     """Captures stdout/stderr and runs coder.run. Returns the result of coder.run."""
+    _log_browser_popup_phase(
+        "PHASE 5: Coder Execution Start",
+        {
+            "prompt_length": len(ai_coding_prompt),
+            "prompt_preview": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
+        },
+    )
+
     import sys
     from io import StringIO
 
@@ -1015,8 +1189,24 @@ def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Option
     try:
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
+
+        logger.info("🚀 About to call coder.run() - FINAL CRITICAL BROWSER POPUP RISK POINT")
+        logger.verbose("🔍 Final environment state before coder.run():")
+        logger.verbose(f"    LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+        logger.verbose(
+            f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+        )
+
         # Assuming coder.run might return something, like a status or summary string
         run_result = coder.run(ai_coding_prompt)
+
+        logger.info("✅ coder.run() completed successfully - no browser popup during execution")
+
+    except Exception as e:
+        logger.error(f"❌ coder.run() FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue during execution")
+        _log_browser_popup_phase("PHASE 5: Coder Execution FAILED", {"error": str(e), "error_type": type(e).__name__})
+        raise
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
@@ -1026,10 +1216,21 @@ def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Option
 
     if captured_stdout:
         logger.warning(f"Captured stdout from Aider: {captured_stdout[:200]}...")
+        logger.verbose(f"Full stdout from Aider: {captured_stdout}")
     if captured_stderr:
         logger.warning(f"Captured stderr from Aider: {captured_stderr[:200]}...")
+        logger.verbose(f"Full stderr from Aider: {captured_stderr}")
 
     logger.info(f"coder.run completed, result: {run_result}")
+    _log_browser_popup_phase(
+        "PHASE 5: Coder Execution Complete",
+        {
+            "run_result": str(run_result) if run_result else None,
+            "stdout_length": len(captured_stdout),
+            "stderr_length": len(captured_stderr),
+        },
+    )
+
     return str(run_result) if run_result is not None else None
 
 
@@ -1556,10 +1757,29 @@ async def code_with_aider(  # noqa: C901
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
     """
+    # ========== BROWSER POPUP INVESTIGATION START ==========
+    logger.info("🔍 ========== AIDER EXECUTION START - BROWSER POPUP INVESTIGATION ==========")
+    _log_browser_popup_phase(
+        "PHASE 0: Initial Setup",
+        {
+            "function": "code_with_aider",
+            "model": model,
+            "working_dir": working_dir,
+            "editable_files_count": len(relative_editable_files),
+            "readonly_files_count": len(relative_readonly_files) if relative_readonly_files else 0,
+        },
+    )
+
     # --- Ensure .env is loaded before any API key checks or model instantiations ---
     load_env_files(working_dir)
 
     # Configure LiteLLM to prevent browser popups and interactive authentication
+    logger.info("🔧 Setting LiteLLM production mode configuration:")
+    logger.verbose(f"    Setting LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')} -> PRODUCTION")
+    logger.verbose(
+        f"    Setting GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')} -> true"
+    )
+
     os.environ["LITELLM_MODE"] = "PRODUCTION"
     os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
 
