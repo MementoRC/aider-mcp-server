@@ -2,9 +2,17 @@
 Utility atoms for the Aider MCP Server.
 
 Provides atomic utility components including configuration constants,
-diff caching, and fallback configurations.
+diff caching, fallback configurations, and aider validation utilities.
 """
 
+from aider_mcp_server.atoms.utils.aider_validation import (
+    AiderMisfireError,
+    AiderValidationError,
+    detect_aider_misfire,
+    raise_on_aider_misfire,
+    validate_aider_parameters,
+    validate_file_references,
+)
 from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
@@ -12,7 +20,15 @@ from aider_mcp_server.atoms.utils.config_constants import (
 )
 
 __all__ = [
+    # Configuration constants
     "DEFAULT_EDITOR_MODEL",
     "DEFAULT_WS_HOST",
     "DEFAULT_WS_PORT",
+    # Aider validation utilities
+    "AiderValidationError",
+    "AiderMisfireError",
+    "validate_aider_parameters",
+    "validate_file_references",
+    "detect_aider_misfire",
+    "raise_on_aider_misfire",
 ]
