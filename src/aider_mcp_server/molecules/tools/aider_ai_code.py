@@ -1125,7 +1125,7 @@ async def _process_coder_results(
     
     if use_diff_cache and diff_cache is not None:
         cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
-        cached_diff = await diff_cache.get_cached_diff(cache_key)
+        cached_diff = await diff_cache.get(cache_key)
         
         if cached_diff is not None:
             if cached_diff == raw_diff_output:
@@ -1133,13 +1133,13 @@ async def _process_coder_results(
                 is_cached_diff = True
                 final_diff_content = cached_diff
                 if clear_cached_for_unchanged:
-                    await diff_cache.clear_cached_diff(cache_key)
+                    await diff_cache.clear(cache_key)
             else:
                 logger.info("Diff content changed, updating cache")
-                await diff_cache.cache_diff(cache_key, raw_diff_output)
+                await diff_cache.set(cache_key, raw_diff_output)
         else:
             logger.info("No cached diff found, caching current diff")
-            await diff_cache.cache_diff(cache_key, raw_diff_output)
+            await diff_cache.set(cache_key, raw_diff_output)
 
     changes_summary = summarize_changes(final_diff_content)
     logger.info(f"Generated changes summary: {changes_summary['summary']}")
