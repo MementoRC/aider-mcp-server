@@ -52,8 +52,8 @@ from aider_mcp_server.atoms.types.streaming_types import (  # noqa: E402
 from aider_mcp_server.atoms.utils.aider_validation import (  # noqa: E402
     AiderMisfireError,
     AiderValidationError,
-    validate_aider_parameters,
     raise_on_aider_misfire,
+    validate_aider_parameters,
 )
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache  # noqa: E402
 from aider_mcp_server.atoms.utils.fallback_config import (  # noqa: E402
@@ -1959,19 +1959,25 @@ async def code_with_aider(  # noqa: C901
         # Check for aider misfire (empty files despite success)
         try:
             if response.get("success", False):
+                # Convert ResponseDict to dict for validation function
+                aider_result_dict = dict(response)
                 raise_on_aider_misfire(
-                    aider_result=response,
+                    aider_result=aider_result_dict,
                     relative_editable_files=relative_editable_files,
                     working_directory=working_dir,
                 )
         except AiderMisfireError as e:
             logger.error(f"Aider misfire detected: {e.user_friendly_message}")
-            # Update response to reflect the misfire
+            # Update response to reflect the misfire (using setdefault for type safety)
             response["success"] = False
-            response["error"] = e.user_friendly_message
-            response["error_code"] = e.error_code
-            response["error_details"] = e.details
-            response["warnings"] = response.get("warnings", []) + [e.user_friendly_message]
+            response.setdefault("error", e.user_friendly_message)  # type: ignore
+            response.setdefault("error_code", e.error_code)  # type: ignore  
+            response.setdefault("error_details", e.details)  # type: ignore
+            warnings_list = response.get("warnings", [])  # type: ignore
+            if warnings_list is None:
+                warnings_list = []
+            warnings_list.append(e.user_friendly_message)
+            response.setdefault("warnings", warnings_list)  # type: ignore
             response["changes_summary"]["summary"] = f"Misfire detected: {e.user_friendly_message}"
 
         # Get API key status for final response

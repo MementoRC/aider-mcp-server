@@ -5,10 +5,7 @@ This module tests the validation functions that detect and prevent
 aider empty file issues, particularly in architect mode.
 """
 
-import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
@@ -31,8 +28,6 @@ class TestValidateFileReferences:
         # Create test files
         readonly_file = tmp_path / "existing.py"
         readonly_file.write_text("def test(): pass")
-
-        editable_file = tmp_path / "new.py"  # Will be created
 
         # Should not raise any exception
         validate_file_references(
@@ -74,7 +69,7 @@ class TestValidateFileReferences:
 
     def test_validate_nonexistent_working_directory_fails(self) -> None:
         """Test validation fails with nonexistent working directory."""
-        with pytest.raises(Exception):  # ResourceNotFoundError or similar
+        with pytest.raises((FileNotFoundError, OSError)):  # More specific exception types
             validate_file_references(
                 relative_editable_files=["test.py"],
                 relative_readonly_files=[],
@@ -303,7 +298,7 @@ class TestIntegrationScenarios:
         # Simulate the scenario where aider reports success but creates empty files
         test_dir = tmp_path / "tests" / "molecules" / "tools" / "aider"
         test_dir.mkdir(parents=True)
-        
+
         # Create the empty file that would be created by a misfire
         empty_test_file = test_dir / "test_api_validation.py"
         empty_test_file.touch()
@@ -313,12 +308,12 @@ class TestIntegrationScenarios:
             "success": True,
             "changes_summary": {
                 "summary": "No git-tracked changes detected, but filesystem changes detected: 1 files created/empty (tests/molecules/tools/aider/test_api_validation.py)",
-                "files": [{"name": "tests/molecules/tools/aider/test_api_validation.py", "operation": "created"}]
+                "files": [{"name": "tests/molecules/tools/aider/test_api_validation.py", "operation": "created"}],
             },
             "file_status": {
                 "has_changes": True,
-                "status_summary": "Filesystem changes detected: 1 files created/empty (tests/molecules/tools/aider/test_api_validation.py)"
-            }
+                "status_summary": "Filesystem changes detected: 1 files created/empty (tests/molecules/tools/aider/test_api_validation.py)",
+            },
         }
 
         # Should detect the misfire

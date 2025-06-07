@@ -77,9 +77,7 @@ def validate_file_references(
             missing_readonly_files.append(file_path)
             if architect_mode:
                 # In architect mode, missing readonly files cause empty results
-                validation_errors.append(
-                    f"Readonly file required for architect mode does not exist: {file_path}"
-                )
+                validation_errors.append(f"Readonly file required for architect mode does not exist: {file_path}")
             else:
                 # In regular mode, log warning but don't fail
                 logger.warning(f"Readonly file does not exist (aider will skip): {file_path}")
@@ -182,10 +180,7 @@ def detect_aider_misfire(
         if "changes_summary" in aider_result:
             misfire_details["changes_summary"] = aider_result["changes_summary"]
 
-        logger.warning(
-            f"Detected aider misfire: {len(empty_files)} empty files, "
-            f"{len(missing_files)} missing files"
-        )
+        logger.warning(f"Detected aider misfire: {len(empty_files)} empty files, {len(missing_files)} missing files")
 
     return is_misfire, misfire_details if is_misfire else None
 
