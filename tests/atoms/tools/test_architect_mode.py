@@ -126,6 +126,16 @@ async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, 
     }
 
     with tempfile.TemporaryDirectory() as temp_dir:
+        # Create the required readonly file for architect mode validation
+        from pathlib import Path
+
+        readonly_file = Path(temp_dir) / "readonly.py"
+        readonly_file.write_text("def helper_function(): pass")
+
+        # Create the expected editable file to prevent misfire detection
+        editable_file = Path(temp_dir) / "file.py"
+        editable_file.write_text("# File created by test setup")
+
         # Call with architect mode parameters
         result = await code_with_aider(
             ai_coding_prompt="Create a calculator",
@@ -182,6 +192,12 @@ async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mo
     }
 
     with tempfile.TemporaryDirectory() as temp_dir:
+        # Create the expected editable file to prevent misfire detection
+        from pathlib import Path
+
+        editable_file = Path(temp_dir) / "file.py"
+        editable_file.write_text("# File created by test setup")
+
         # Call with default parameters (no architect mode)
         result = await code_with_aider(
             ai_coding_prompt="Create a calculator",

@@ -49,6 +49,12 @@ from aider_mcp_server.atoms.types.streaming_types import (  # noqa: E402
     ChangeType,
     FileChangesSummary,
 )
+from aider_mcp_server.atoms.utils.aider_validation import (  # noqa: E402
+    AiderMisfireError,
+    AiderValidationError,
+    raise_on_aider_misfire,
+    validate_aider_parameters,
+)
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache  # noqa: E402
 from aider_mcp_server.atoms.utils.fallback_config import (  # noqa: E402
     detect_rate_limit_error,
@@ -1676,6 +1682,94 @@ async def _broadcast_changes_summary(
         logger.warning(f"Failed to broadcast changes_summary event: {e}")
 
 
+def _validate_aider_parameters_comprehensive(
+    working_dir: Optional[str],
+    provider: str,
+    relative_editable_files: List[str],
+    relative_readonly_files: List[str],
+    architect_mode: bool,
+) -> Optional[str]:
+    """
+    Comprehensive validation of aider parameters including file references.
+    Returns error JSON string if validation fails, None if successful.
+    """
+    # First validate working directory and API keys (existing logic)
+    basic_validation_error = _validate_working_dir_and_api_keys(working_dir, provider)
+    if basic_validation_error:
+        return basic_validation_error
+
+    # Now validate aider-specific parameters
+    try:
+        validate_aider_parameters(
+            relative_editable_files=relative_editable_files,
+            relative_readonly_files=relative_readonly_files,
+            working_directory=working_dir or ".",
+            architect_mode=architect_mode,
+        )
+    except AiderValidationError as e:
+        logger.error(f"Aider parameter validation failed: {e.user_friendly_message}")
+        key_status, _ = _handle_api_key_checks_and_warnings(working_dir or ".", provider)
+        return json.dumps(
+            {
+                "success": False,
+                "error": e.user_friendly_message,
+                "error_code": e.error_code,
+                "error_details": e.details,
+                "api_key_status": key_status,
+                "warnings": [e.user_friendly_message],
+                "changes_summary": {"summary": f"Validation error: {e.user_friendly_message}"},
+            },
+            indent=4,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during aider parameter validation: {e}")
+        key_status, _ = _handle_api_key_checks_and_warnings(working_dir or ".", provider)
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"Unexpected validation error: {str(e)}",
+                "error_code": "AIDER_VALIDATION_UNEXPECTED_ERROR",
+                "api_key_status": key_status,
+                "warnings": [f"Unexpected validation error: {str(e)}"],
+                "changes_summary": {"summary": f"Unexpected validation error: {str(e)}"},
+            },
+            indent=4,
+        )
+
+    return None  # Validation passed
+
+
+def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
+    """Validate working directory and API keys. Returns error JSON string if validation fails."""
+    if not working_dir:
+        error_msg = "Error: working_dir is required for code_with_aider"
+        logger.error(error_msg)
+        return json.dumps(
+            {
+                "success": False,
+                "changes_summary": {"summary": error_msg},
+                "error": error_msg,
+                "api_key_status": check_api_keys(None),
+            }
+        )
+
+    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
+    if not key_status["any_keys_found"]:
+        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
+        logger.error(error_msg)
+        return json.dumps(
+            {
+                "success": False,
+                "error": error_msg,
+                "api_key_status": key_status,
+                "warnings": [error_msg],
+                "changes_summary": {"summary": error_msg},
+            }
+        )
+
+    return None  # No error
+
+
 async def _execute_aider_with_coordination(
     ai_coding_prompt: str,
     abs_editable_files: List[str],
@@ -1824,8 +1918,14 @@ async def code_with_aider(  # noqa: C901
     normalized_model_name = _normalize_model_name(model)
     provider = _determine_provider(normalized_model_name)
 
-    # Validate working directory and API keys
-    validation_error = _validate_working_dir_and_api_keys(working_dir, provider)
+    # Comprehensive validation including aider-specific parameters
+    validation_error = _validate_aider_parameters_comprehensive(
+        working_dir=working_dir,
+        provider=provider,
+        relative_editable_files=relative_editable_files,
+        relative_readonly_files=relative_readonly_files,
+        architect_mode=architect_mode,
+    )
     if validation_error:
         return validation_error
 
@@ -1905,6 +2005,30 @@ async def code_with_aider(  # noqa: C901
             if response.get("success", False):
                 session_id = f"aider_{int(time.time() * 1000)}"
                 await _broadcast_changes_summary(coordinator, response, session_id, relative_editable_files)
+
+        # Check for aider misfire (empty files despite success)
+        try:
+            if response.get("success", False):
+                # Convert ResponseDict to dict for validation function
+                aider_result_dict = dict(response)
+                raise_on_aider_misfire(
+                    aider_result=aider_result_dict,
+                    relative_editable_files=relative_editable_files,
+                    working_directory=working_dir,
+                )
+        except AiderMisfireError as e:
+            logger.error(f"Aider misfire detected: {e.user_friendly_message}")
+            # Update response to reflect the misfire (using setdefault for type safety)
+            response["success"] = False
+            response.setdefault("error", e.user_friendly_message)  # type: ignore
+            response.setdefault("error_code", e.error_code)  # type: ignore
+            response.setdefault("error_details", e.details)  # type: ignore
+            warnings_list = response.get("warnings", [])
+            if warnings_list is None:
+                warnings_list = []
+            warnings_list.append(e.user_friendly_message)
+            response.setdefault("warnings", warnings_list)
+            response["changes_summary"]["summary"] = f"Misfire detected: {e.user_friendly_message}"
 
         # Get API key status for final response
         key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)

@@ -39,7 +39,7 @@ class TestRequestMonitorIntegration:
     @pytest.mark.asyncio
     @patch("aider_mcp_server.molecules.tools.aider_ai_code.RequestMonitor")
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._execute_aider_with_coordination")
-    @patch("aider_mcp_server.molecules.tools.aider_ai_code._validate_working_dir_and_api_keys")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._validate_aider_parameters_comprehensive")
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._broadcast_session_start")
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._broadcast_session_completed")
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._broadcast_changes_summary")
@@ -48,14 +48,15 @@ class TestRequestMonitorIntegration:
         mock_broadcast_changes_summary,
         mock_broadcast_session_completed,
         mock_broadcast_session_start,
-        mock_validate_working_dir,
+        mock_validate_aider_params,
         mock_execute_aider,
         mock_request_monitor_class,
         mock_coordinator,
+        tmp_path,
     ):
         """Test that RequestMonitor is properly integrated in the AIDER lifecycle."""
         # Setup mocks
-        mock_validate_working_dir.return_value = None  # No validation error
+        mock_validate_aider_params.return_value = None  # No validation error
         mock_monitor_instance = AsyncMock()
         mock_monitor_instance.track_request = AsyncMock(return_value="test_request_123")
         mock_monitor_instance.update_request_progress = AsyncMock()
@@ -70,6 +71,10 @@ class TestRequestMonitorIntegration:
         }
         mock_execute_aider.return_value = mock_response
 
+        # Create the editable file with non-empty content before running aider
+        test_file = tmp_path / "test.py"
+        test_file.write_text("# test content\n")
+
         # Mock API key check
         with patch(
             "aider_mcp_server.molecules.tools.aider_ai_code._handle_api_key_checks_and_warnings"
@@ -83,7 +88,7 @@ class TestRequestMonitorIntegration:
                     relative_editable_files=["test.py"],
                     relative_readonly_files=[],
                     model="test-model",
-                    working_dir="/tmp/test",
+                    working_dir=str(tmp_path),
                     coordinator=mock_coordinator,
                 )
 
@@ -98,7 +103,7 @@ class TestRequestMonitorIntegration:
         assert context["model"] == "test-model"
         assert context["editable_files"] == 1
         assert context["readonly_files"] == 0
-        assert context["working_dir"] == "/tmp/test"
+        assert context["working_dir"] == str(tmp_path)
 
         # Verify progress update was called
         mock_monitor_instance.update_request_progress.assert_called_once_with(
@@ -120,17 +125,18 @@ class TestRequestMonitorIntegration:
     @pytest.mark.asyncio
     @patch("aider_mcp_server.molecules.tools.aider_ai_code.RequestMonitor")
     @patch("aider_mcp_server.molecules.tools.aider_ai_code._execute_aider_with_coordination")
-    @patch("aider_mcp_server.molecules.tools.aider_ai_code._validate_working_dir_and_api_keys")
+    @patch("aider_mcp_server.molecules.tools.aider_ai_code._validate_aider_parameters_comprehensive")
     async def test_request_monitor_error_handling(
         self,
-        mock_validate_working_dir,
+        mock_validate_aider_params,
         mock_execute_aider,
         mock_request_monitor_class,
         mock_coordinator,
+        tmp_path,
     ):
         """Test that RequestMonitor properly handles errors during execution."""
         # Setup mocks
-        mock_validate_working_dir.return_value = None
+        mock_validate_aider_params.return_value = None
         mock_monitor_instance = AsyncMock()
         mock_monitor_instance.track_request = AsyncMock(return_value="test_request_123")
         mock_monitor_instance.update_request_progress = AsyncMock()
@@ -146,7 +152,7 @@ class TestRequestMonitorIntegration:
             await code_with_aider(
                 ai_coding_prompt="Test prompt",
                 relative_editable_files=["test.py"],
-                working_dir="/tmp/test",
+                working_dir=str(tmp_path),
                 coordinator=mock_coordinator,
             )
 
@@ -162,10 +168,10 @@ class TestRequestMonitorIntegration:
         assert result["error_type"] == "Exception"
 
     @pytest.mark.asyncio
-    async def test_request_monitor_without_coordinator(self):
+    async def test_request_monitor_without_coordinator(self, tmp_path):
         """Test that AIDER works normally when no coordinator is provided."""
         with patch(
-            "aider_mcp_server.molecules.tools.aider_ai_code._validate_working_dir_and_api_keys"
+            "aider_mcp_server.molecules.tools.aider_ai_code._validate_aider_parameters_comprehensive"
         ) as mock_validate:
             mock_validate.return_value = None
 
@@ -180,11 +186,15 @@ class TestRequestMonitorIntegration:
                     mock_api_check.return_value = ({}, None)
 
                     with patch("aider_mcp_server.molecules.tools.aider_ai_code._finalize_aider_response"):
+                        # Create the editable file with non-empty content before running aider
+                        test_file = tmp_path / "test.py"
+                        test_file.write_text("# test content\n")
+
                         # Execute without coordinator
                         result = await code_with_aider(
                             ai_coding_prompt="Test prompt",
                             relative_editable_files=["test.py"],
-                            working_dir="/tmp/test",
+                            working_dir=str(tmp_path),
                             coordinator=None,  # No coordinator
                         )
 
