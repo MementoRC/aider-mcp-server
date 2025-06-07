@@ -14,7 +14,7 @@ from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
 
 class ProgressStatus(Enum):
     """Enumeration of progress status states."""
-    
+
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -25,7 +25,7 @@ class ProgressStatus(Enum):
 
 class ProgressEvent:
     """Represents a progress event with timestamp and metadata."""
-    
+
     def __init__(
         self,
         operation_id: str,
@@ -40,7 +40,7 @@ class ProgressEvent:
         self.progress_percentage = progress_percentage
         self.metadata = metadata or {}
         self.timestamp = time.time()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert progress event to dictionary representation."""
         return {
@@ -55,7 +55,7 @@ class ProgressEvent:
 
 class ProgressReporter(ABC):
     """Abstract base class for progress reporting."""
-    
+
     @abstractmethod
     def report_progress(self, event: ProgressEvent) -> None:
         """Report a progress event."""
@@ -64,32 +64,30 @@ class ProgressReporter(ABC):
 
 class LoggingProgressReporter(ProgressReporter):
     """Progress reporter that logs to the standard logging system."""
-    
+
     def __init__(self, logger_name: Optional[str] = None) -> None:
         self._logger: LoggerProtocol = get_logger(logger_name or __name__)
-    
+
     def report_progress(self, event: ProgressEvent) -> None:
         """Report progress via logging."""
-        self._logger.info(
-            f"Progress [{event.operation_id}] {event.progress_percentage:.1f}%: {event.message}"
-        )
+        self._logger.info(f"Progress [{event.operation_id}] {event.progress_percentage:.1f}%: {event.message}")
 
 
 class CallbackProgressReporter(ProgressReporter):
     """Progress reporter that calls registered callback functions."""
-    
+
     def __init__(self) -> None:
         self._callbacks: List[Callable[[ProgressEvent], None]] = []
-    
+
     def add_callback(self, callback: Callable[[ProgressEvent], None]) -> None:
         """Add a progress callback function."""
         self._callbacks.append(callback)
-    
+
     def remove_callback(self, callback: Callable[[ProgressEvent], None]) -> None:
         """Remove a progress callback function."""
         if callback in self._callbacks:
             self._callbacks.remove(callback)
-    
+
     def report_progress(self, event: ProgressEvent) -> None:
         """Report progress to all registered callbacks."""
         for callback in self._callbacks:
@@ -102,19 +100,19 @@ class CallbackProgressReporter(ProgressReporter):
 
 class MultiProgressReporter(ProgressReporter):
     """Progress reporter that delegates to multiple reporters."""
-    
+
     def __init__(self, reporters: Optional[List[ProgressReporter]] = None) -> None:
         self._reporters = reporters or []
-    
+
     def add_reporter(self, reporter: ProgressReporter) -> None:
         """Add a progress reporter."""
         self._reporters.append(reporter)
-    
+
     def remove_reporter(self, reporter: ProgressReporter) -> None:
         """Remove a progress reporter."""
         if reporter in self._reporters:
             self._reporters.remove(reporter)
-    
+
     def report_progress(self, event: ProgressEvent) -> None:
         """Report progress to all registered reporters."""
         for reporter in self._reporters:
@@ -127,7 +125,7 @@ class MultiProgressReporter(ProgressReporter):
 
 class ProgressStep:
     """Represents a step in a multi-step operation."""
-    
+
     def __init__(
         self,
         name: str,
@@ -142,40 +140,40 @@ class ProgressStep:
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
         self.error: Optional[Exception] = None
-    
+
     def start(self) -> None:
         """Mark the step as started."""
         self.status = ProgressStatus.IN_PROGRESS
         self.start_time = time.time()
-    
+
     def update_progress(self, percentage: float) -> None:
         """Update the step's progress percentage."""
         self.progress_percentage = max(0.0, min(100.0, percentage))
-    
+
     def complete(self) -> None:
         """Mark the step as completed."""
         self.status = ProgressStatus.COMPLETED
         self.progress_percentage = 100.0
         self.end_time = time.time()
-    
+
     def fail(self, error: Optional[Exception] = None) -> None:
         """Mark the step as failed."""
         self.status = ProgressStatus.FAILED
         self.end_time = time.time()
         self.error = error
-    
+
     def cancel(self) -> None:
         """Mark the step as cancelled."""
         self.status = ProgressStatus.CANCELLED
         self.end_time = time.time()
-    
+
     def get_duration(self) -> Optional[float]:
         """Get the duration of the step execution."""
         if self.start_time is None:
             return None
         end_time = self.end_time or time.time()
         return end_time - self.start_time
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert step to dictionary representation."""
         return {
@@ -194,11 +192,11 @@ class ProgressStep:
 class ProgressTracker:
     """
     Tracks progress of operations with support for multi-step processes.
-    
+
     Provides comprehensive progress monitoring with event broadcasting,
     metrics collection, and flexible reporting options.
     """
-    
+
     def __init__(
         self,
         operation_id: str,
@@ -208,7 +206,7 @@ class ProgressTracker:
     ) -> None:
         """
         Initialize the ProgressTracker.
-        
+
         Args:
             operation_id: Unique identifier for the operation
             total_steps: Total number of steps (for simple progress tracking)
@@ -218,7 +216,7 @@ class ProgressTracker:
         self.operation_id = operation_id
         self.total_steps = total_steps
         self._logger: LoggerProtocol = get_logger(logger_name or __name__)
-        
+
         # Progress state
         self.status = ProgressStatus.NOT_STARTED
         self.current_step = 0
@@ -226,25 +224,25 @@ class ProgressTracker:
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
         self.error: Optional[Exception] = None
-        
+
         # Multi-step support
         self._steps: List[ProgressStep] = []
         self._current_step_index = -1
-        
+
         # Progress reporting
         self._reporter = reporter or LoggingProgressReporter(logger_name)
-        
+
         # Event history
         self._events: List[ProgressEvent] = []
-        
+
         self._logger.info(f"ProgressTracker initialized for operation: {operation_id}")
-    
+
     def add_step(self, name: str, weight: float = 1.0, description: Optional[str] = None) -> None:
         """Add a step to the multi-step operation."""
         step = ProgressStep(name, weight, description)
         self._steps.append(step)
         self._logger.debug(f"Added step '{name}' with weight {weight}")
-    
+
     def add_steps(self, steps: List[Union[str, Dict[str, Any]]]) -> None:
         """Add multiple steps to the operation."""
         for step in steps:
@@ -255,12 +253,12 @@ class ProgressTracker:
                 weight = step.get("weight", 1.0)
                 description = step.get("description")
                 self.add_step(name, weight, description)
-    
+
     def start(self, message: Optional[str] = None) -> None:
         """Start tracking progress."""
         self.status = ProgressStatus.IN_PROGRESS
         self.start_time = time.time()
-        
+
         event_message = message or f"Started operation {self.operation_id}"
         event = ProgressEvent(
             self.operation_id,
@@ -269,14 +267,14 @@ class ProgressTracker:
             0.0,
             {"total_steps": len(self._steps) or self.total_steps},
         )
-        
+
         self._add_event(event)
         self._logger.info(f"Started progress tracking: {event_message}")
-    
+
     def update_progress(self, percentage: float, message: Optional[str] = None) -> None:
         """Update overall progress percentage."""
         self.overall_progress = max(0.0, min(100.0, percentage))
-        
+
         event_message = message or f"Progress: {self.overall_progress:.1f}%"
         event = ProgressEvent(
             self.operation_id,
@@ -284,19 +282,19 @@ class ProgressTracker:
             event_message,
             self.overall_progress,
         )
-        
+
         self._add_event(event)
-    
+
     def start_step(self, step_name: Optional[str] = None) -> None:
         """Start the next step in a multi-step operation."""
         if not self._steps:
             raise ValueError("No steps defined for multi-step operation")
-        
+
         self._current_step_index += 1
-        
+
         if self._current_step_index >= len(self._steps):
             raise ValueError("All steps have already been started")
-        
+
         current_step = self._steps[self._current_step_index]
         if step_name and current_step.name != step_name:
             # Find the step by name
@@ -307,10 +305,10 @@ class ProgressTracker:
                     break
             else:
                 raise ValueError(f"Step '{step_name}' not found")
-        
+
         current_step.start()
         self._update_overall_progress()
-        
+
         event = ProgressEvent(
             self.operation_id,
             "step_started",
@@ -318,21 +316,21 @@ class ProgressTracker:
             self.overall_progress,
             {"step_name": current_step.name, "step_index": self._current_step_index},
         )
-        
+
         self._add_event(event)
         self._logger.info(f"Started step: {current_step.description}")
-    
+
     def update_step_progress(self, percentage: float, message: Optional[str] = None) -> None:
         """Update progress of the current step."""
         if self._current_step_index < 0 or not self._steps:
             # Fall back to simple progress update
             self.update_progress(percentage, message)
             return
-        
+
         current_step = self._steps[self._current_step_index]
         current_step.update_progress(percentage)
         self._update_overall_progress()
-        
+
         event_message = message or f"Step progress: {percentage:.1f}%"
         event = ProgressEvent(
             self.operation_id,
@@ -345,18 +343,18 @@ class ProgressTracker:
                 "step_index": self._current_step_index,
             },
         )
-        
+
         self._add_event(event)
-    
+
     def complete_step(self, message: Optional[str] = None) -> None:
         """Mark the current step as completed."""
         if self._current_step_index < 0 or not self._steps:
             raise ValueError("No current step to complete")
-        
+
         current_step = self._steps[self._current_step_index]
         current_step.complete()
         self._update_overall_progress()
-        
+
         event_message = message or f"Completed step: {current_step.description}"
         event = ProgressEvent(
             self.operation_id,
@@ -369,22 +367,22 @@ class ProgressTracker:
                 "step_duration": current_step.get_duration(),
             },
         )
-        
+
         self._add_event(event)
         self._logger.info(f"Completed step: {current_step.description}")
-    
+
     def fail_step(self, error: Optional[Exception] = None, message: Optional[str] = None) -> None:
         """Mark the current step as failed."""
         if self._current_step_index < 0 or not self._steps:
             raise ValueError("No current step to fail")
-        
+
         current_step = self._steps[self._current_step_index]
         current_step.fail(error)
-        
+
         event_message = message or f"Failed step: {current_step.description}"
         if error:
             event_message += f" - {error}"
-        
+
         event = ProgressEvent(
             self.operation_id,
             "step_failed",
@@ -396,21 +394,21 @@ class ProgressTracker:
                 "error": str(error) if error else None,
             },
         )
-        
+
         self._add_event(event)
         self._logger.error(f"Failed step: {current_step.description} - {error}")
-    
+
     def complete(self, message: Optional[str] = None) -> None:
         """Mark the operation as completed."""
         self.status = ProgressStatus.COMPLETED
         self.overall_progress = 100.0
         self.end_time = time.time()
-        
+
         # Complete any remaining steps
         for step in self._steps:
             if step.status == ProgressStatus.IN_PROGRESS:
                 step.complete()
-        
+
         event_message = message or f"Completed operation {self.operation_id}"
         event = ProgressEvent(
             self.operation_id,
@@ -419,20 +417,20 @@ class ProgressTracker:
             100.0,
             {"duration": self.get_duration()},
         )
-        
+
         self._add_event(event)
         self._logger.info(f"Completed progress tracking: {event_message}")
-    
+
     def fail(self, error: Optional[Exception] = None, message: Optional[str] = None) -> None:
         """Mark the operation as failed."""
         self.status = ProgressStatus.FAILED
         self.end_time = time.time()
         self.error = error
-        
+
         event_message = message or f"Failed operation {self.operation_id}"
         if error:
             event_message += f" - {error}"
-        
+
         event = ProgressEvent(
             self.operation_id,
             "operation_failed",
@@ -443,20 +441,20 @@ class ProgressTracker:
                 "error": str(error) if error else None,
             },
         )
-        
+
         self._add_event(event)
         self._logger.error(f"Failed progress tracking: {event_message}")
-    
+
     def cancel(self, message: Optional[str] = None) -> None:
         """Mark the operation as cancelled."""
         self.status = ProgressStatus.CANCELLED
         self.end_time = time.time()
-        
+
         # Cancel any in-progress steps
         for step in self._steps:
             if step.status == ProgressStatus.IN_PROGRESS:
                 step.cancel()
-        
+
         event_message = message or f"Cancelled operation {self.operation_id}"
         event = ProgressEvent(
             self.operation_id,
@@ -465,47 +463,47 @@ class ProgressTracker:
             self.overall_progress,
             {"duration": self.get_duration()},
         )
-        
+
         self._add_event(event)
         self._logger.info(f"Cancelled progress tracking: {event_message}")
-    
+
     def _update_overall_progress(self) -> None:
         """Update overall progress based on step progress."""
         if not self._steps:
             return
-        
+
         total_weight = sum(step.weight for step in self._steps)
         completed_weight = 0.0
-        
+
         for step in self._steps:
             if step.status == ProgressStatus.COMPLETED:
                 completed_weight += step.weight
             elif step.status == ProgressStatus.IN_PROGRESS:
                 completed_weight += step.weight * (step.progress_percentage / 100.0)
-        
+
         self.overall_progress = (completed_weight / total_weight) * 100.0 if total_weight > 0 else 0.0
-    
+
     def _add_event(self, event: ProgressEvent) -> None:
         """Add an event to the history and report it."""
         self._events.append(event)
         self._reporter.report_progress(event)
-    
+
     def get_duration(self) -> Optional[float]:
         """Get the duration of the operation."""
         if self.start_time is None:
             return None
         end_time = self.end_time or time.time()
         return end_time - self.start_time
-    
+
     def get_estimated_time_remaining(self) -> Optional[float]:
         """Estimate time remaining based on current progress."""
         if self.start_time is None or self.overall_progress <= 0:
             return None
-        
+
         elapsed_time = time.time() - self.start_time
         estimated_total_time = elapsed_time / (self.overall_progress / 100.0)
         return max(0.0, estimated_total_time - elapsed_time)
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status information."""
         return {
@@ -521,19 +519,19 @@ class ProgressTracker:
             "error": str(self.error) if self.error else None,
             "steps": [step.to_dict() for step in self._steps],
         }
-    
+
     def get_events(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get progress events history."""
         events = self._events
         if limit is not None:
             events = events[-limit:]
         return [event.to_dict() for event in events]
-    
+
     def __enter__(self) -> "ProgressTracker":
         """Context manager entry."""
         self.start()
         return self
-    
+
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         if exc_type is not None:

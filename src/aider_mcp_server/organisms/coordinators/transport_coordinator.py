@@ -34,17 +34,13 @@ class TransportCoordinator:
             self._transport_registry.discover_adapters(package_name="transports")
             self._logger.info("Transport adapters discovery initiated.")
 
-    async def register_transport(
-        self, transport_name: str, **kwargs: Any
-    ) -> Optional[ITransportAdapter]:
+    async def register_transport(self, transport_name: str, **kwargs: Any) -> Optional[ITransportAdapter]:
         """Register and initialize a transport adapter."""
         self._logger.info(f"Registering transport: {transport_name} with config: {kwargs}")
-        
+
         async with self._lock:
             # Initialize the transport using the registry
-            transport = await self._transport_registry.initialize_adapter(
-                transport_name, self, {}
-            )
+            transport = await self._transport_registry.initialize_adapter(transport_name, self, {})
 
             if transport:
                 transport_id = transport.get_transport_id()
@@ -68,7 +64,7 @@ class TransportCoordinator:
     async def unregister_transport(self, transport_id: str) -> bool:
         """Unregister a transport adapter."""
         self._logger.info(f"Unregistering transport: {transport_id}")
-        
+
         async with self._lock:
             if transport_id in self._registered_transports:
                 del self._registered_transports[transport_id]
@@ -94,11 +90,11 @@ class TransportCoordinator:
         """Shut down the transport coordinator and all registered transports."""
         async with self._lock:
             self._logger.info("Shutting down TransportCoordinator...")
-            
+
             # Shutdown all registered transports
             for transport_id, transport in self._registered_transports.items():
                 try:
-                    if hasattr(transport, 'shutdown') and callable(getattr(transport, 'shutdown')):
+                    if hasattr(transport, "shutdown") and callable(transport.shutdown):
                         await transport.shutdown()
                         self._logger.debug(f"Transport '{transport_id}' shut down successfully.")
                 except Exception as e:

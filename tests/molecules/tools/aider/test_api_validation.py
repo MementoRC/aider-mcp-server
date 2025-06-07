@@ -142,12 +142,12 @@ class TestAPIValidator:
         assert "working_dir is required" in result_dict["changes_summary"]["summary"]
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch('aider_mcp_server.molecules.tools.aider.api_validation.load_dotenv')
+    @patch("aider_mcp_server.molecules.tools.aider.api_validation.load_dotenv")
     def test_validate_working_dir_and_api_keys_no_keys(self, mock_load_dotenv):
         """Test validation when no API keys are available."""
         # Mock dotenv loading to do nothing
         mock_load_dotenv.return_value = None
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             result = self.validator.validate_working_dir_and_api_keys(temp_dir, "openai")
 
@@ -175,12 +175,12 @@ class TestAPIValidator:
             assert "openai" in key_status["available_providers"]
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}, clear=True)
-    @patch('aider_mcp_server.molecules.tools.aider.api_validation.load_dotenv')
+    @patch("aider_mcp_server.molecules.tools.aider.api_validation.load_dotenv")
     def test_handle_api_key_checks_and_warnings_different_provider(self, mock_load_dotenv):
         """Test API key checks when requesting unavailable provider."""
-        # Mock dotenv loading to do nothing  
+        # Mock dotenv loading to do nothing
         mock_load_dotenv.return_value = None
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             key_status, provider_has_keys = self.validator.handle_api_key_checks_and_warnings(temp_dir, "openai")
 

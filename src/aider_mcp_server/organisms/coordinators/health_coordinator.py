@@ -20,7 +20,7 @@ class HealthCoordinator:
     def __init__(self, application_coordinator: Any) -> None:
         """
         Initialize the health coordinator.
-        
+
         Args:
             application_coordinator: Reference to the main application coordinator
         """
@@ -34,12 +34,10 @@ class HealthCoordinator:
         """Initialize the health monitoring system."""
         async with self._lock:
             self._logger.info("Initializing HealthCoordinator...")
-            
+
             # Initialize health monitoring with default configuration
             self._health_monitor = HealthMonitor(
-                self._application_coordinator, 
-                metrics_retention_minutes=60, 
-                health_check_interval=30.0
+                self._application_coordinator, metrics_retention_minutes=60, health_check_interval=30.0
             )
             await self._health_monitor.start_monitoring()
             self._logger.info("Health monitoring started.")
@@ -61,9 +59,7 @@ class HealthCoordinator:
         if self._health_monitor:
             await self._health_monitor.record_request_start(request_id, context)
 
-    async def record_request_completion(
-        self, request_id: str, success: bool, error_type: Optional[str] = None
-    ) -> None:
+    async def record_request_completion(self, request_id: str, success: bool, error_type: Optional[str] = None) -> None:
         """Record the completion of a request for health monitoring."""
         if self._health_monitor:
             await self._health_monitor.record_request_completion(request_id, success, error_type)
@@ -120,12 +116,12 @@ class HealthCoordinator:
         """Shut down the health monitoring system."""
         async with self._lock:
             self._logger.info("Shutting down HealthCoordinator...")
-            
+
             if self._health_monitor:
                 await self._health_monitor.stop_monitoring()
                 self._health_monitor = None
                 self._logger.info("Health monitoring stopped.")
-            
+
             self._logger.info("HealthCoordinator shutdown complete.")
 
     @property
