@@ -138,13 +138,12 @@ class TestAiderChangesHandling:
             with patch("aider_mcp_server.molecules.tools.aider_ai_code._check_for_meaningful_changes") as mock_check:
                 mock_check.return_value = True
 
-                with patch("aider_mcp_server.molecules.tools.aider_ai_code.cache_manager") as mock_cache:
+                with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
 
-                    async def mock_process_diff_cache(*args, **kwargs):
+                    async def mock_compare_and_cache(*args, **kwargs):
                         return ("mock diff output", False)
 
-                    mock_cache.process_diff_cache = mock_process_diff_cache
-                    mock_cache.generate_cache_key.return_value = "test_key"
+                    mock_cache.compare_and_cache = mock_compare_and_cache
 
                     # Call the function
                     result = await _process_coder_results(["test_file.py"], "/test/dir", False, False)
@@ -173,13 +172,12 @@ class TestAiderChangesHandling:
                         "files_modified": 0,
                     }
 
-                    with patch("aider_mcp_server.molecules.tools.aider_ai_code.cache_manager") as mock_cache:
+                    with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
 
-                        async def mock_process_diff_cache(*args, **kwargs):
+                        async def mock_compare_and_cache(*args, **kwargs):
                             return ("mock diff output", False)
 
-                        mock_cache.process_diff_cache = mock_process_diff_cache
-                        mock_cache.generate_cache_key.return_value = "test_key"
+                        mock_cache.compare_and_cache = mock_compare_and_cache
 
                         # Call the function
                         result = await _process_coder_results(["test_file.py"], "/test/dir", False, False)
