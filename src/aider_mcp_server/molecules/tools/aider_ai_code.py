@@ -330,10 +330,10 @@ def load_env_files(working_dir: Optional[str] = None) -> None:
 def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
     """
     Check availability of API keys in environment variables.
-    
+
     Args:
         working_dir: Directory to load .env files from
-    
+
     Returns:
         Dict with API key status info including:
         - missing: List of missing API key env vars
@@ -398,8 +398,8 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
     _log_browser_popup_phase(
         "PHASE 2: API Key Check Complete",
         {
-            "found_keys": len(result["found"]),
-            "missing_keys": len(result["missing"]),
+            "found_keys": len(result["found"]) if isinstance(result["found"], list) else 0,
+            "missing_keys": len(result["missing"]) if isinstance(result["missing"], list) else 0,
             "available_providers": result["available_providers"],
             "any_keys_found": result["any_keys_found"],
         },
@@ -427,7 +427,9 @@ def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str
         error_message = json.dumps(
             {
                 "success": False,
-                "changes_summary": {"summary": f"Error: working_dir '{working_dir}' does not exist or is not a directory."},
+                "changes_summary": {
+                    "summary": f"Error: working_dir '{working_dir}' does not exist or is not a directory."
+                },
                 "file_status": {"has_changes": False, "status_summary": "No changes detected."},
                 "is_cached_diff": False,
             },
@@ -447,7 +449,7 @@ def _handle_api_key_checks_and_warnings(
 
     if not any_keys_found:
         logger.warning("⚠️ No API keys found in environment. Aider may fail without valid API keys.")
-        
+
     return key_status, any_keys_found
 
 
@@ -479,19 +481,16 @@ def _add_provider_warning_to_response(
 ) -> None:
     """Add provider mismatch warning to response if applicable."""
     if requested_provider != actual_provider_used:
-        warning_msg = (
-            f"Requested {requested_provider} but used {actual_provider_used} "
-            f"(model: {actual_model_used})"
-        )
-        
+        warning_msg = f"Requested {requested_provider} but used {actual_provider_used} (model: {actual_model_used})"
+
         if "warnings" not in response:
             response["warnings"] = []
         elif response["warnings"] is None:
             response["warnings"] = []
-            
+
         if isinstance(response["warnings"], list):
             response["warnings"].append(warning_msg)
-        
+
         logger.warning(f"Provider mismatch: {warning_msg}")
 
 
@@ -1122,24 +1121,25 @@ async def _process_coder_results(
     # Process diff cache
     final_diff_content = raw_diff_output
     is_cached_diff = False
-    
+
     if use_diff_cache and diff_cache is not None:
         cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
-        cached_diff = await diff_cache.get(cache_key)
-        
-        if cached_diff is not None:
-            if cached_diff == raw_diff_output:
+        cached_diff_data = await diff_cache.get(cache_key)
+
+        if cached_diff_data is not None:
+            cached_diff_content = cached_diff_data.get("content", "")
+            if cached_diff_content == raw_diff_output:
                 logger.info("Using cached diff - no changes detected")
                 is_cached_diff = True
-                final_diff_content = cached_diff
+                final_diff_content = cached_diff_content
                 if clear_cached_for_unchanged:
                     await diff_cache.clear(cache_key)
             else:
                 logger.info("Diff content changed, updating cache")
-                await diff_cache.set(cache_key, raw_diff_output)
+                await diff_cache.set(cache_key, {"content": raw_diff_output})
         else:
             logger.info("No cached diff found, caching current diff")
-            await diff_cache.set(cache_key, raw_diff_output)
+            await diff_cache.set(cache_key, {"content": raw_diff_output})
 
     changes_summary = summarize_changes(final_diff_content)
     logger.info(f"Generated changes summary: {changes_summary['summary']}")
