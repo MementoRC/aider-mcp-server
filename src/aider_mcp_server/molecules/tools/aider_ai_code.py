@@ -6,61 +6,62 @@ import pathlib
 import subprocess
 import time
 import webbrowser
-from typing import Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 # CRITICAL: Prevent browser launches before any other imports
 # This must be done BEFORE importing aider/litellm to prevent contamination
-os.environ["LITELLM_MODE"] = "PRODUCTION"
-os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""  # Disable ADC
-os.environ["BROWSER"] = ""  # Disable browser launching
+os.environ["LITELLM_MODE"] = "PRODUCTION"  # noqa: E402
+os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"  # noqa: E402
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""  # Disable ADC  # noqa: E402
+os.environ["BROWSER"] = ""  # Disable browser launching  # noqa: E402
 
 # Monkey patch webbrowser to prevent any browser launches
-_original_open = webbrowser.open
+_original_open = webbrowser.open  # noqa: E402
 
 
-def _blocked_browser_open(*args: Any, **kwargs: Any) -> bool:
+def _blocked_browser_open(*args: Any, **kwargs: Any) -> bool:  # noqa: E402
     """Block browser opens and log the attempt"""
-    from aider_mcp_server.atoms.logging.logger import get_logger
+    from aider_mcp_server.atoms.logging.logger import get_logger  # noqa: E402
 
-    logger = get_logger(__name__)
-    logger.warning(f"🚨 BLOCKED BROWSER LAUNCH: {args}")
-    return False
+    logger = get_logger(__name__)  # noqa: E402
+    logger.warning(f"🚨 BLOCKED BROWSER LAUNCH: {args}")  # noqa: E402
+    return False  # noqa: E402
 
 
-webbrowser.open = _blocked_browser_open
-webbrowser.open_new = _blocked_browser_open
-webbrowser.open_new_tab = _blocked_browser_open
-
-# External imports - no stubs available
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
+webbrowser.open = _blocked_browser_open  # noqa: E402
+webbrowser.open_new = _blocked_browser_open  # noqa: E402
+webbrowser.open_new_tab = _blocked_browser_open  # noqa: E402
 
 # Add TYPE_CHECKING import for coordinator
 if TYPE_CHECKING:
-    from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator
+    from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator  # noqa: E402
 
-from aider.coders import Coder
-from aider.io import InputOutput
-from aider.models import Model
+from aider.coders import Coder  # noqa: E402
+from aider.io import InputOutput  # noqa: E402
+from aider.models import Model  # noqa: E402
 
-from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger  # noqa: E402
 
 # Internal imports
-from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType, FileChangesSummary
-from aider_mcp_server.atoms.utils.diff_cache import DiffCache
-from aider_mcp_server.atoms.utils.fallback_config import (
+from aider_mcp_server.atoms.types.event_types import EventTypes  # noqa: E402
+from aider_mcp_server.atoms.types.streaming_types import (  # noqa: E402
+    AiderChangesSummary,
+    ChangeType,
+    FileChangesSummary,
+)
+from aider_mcp_server.atoms.utils.diff_cache import DiffCache  # noqa: E402
+from aider_mcp_server.atoms.utils.fallback_config import (  # noqa: E402
     detect_rate_limit_error,
     get_fallback_model,
 )
-from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
-from aider_mcp_server.molecules.tools.aider_compatibility import (
+from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor  # noqa: E402
+from aider_mcp_server.molecules.tools.aider_compatibility import (  # noqa: E402
     filter_supported_params,
     get_aider_version,
     get_supported_coder_create_params,
     get_supported_coder_params,
 )
-from aider_mcp_server.molecules.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (  # noqa: E402
     get_file_status_summary,
     summarize_changes,
 )
