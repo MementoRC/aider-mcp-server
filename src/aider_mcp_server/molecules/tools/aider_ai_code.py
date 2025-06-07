@@ -5,54 +5,85 @@ import os.path
 import pathlib
 import subprocess
 import time
-
-# External imports - no stubs available
+import webbrowser
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
+
+# CRITICAL: Prevent browser launches before any other imports
+# This must be done BEFORE importing aider/litellm to prevent contamination
+os.environ["LITELLM_MODE"] = "PRODUCTION"  # noqa: E402
+os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"  # noqa: E402
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""  # Disable ADC  # noqa: E402
+os.environ["BROWSER"] = ""  # Disable browser launching  # noqa: E402
+
+# Monkey patch webbrowser to prevent any browser launches
+_original_open = webbrowser.open  # noqa: E402
+
+
+def _blocked_browser_open(*args: Any, **kwargs: Any) -> bool:  # noqa: E402
+    """Block browser opens and log the attempt"""
+    from aider_mcp_server.atoms.logging.logger import get_logger  # noqa: E402
+
+    logger = get_logger(__name__)  # noqa: E402
+    logger.warning(f"🚨 BLOCKED BROWSER LAUNCH: {args}")  # noqa: E402
+    return False  # noqa: E402
+
+
+webbrowser.open = _blocked_browser_open  # noqa: E402
+webbrowser.open_new = _blocked_browser_open  # noqa: E402
+webbrowser.open_new_tab = _blocked_browser_open  # noqa: E402
 
 # Add TYPE_CHECKING import for coordinator
 if TYPE_CHECKING:
-    from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator
+    from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator  # noqa: E402
 
-from aider.coders import Coder
-from aider.io import InputOutput
-from aider.models import Model
+from aider.coders import Coder  # noqa: E402
+from aider.io import InputOutput  # noqa: E402
+from aider.models import Model  # noqa: E402
 
-from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.atoms.logging.logger import get_logger  # noqa: E402
 
 # Internal imports
-from aider_mcp_server.atoms.types.event_types import EventTypes
-from aider_mcp_server.atoms.types.streaming_types import AiderChangesSummary, ChangeType, FileChangesSummary
-from aider_mcp_server.atoms.utils.fallback_config import (
+from aider_mcp_server.atoms.types.event_types import EventTypes  # noqa: E402
+from aider_mcp_server.atoms.types.streaming_types import (  # noqa: E402
+    AiderChangesSummary,
+    ChangeType,
+    FileChangesSummary,
+)
+from aider_mcp_server.atoms.utils.diff_cache import DiffCache  # noqa: E402
+from aider_mcp_server.atoms.utils.fallback_config import (  # noqa: E402
     detect_rate_limit_error,
     get_fallback_model,
 )
-from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
-from aider_mcp_server.molecules.tools.aider.api_validation import APIValidator
-from aider_mcp_server.molecules.tools.aider.cache_management import CacheManager
-from aider_mcp_server.molecules.tools.aider_compatibility import (
+from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor  # noqa: E402
+from aider_mcp_server.molecules.tools.aider_compatibility import (  # noqa: E402
     filter_supported_params,
     get_aider_version,
     get_supported_coder_create_params,
     get_supported_coder_params,
 )
-from aider_mcp_server.molecules.tools.changes_summarizer import (
+from aider_mcp_server.molecules.tools.changes_summarizer import (  # noqa: E402
     get_file_status_summary,
     summarize_changes,
 )
 
-# Instantiate a global CacheManager
-cache_manager = CacheManager()
+# Instantiate a global DiffCache
+diff_cache: Optional[DiffCache] = None
 
 
 # Backward compatibility exports for existing tests
 async def init_diff_cache() -> None:
-    """Backward compatibility function for tests. Delegates to cache_manager."""
-    await cache_manager.initialize_cache()
+    """Initialize the diff cache for change detection."""
+    global diff_cache
+    if diff_cache is None:
+        diff_cache = DiffCache()
 
 
 async def shutdown_diff_cache() -> None:
-    """Backward compatibility function for tests. Delegates to cache_manager."""
-    await cache_manager.shutdown_cache()
+    """Shutdown the diff cache."""
+    global diff_cache
+    if diff_cache is not None:
+        await diff_cache.shutdown()
+        diff_cache = None
 
 
 # Create a subclass of InputOutput that overrides tool_error to do nothing
@@ -79,11 +110,76 @@ class ResponseDict(TypedDict, total=False):
     warnings: Optional[List[str]]  # List of warnings to display to the user
 
 
-# Configure logging for this module
-logger = get_logger(__name__)
+# Try to import dotenv for environment variable loading
+try:
+    from dotenv import load_dotenv
 
-# Create API validator instance
-api_validator = APIValidator()
+    HAS_DOTENV = True
+except ImportError:
+    HAS_DOTENV = False
+
+
+def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
+    """Helper to check individual API keys and update result."""
+    logger.info("Checking API keys in environment...")
+    for key, provider in keys_to_check.items():
+        if os.environ.get(key):
+            logger.info(f"✓ {provider} API key found ({key})")
+            result["found"].append(key)
+            result["any_keys_found"] = True
+        else:
+            logger.warning(f"✗ {provider} API key missing ({key})")
+            result["missing"].append(key)
+
+
+def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
+    """Helper to handle GEMINI_API_KEY and GOOGLE_API_KEY aliasing."""
+    if os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_key is not None:  # Explicit check for None
+            logger.info("Setting GOOGLE_API_KEY from GEMINI_API_KEY for compatibility")
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+            missing_list = result["missing"]
+            if isinstance(missing_list, list) and "GOOGLE_API_KEY" in missing_list:
+                missing_list.remove("GOOGLE_API_KEY")
+                found_list = result["found"]
+                if isinstance(found_list, list):
+                    found_list.append("GOOGLE_API_KEY")
+
+
+def _determine_available_providers(provider_keys: Dict[str, List[str]], result: Dict[str, Any]) -> None:
+    """Helper to determine available providers based on found keys."""
+    for provider, keys in provider_keys.items():
+        found_list = result["found"]
+        available_providers = result["available_providers"]
+        missing_providers = result["missing_providers"]
+
+        if isinstance(found_list, list) and any(key in found_list for key in keys):
+            if isinstance(available_providers, list):
+                available_providers.append(provider)
+        elif isinstance(missing_providers, list):
+            missing_providers.append(provider)
+
+
+# Configure logging for this module - enable verbose mode for detailed browser popup debugging
+logger = get_logger(__name__, verbose=True)
+
+
+def _log_browser_popup_phase(phase: str, details: Optional[Dict[str, Any]] = None) -> None:
+    """Log a phase in the browser popup investigation with detailed context."""
+    logger.info(f"🔍 BROWSER_POPUP_DEBUG: {phase}")
+    if details:
+        for key, value in details.items():
+            logger.verbose(f"    {key}: {value}")
+    logger.verbose("    Environment variables relevant to auth:")
+    logger.verbose(f"      LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+    logger.verbose(
+        f"      GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+    )
+    logger.verbose(f"      GOOGLE_API_KEY set: {'YES' if os.environ.get('GOOGLE_API_KEY') else 'NO'}")
+    logger.verbose(f"      GEMINI_API_KEY set: {'YES' if os.environ.get('GEMINI_API_KEY') else 'NO'}")
+    logger.verbose(f"      Current working directory: {os.getcwd()}")
+
 
 # Load fallback configuration
 try:
@@ -135,33 +231,224 @@ except Exception as e:
 
 
 def load_env_files(working_dir: Optional[str] = None) -> None:
-    return api_validator.load_env_files(working_dir)
+    """Load environment variables from .env files in relevant directories."""
+    _log_browser_popup_phase(
+        "PHASE 1: Environment Loading Start", {"working_dir": working_dir, "HAS_DOTENV": HAS_DOTENV}
+    )
+
+    if not HAS_DOTENV:
+        logger.warning("python-dotenv not installed. Cannot load .env files.")
+        _log_browser_popup_phase("PHASE 1: Environment Loading Failed - No dotenv")
+        return
+
+    # Use a set to avoid duplicate directories
+    env_locations = []
+    seen = set()
+
+    # Add working_dir if provided
+    if working_dir and working_dir not in seen:
+        env_locations.append(working_dir)
+        seen.add(working_dir)
+
+    # Add current directory
+    cwd = os.getcwd()
+    if cwd not in seen:
+        env_locations.append(cwd)
+        seen.add(cwd)
+
+    # Add parent directory of current directory
+    parent_cwd = os.path.dirname(cwd)
+    if parent_cwd not in seen:
+        env_locations.append(parent_cwd)
+        seen.add(parent_cwd)
+
+    # Add user's home directory
+    home_dir = os.path.expanduser("~")
+    if home_dir not in seen:
+        env_locations.append(home_dir)
+        seen.add(home_dir)
+
+    # Add script directory (directory containing this file)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if script_dir not in seen:
+        env_locations.append(script_dir)
+        seen.add(script_dir)
+
+    logger.verbose(f"🔍 Searching for .env files in {len(env_locations)} locations: {env_locations}")
+
+    # Load .env from each location if it exists, with debug logging
+    loaded_files = []
+    for location in env_locations:
+        env_path = os.path.join(location, ".env")
+        logger.verbose(f"    Checking .env at: {env_path}")
+        if os.path.isfile(env_path):
+            # Store env state before loading
+            google_key_before = os.environ.get("GOOGLE_API_KEY")
+            gemini_key_before = os.environ.get("GEMINI_API_KEY")
+            openai_key_before = os.environ.get("OPENAI_API_KEY")
+            anthropic_key_before = os.environ.get("ANTHROPIC_API_KEY")
+
+            # Show file contents for debugging
+            try:
+                with open(env_path, "r") as f:
+                    content = f.read()
+                logger.verbose(f"    .env file contents (first 200 chars): {content[:200]}")
+            except Exception as e:
+                logger.verbose(f"    Could not read .env file contents: {e}")
+
+            load_dotenv(env_path)
+            loaded_files.append(env_path)
+
+            # Check what changed
+            google_key_after = os.environ.get("GOOGLE_API_KEY")
+            gemini_key_after = os.environ.get("GEMINI_API_KEY")
+            openai_key_after = os.environ.get("OPENAI_API_KEY")
+            anthropic_key_after = os.environ.get("ANTHROPIC_API_KEY")
+
+            logger.info(f"Loaded environment variables from {env_path}")
+            logger.verbose(
+                f"    GOOGLE_API_KEY: {'[HIDDEN]' if google_key_before else 'None'} -> {'[HIDDEN]' if google_key_after else 'None'}"
+            )
+            logger.verbose(
+                f"    GEMINI_API_KEY: {'[HIDDEN]' if gemini_key_before else 'None'} -> {'[HIDDEN]' if gemini_key_after else 'None'}"
+            )
+            logger.verbose(
+                f"    OPENAI_API_KEY: {'[HIDDEN]' if openai_key_before else 'None'} -> {'[HIDDEN]' if openai_key_after else 'None'}"
+            )
+            logger.verbose(
+                f"    ANTHROPIC_API_KEY: {'[HIDDEN]' if anthropic_key_before else 'None'} -> {'[HIDDEN]' if anthropic_key_after else 'None'}"
+            )
+        else:
+            logger.verbose(f"    No .env file found at: {env_path}")
+
+    _log_browser_popup_phase(
+        "PHASE 1: Environment Loading Complete",
+        {"loaded_files": loaded_files, "total_locations_checked": len(env_locations)},
+    )
 
 
 def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
-    return api_validator.check_api_keys(working_dir)
+    """
+    Check availability of API keys in environment variables.
+    
+    Args:
+        working_dir: Directory to load .env files from
+    
+    Returns:
+        Dict with API key status info including:
+        - missing: List of missing API key env vars
+        - found: List of found API key env vars
+        - available_providers: List of providers with valid keys
+        - missing_providers: List of providers with missing keys
+        - any_keys_found: Boolean indicating if any keys were found
+    """
+    _log_browser_popup_phase("PHASE 2: API Key Check Start", {"working_dir": working_dir})
 
+    # First load any .env files
+    load_env_files(working_dir)
 
-def _check_individual_api_keys(keys_to_check: Dict[str, str], result: Dict[str, Any]) -> None:
-    return api_validator._check_individual_api_keys(keys_to_check, result)
+    _log_browser_popup_phase(
+        "PHASE 2: LiteLLM Configuration",
+        {
+            "LITELLM_MODE_before": os.environ.get("LITELLM_MODE"),
+            "GOOGLE_AUTH_SUPPRESS_before": os.environ.get("GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"),
+        },
+    )
 
+    # Configure LiteLLM to prevent browser popups and interactive authentication
+    os.environ["LITELLM_MODE"] = "PRODUCTION"
+    os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
 
-def _handle_gemini_api_key_alias(result: Dict[str, Any]) -> None:
-    return api_validator._handle_gemini_api_key_alias(result)
+    logger.info("🔧 Configured LiteLLM to prevent browser popups:")
+    logger.verbose(f"    LITELLM_MODE set to: {os.environ['LITELLM_MODE']}")
+    logger.verbose(
+        f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS set to: {os.environ['GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS']}"
+    )
 
+    keys_to_check = {
+        "OPENAI_API_KEY": "OpenAI",
+        "GOOGLE_API_KEY": "Google/Gemini",
+        "GEMINI_API_KEY": "Google/Gemini (alternative)",
+        "ANTHROPIC_API_KEY": "Anthropic/Claude",
+        "AZURE_OPENAI_API_KEY": "Azure OpenAI",
+        "VERTEX_AI_API_KEY": "Vertex AI",
+    }
 
-def _determine_available_providers(provider_keys: Dict[str, List[str]], result: Dict[str, Any]) -> None:
-    return api_validator._determine_available_providers(provider_keys, result)
+    result = {
+        "missing": [],
+        "found": [],
+        "available_providers": [],
+        "missing_providers": [],
+        "any_keys_found": False,
+    }
+
+    _check_individual_api_keys(keys_to_check, result)
+    _handle_gemini_api_key_alias(result)
+
+    provider_keys = {
+        "openai": ["OPENAI_API_KEY"],
+        "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEY"],
+        "azure": ["AZURE_OPENAI_API_KEY"],
+        "vertex": ["VERTEX_AI_API_KEY"],
+    }
+
+    _determine_available_providers(provider_keys, result)
+
+    _log_browser_popup_phase(
+        "PHASE 2: API Key Check Complete",
+        {
+            "found_keys": len(result["found"]),
+            "missing_keys": len(result["missing"]),
+            "available_providers": result["available_providers"],
+            "any_keys_found": result["any_keys_found"],
+        },
+    )
+
+    return result
 
 
 def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
-    return api_validator.validate_working_dir_and_api_keys(working_dir, provider)
+    """Validate working directory and check API keys for the specified provider."""
+    # Validate working directory exists
+    if not working_dir:
+        error_message = json.dumps(
+            {
+                "success": False,
+                "changes_summary": {"summary": "Error: working_dir parameter is required but was not provided."},
+                "file_status": {"has_changes": False, "status_summary": "No changes detected."},
+                "is_cached_diff": False,
+            },
+            indent=4,
+        )
+        return error_message
+
+    if not os.path.isdir(working_dir):
+        error_message = json.dumps(
+            {
+                "success": False,
+                "changes_summary": {"summary": f"Error: working_dir '{working_dir}' does not exist or is not a directory."},
+                "file_status": {"has_changes": False, "status_summary": "No changes detected."},
+                "is_cached_diff": False,
+            },
+            indent=4,
+        )
+        return error_message
+
+    return None
 
 
 def _handle_api_key_checks_and_warnings(
     working_dir: Optional[str], provider_requested: str
 ) -> tuple[Dict[str, Any], bool]:
-    return api_validator.handle_api_key_checks_and_warnings(working_dir, provider_requested)
+    """Handle API key checks and return status with warning flags."""
+    key_status = check_api_keys(working_dir)
+    any_keys_found = key_status.get("any_keys_found", False)
+
+    if not any_keys_found:
+        logger.warning("⚠️ No API keys found in environment. Aider may fail without valid API keys.")
+        
+    return key_status, any_keys_found
 
 
 def _update_api_key_status_in_response(
@@ -171,9 +458,16 @@ def _update_api_key_status_in_response(
     actual_model_used: str,
     original_model_requested: str,
 ) -> None:
-    return api_validator.update_api_key_status_in_response(
-        response, key_status, requested_provider, actual_model_used, original_model_requested
-    )
+    """Update response with API key status information."""
+    response["api_key_status"] = {
+        "provider_requested": requested_provider,
+        "model_requested": original_model_requested,
+        "model_used": actual_model_used,
+        "keys_found": key_status.get("found", []),
+        "keys_missing": key_status.get("missing", []),
+        "available_providers": key_status.get("available_providers", []),
+        "any_keys_found": key_status.get("any_keys_found", False),
+    }
 
 
 def _add_provider_warning_to_response(
@@ -183,9 +477,22 @@ def _add_provider_warning_to_response(
     actual_provider_used: str,
     actual_model_used: str,
 ) -> None:
-    return api_validator.add_provider_warning_to_response(
-        response, key_status, requested_provider, actual_provider_used, actual_model_used
-    )
+    """Add provider mismatch warning to response if applicable."""
+    if requested_provider != actual_provider_used:
+        warning_msg = (
+            f"Requested {requested_provider} but used {actual_provider_used} "
+            f"(model: {actual_model_used})"
+        )
+        
+        if "warnings" not in response:
+            response["warnings"] = []
+        elif response["warnings"] is None:
+            response["warnings"] = []
+            
+        if isinstance(response["warnings"], list):
+            response["warnings"].append(warning_msg)
+        
+        logger.warning(f"Provider mismatch: {warning_msg}")
 
 
 def _normalize_file_paths(relative_editable_files: List[str], working_dir: Optional[str] = None) -> List[str]:
@@ -412,29 +719,61 @@ def _configure_model(model: str, editor_model: Optional[str] = None, architect_m
     Returns:
         Aider Model instance
     """
+    _log_browser_popup_phase(
+        "PHASE 3: Model Configuration Start",
+        {"model": model, "editor_model": editor_model, "architect_mode": architect_mode},
+    )
+
     logger.info(f"Configuring model: {model}, architect_mode={architect_mode}")
 
     # For testing purposes (when we know the model will fail), use a simple model name
     if model == "non_existent_model_123456789":
         logger.info(f"Using deliberately non-existent model for testing: {model}")
+        logger.warning("⚠️ This is a test model that will intentionally fail")
         return Model(model)
 
     # Use the actual requested model instead of hardcoding
     aider_model_name = model
     logger.info(f"Using requested model: {aider_model_name}")
 
+    # Log critical environment state before model instantiation
+    logger.verbose("🔍 Environment state before Model() instantiation:")
+    logger.verbose(f"    LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+    logger.verbose(
+        f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+    )
+    logger.verbose(f"    GOOGLE_API_KEY: {'SET' if os.environ.get('GOOGLE_API_KEY') else 'NOT_SET'}")
+    logger.verbose(f"    GEMINI_API_KEY: {'SET' if os.environ.get('GEMINI_API_KEY') else 'NOT_SET'}")
+
     # Configure model based on architect mode setting
-    if architect_mode:
-        if editor_model:
-            logger.info(f"Using editor model: {editor_model}")
-            return Model(aider_model_name, editor_model=editor_model)
+    logger.info("🚀 About to instantiate aider.models.Model() - CRITICAL BROWSER POPUP RISK POINT")
+    try:
+        if architect_mode:
+            if editor_model:
+                logger.info(f"Using editor model: {editor_model}")
+                model_instance = Model(aider_model_name, editor_model=editor_model)
+            else:
+                # Use the same model for both architect and editor roles
+                logger.info(f"Using same model for architect and editor: {aider_model_name}")
+                model_instance = Model(aider_model_name, editor_model=aider_model_name)
         else:
-            # Use the same model for both architect and editor roles
-            logger.info(f"Using same model for architect and editor: {aider_model_name}")
-            return Model(aider_model_name, editor_model=aider_model_name)
-    else:
-        # Standard (non-architect) configuration
-        return Model(aider_model_name)
+            # Standard (non-architect) configuration
+            logger.info("Creating standard Model instance")
+            model_instance = Model(aider_model_name)
+
+        logger.info("✅ Model instantiation completed successfully - no browser popup occurred")
+        _log_browser_popup_phase(
+            "PHASE 3: Model Configuration Success", {"model_created": True, "model_name": aider_model_name}
+        )
+        return model_instance
+
+    except Exception as e:
+        logger.error(f"❌ Model instantiation FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue")
+        _log_browser_popup_phase(
+            "PHASE 3: Model Configuration FAILED", {"error": str(e), "error_type": type(e).__name__}
+        )
+        raise
 
 
 def _convert_to_absolute_paths(relative_paths: List[str], working_dir: Optional[str]) -> List[str]:
@@ -485,6 +824,17 @@ def _setup_aider_coder(
     Returns:
         Configured Aider Coder instance
     """
+    _log_browser_popup_phase(
+        "PHASE 4: Coder Setup Start",
+        {
+            "working_dir": working_dir,
+            "editable_files_count": len(abs_editable_files),
+            "readonly_files_count": len(abs_readonly_files),
+            "architect_mode": architect_mode,
+            "auto_accept_architect": auto_accept_architect,
+        },
+    )
+
     logger.info("Setting up Aider coder...")
 
     # Log aider version for debugging
@@ -598,11 +948,25 @@ def _setup_aider_coder(
     final_params.update(filtered_init)
 
     logger.info(f"Creating Coder with parameters: {list(final_params.keys())}")
+    logger.verbose(f"🔍 Full Coder creation parameters: {final_params}")
 
     # Create the Coder instance using parameters compatible with the installed version
-    coder = Coder.create(**final_params)
-
-    return coder
+    logger.info("🚀 About to call Coder.create() - ANOTHER CRITICAL BROWSER POPUP RISK POINT")
+    try:
+        coder = Coder.create(**final_params)
+        logger.info("✅ Coder.create() completed successfully - no browser popup occurred")
+        _log_browser_popup_phase(
+            "PHASE 4: Coder Setup Success", {"coder_created": True, "parameters_used": list(final_params.keys())}
+        )
+        return coder
+    except Exception as e:
+        logger.error(f"❌ Coder.create() FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue during Coder setup")
+        _log_browser_popup_phase(
+            "PHASE 4: Coder Setup FAILED",
+            {"error": str(e), "error_type": type(e).__name__, "parameters_attempted": list(final_params.keys())},
+        )
+        raise
 
 
 def _check_for_meaningful_changes(relative_editable_files: List[str], working_dir: Optional[str] = None) -> bool:
@@ -744,9 +1108,10 @@ async def _process_coder_results(
     logger.info("Processing coder results...")
 
     # Initialize diff_cache if it's None and we're using it
-    if use_diff_cache and cache_manager.diff_cache is None:
+    global diff_cache
+    if use_diff_cache and diff_cache is None:
         logger.info("Initializing diff_cache in _process_coder_results")
-        await cache_manager.initialize_cache()
+        diff_cache = DiffCache()
 
     raw_diff_output = get_changes_diff_or_content(relative_editable_files, working_dir)
     logger.info(f"Raw diff output obtained (length: {len(raw_diff_output)}).")
@@ -754,10 +1119,27 @@ async def _process_coder_results(
     has_meaningful_content = _check_for_meaningful_changes(relative_editable_files, working_dir)
     logger.info(f"Meaningful content detected: {has_meaningful_content}")
 
-    cache_key = cache_manager.generate_cache_key(working_dir, relative_editable_files)
-    final_diff_content, is_cached_diff = await cache_manager.process_diff_cache(
-        cache_key, raw_diff_output, use_diff_cache, clear_cached_for_unchanged
-    )
+    # Process diff cache
+    final_diff_content = raw_diff_output
+    is_cached_diff = False
+    
+    if use_diff_cache and diff_cache is not None:
+        cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
+        cached_diff = await diff_cache.get_cached_diff(cache_key)
+        
+        if cached_diff is not None:
+            if cached_diff == raw_diff_output:
+                logger.info("Using cached diff - no changes detected")
+                is_cached_diff = True
+                final_diff_content = cached_diff
+                if clear_cached_for_unchanged:
+                    await diff_cache.clear_cached_diff(cache_key)
+            else:
+                logger.info("Diff content changed, updating cache")
+                await diff_cache.cache_diff(cache_key, raw_diff_output)
+        else:
+            logger.info("No cached diff found, caching current diff")
+            await diff_cache.cache_diff(cache_key, raw_diff_output)
 
     changes_summary = summarize_changes(final_diff_content)
     logger.info(f"Generated changes summary: {changes_summary['summary']}")
@@ -838,6 +1220,14 @@ async def _run_aider_session(
 
 def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Optional[str]:
     """Captures stdout/stderr and runs coder.run. Returns the result of coder.run."""
+    _log_browser_popup_phase(
+        "PHASE 5: Coder Execution Start",
+        {
+            "prompt_length": len(ai_coding_prompt),
+            "prompt_preview": ai_coding_prompt[:100] + "..." if len(ai_coding_prompt) > 100 else ai_coding_prompt,
+        },
+    )
+
     import sys
     from io import StringIO
 
@@ -850,8 +1240,24 @@ def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Option
     try:
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
+
+        logger.info("🚀 About to call coder.run() - FINAL CRITICAL BROWSER POPUP RISK POINT")
+        logger.verbose("🔍 Final environment state before coder.run():")
+        logger.verbose(f"    LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')}")
+        logger.verbose(
+            f"    GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')}"
+        )
+
         # Assuming coder.run might return something, like a status or summary string
         run_result = coder.run(ai_coding_prompt)
+
+        logger.info("✅ coder.run() completed successfully - no browser popup during execution")
+
+    except Exception as e:
+        logger.error(f"❌ coder.run() FAILED: {e}")
+        logger.error("🚨 This error might indicate browser popup or authentication issue during execution")
+        _log_browser_popup_phase("PHASE 5: Coder Execution FAILED", {"error": str(e), "error_type": type(e).__name__})
+        raise
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
@@ -861,10 +1267,21 @@ def _capture_output_and_run_coder(coder: Coder, ai_coding_prompt: str) -> Option
 
     if captured_stdout:
         logger.warning(f"Captured stdout from Aider: {captured_stdout[:200]}...")
+        logger.verbose(f"Full stdout from Aider: {captured_stdout}")
     if captured_stderr:
         logger.warning(f"Captured stderr from Aider: {captured_stderr[:200]}...")
+        logger.verbose(f"Full stderr from Aider: {captured_stderr}")
 
     logger.info(f"coder.run completed, result: {run_result}")
+    _log_browser_popup_phase(
+        "PHASE 5: Coder Execution Complete",
+        {
+            "run_result": str(run_result) if run_result else None,
+            "stdout_length": len(captured_stdout),
+            "stderr_length": len(captured_stderr),
+        },
+    )
+
     return str(run_result) if run_result is not None else None
 
 
@@ -1360,10 +1777,29 @@ async def code_with_aider(  # noqa: C901
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
     """
+    # ========== BROWSER POPUP INVESTIGATION START ==========
+    logger.info("🔍 ========== AIDER EXECUTION START - BROWSER POPUP INVESTIGATION ==========")
+    _log_browser_popup_phase(
+        "PHASE 0: Initial Setup",
+        {
+            "function": "code_with_aider",
+            "model": model,
+            "working_dir": working_dir,
+            "editable_files_count": len(relative_editable_files),
+            "readonly_files_count": len(relative_readonly_files) if relative_readonly_files else 0,
+        },
+    )
+
     # --- Ensure .env is loaded before any API key checks or model instantiations ---
     load_env_files(working_dir)
 
     # Configure LiteLLM to prevent browser popups and interactive authentication
+    logger.info("🔧 Setting LiteLLM production mode configuration:")
+    logger.verbose(f"    Setting LITELLM_MODE: {os.environ.get('LITELLM_MODE', 'NOT_SET')} -> PRODUCTION")
+    logger.verbose(
+        f"    Setting GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS: {os.environ.get('GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS', 'NOT_SET')} -> true"
+    )
+
     os.environ["LITELLM_MODE"] = "PRODUCTION"
     os.environ["GOOGLE_AUTH_SUPPRESS_CREDENTIALS_WARNINGS"] = "true"
 
@@ -1522,9 +1958,9 @@ async def _initial_setup_and_logging(
     logger.info("--- Starting code_with_aider ---")
     logger.info(f"Prompt: '{ai_coding_prompt[:100]}...'")  # Log truncated prompt
 
-    if use_diff_cache and cache_manager.diff_cache is None:
+    if use_diff_cache and diff_cache is None:
         logger.info("Initializing DiffCache for code_with_aider...")
-        await cache_manager.initialize_cache()  # Ensure this is awaited
+        diff_cache = DiffCache()
 
     if not working_dir:
         logger.error("CRITICAL: working_dir is None in _initial_setup_and_logging. This should not happen.")
