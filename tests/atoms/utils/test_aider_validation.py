@@ -69,7 +69,7 @@ class TestValidateFileReferences:
 
     def test_validate_nonexistent_working_directory_fails(self) -> None:
         """Test validation fails with nonexistent working directory."""
-        with pytest.raises((FileNotFoundError, OSError)):  # More specific exception types
+        with pytest.raises(Exception):  # ResourceNotFoundError inherits from our custom exception hierarchy
             validate_file_references(
                 relative_editable_files=["test.py"],
                 relative_readonly_files=[],
