@@ -1970,9 +1970,9 @@ async def code_with_aider(  # noqa: C901
             logger.error(f"Aider misfire detected: {e.user_friendly_message}")
             # Update response to reflect the misfire (using setdefault for type safety)
             response["success"] = False
-            response.setdefault("error", e.user_friendly_message)
-            response.setdefault("error_code", e.error_code)
-            response.setdefault("error_details", e.details)
+            response.setdefault("error", e.user_friendly_message)  # type: ignore
+            response.setdefault("error_code", e.error_code)  # type: ignore
+            response.setdefault("error_details", e.details)  # type: ignore
             warnings_list = response.get("warnings", [])
             if warnings_list is None:
                 warnings_list = []

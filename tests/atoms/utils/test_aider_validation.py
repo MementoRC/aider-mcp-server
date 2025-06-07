@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from aider_mcp_server.atoms.errors.application_errors import ResourceNotFoundError
 from aider_mcp_server.atoms.utils.aider_validation import (
     AiderMisfireError,
     AiderValidationError,
@@ -69,7 +70,7 @@ class TestValidateFileReferences:
 
     def test_validate_nonexistent_working_directory_fails(self) -> None:
         """Test validation fails with nonexistent working directory."""
-        with pytest.raises(Exception):  # ResourceNotFoundError inherits from our custom exception hierarchy
+        with pytest.raises(ResourceNotFoundError):
             validate_file_references(
                 relative_editable_files=["test.py"],
                 relative_readonly_files=[],
