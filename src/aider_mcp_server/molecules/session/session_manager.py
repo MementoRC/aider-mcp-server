@@ -117,7 +117,7 @@ class SessionManager:
         if timeout_seconds is None:
             timeout_seconds = self.default_timeout
 
-        # Create security context for the session  
+        # Create security context for the session
         # Cast to satisfy mypy - Set[Permissions] is compatible with Set[Union[Permissions, str]]
         permissions_for_context = cast(Optional[Set[Union[Permissions, str]]], filtered_permissions)
         security_context = SecurityContext(
@@ -280,15 +280,15 @@ class SessionManager:
         while True:
             if not self._running:
                 break
-                
+
             try:
                 await asyncio.sleep(self.cleanup_interval)
-                
-                # Double-check after sleep in case _running changed  
+
+                # Double-check after sleep in case _running changed
                 if not self._running:
                     break
 
-                expired_sessions = []  # pragma: no cover
+                expired_sessions = []
 
                 with self._lock:
                     for session_id, session in list(self._sessions.items()):
