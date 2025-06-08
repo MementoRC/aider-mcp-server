@@ -7,7 +7,7 @@ scope management, and service registration with various lifecycle options.
 
 import asyncio
 import weakref
-from typing import Dict, Any, Type, TypeVar, Optional, Callable, Protocol, List
+from typing import Dict, Any, Type, TypeVar, Optional, Callable, Protocol, List, cast
 from dataclasses import dataclass
 from enum import Enum, auto
 from contextlib import AsyncExitStack
@@ -102,7 +102,7 @@ class ServiceLocator:
         self.logger = logger
         self._registrations: Dict[Type[Any], ServiceRegistration] = {}
         self._singletons: Dict[Type[Any], Any] = {}
-        self._weak_singletons: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
+        self._weak_singletons: weakref.WeakValueDictionary[Type[Any], Any] = weakref.WeakValueDictionary()
         self._scopes: Dict[str, ServiceScope] = {}
         self._current_scope: Optional[ServiceScope] = None
         self._factories: Dict[Type[Any], IServiceFactory] = {}
@@ -290,7 +290,7 @@ class ServiceLocator:
             return self._get_weak_singleton(service_type, registration)
         
         elif registration.lifecycle == ServiceLifecycle.TRANSIENT:
-            return self._create_instance(registration)
+            return cast(T, self._create_instance(registration))
         
         elif registration.lifecycle == ServiceLifecycle.SCOPED:
             return self._get_scoped_instance(service_type, registration)
@@ -301,39 +301,39 @@ class ServiceLocator:
     def _get_singleton(self, service_type: Type[T], registration: ServiceRegistration) -> T:
         """Get or create a singleton instance."""
         if service_type in self._singletons:
-            return self._singletons[service_type]
+            return cast(T, self._singletons[service_type])
         
         instance = self._create_instance(registration)
         self._singletons[service_type] = instance
-        return instance
+        return cast(T, instance)
     
     def _get_lazy_singleton(self, service_type: Type[T], registration: ServiceRegistration) -> T:
         """Get or create a lazy singleton instance."""
         if service_type in self._singletons:
-            return self._singletons[service_type]
+            return cast(T, self._singletons[service_type])
         
         if self.logger:
             self.logger.verbose(f"Creating lazy singleton: {service_type.__name__}")
         
         instance = self._create_instance(registration)
         self._singletons[service_type] = instance
-        return instance
+        return cast(T, instance)
     
     def _get_weak_singleton(self, service_type: Type[T], registration: ServiceRegistration) -> T:
         """Get or create a weak singleton instance."""
         if service_type in self._weak_singletons:
-            return self._weak_singletons[service_type]
+            return cast(T, self._weak_singletons[service_type])
         
         instance = self._create_instance(registration)
         self._weak_singletons[service_type] = instance
-        return instance
+        return cast(T, instance)
     
     def _get_scoped_instance(self, service_type: Type[T], registration: ServiceRegistration) -> T:
         """Get or create a scoped instance."""
         scope = self._get_current_scope(registration.scope_id)
         
         if service_type in scope.instances:
-            return scope.instances[service_type]
+            return cast(T, scope.instances[service_type])
         
         instance = self._create_instance(registration)
         scope.instances[service_type] = instance
@@ -354,7 +354,7 @@ class ServiceLocator:
                     # This is tricky in a sync context, so we'll use a workaround for testing
                     import concurrent.futures
                     
-                    def run_in_thread():
+                    def run_in_thread() -> Any:
                         new_loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(new_loop)
                         try:
