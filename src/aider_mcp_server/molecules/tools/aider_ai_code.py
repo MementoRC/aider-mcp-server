@@ -1739,37 +1739,6 @@ def _validate_aider_parameters_comprehensive(
     return None  # Validation passed
 
 
-def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
-    """Validate working directory and API keys. Returns error JSON string if validation fails."""
-    if not working_dir:
-        error_msg = "Error: working_dir is required for code_with_aider"
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "changes_summary": {"summary": error_msg},
-                "error": error_msg,
-                "api_key_status": check_api_keys(None),
-            }
-        )
-
-    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
-    if not key_status["any_keys_found"]:
-        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "error": error_msg,
-                "api_key_status": key_status,
-                "warnings": [error_msg],
-                "changes_summary": {"summary": error_msg},
-            }
-        )
-
-    return None  # No error
-
-
 async def _execute_aider_with_coordination(
     ai_coding_prompt: str,
     abs_editable_files: List[str],
