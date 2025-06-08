@@ -139,7 +139,11 @@ class TestAiderChangesHandling:
                 mock_check.return_value = True
 
                 with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
-                    mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
+
+                    async def mock_compare_and_cache(*args, **kwargs):
+                        return ("mock diff output", False)
+
+                    mock_cache.compare_and_cache = mock_compare_and_cache
 
                     # Call the function
                     result = await _process_coder_results(["test_file.py"], "/test/dir", False, False)
@@ -169,7 +173,11 @@ class TestAiderChangesHandling:
                     }
 
                     with patch("aider_mcp_server.molecules.tools.aider_ai_code.diff_cache") as mock_cache:
-                        mock_cache.compare_and_cache.return_value = {"diff": "mock diff output"}
+
+                        async def mock_compare_and_cache(*args, **kwargs):
+                            return ("mock diff output", False)
+
+                        mock_cache.compare_and_cache = mock_compare_and_cache
 
                         # Call the function
                         result = await _process_coder_results(["test_file.py"], "/test/dir", False, False)

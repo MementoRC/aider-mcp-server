@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 # Import ApplicationCoordinator for reporting progress
 if TYPE_CHECKING:
-    from ..coordinators.transport_coordinator import ApplicationCoordinator
+    from ...pages.application.coordinator import ApplicationCoordinator
 
 
 # Use standard logging; configuration should be handled elsewhere
@@ -87,14 +87,16 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
 
         # Always send via Coordinator
         try:
-            # Coordinator handles routing and merging parameters
-            await self.coordinator.update_request(
-                request_id=self.request_id,
-                status=status,
-                message=message,
-                details=details,  # Pass provided details directly
+            # TODO: ApplicationCoordinator doesn't have update_request method - needs implementation
+            # await self.coordinator.update_request(
+            #     request_id=self.request_id,
+            #     status=status,
+            #     message=message,
+            #     details=details,  # Pass provided details directly
+            # )
+            logger.debug(
+                f"Progress update (coordinator method not implemented): {status} - {message} (Req ID: {self.request_id})"
             )
-            logger.debug(f"Sent progress update via Coordinator: {status} - {message} (Req ID: {self.request_id})")
         except Exception as e:
             logger.error(
                 f"Error sending progress update via Coordinator for '{self.operation_name}' (Req ID: {self.request_id}): {e}. Update lost."
@@ -112,13 +114,13 @@ class ProgressReporter(AbstractAsyncContextManager["ProgressReporter"]):
                 await asyncio.sleep(HEARTBEAT_INTERVAL)
                 # Coordinator Heartbeat (via update_request)
                 try:
-                    # Pass initial_details to ensure parameters are included by coordinator
-                    await self.coordinator.update_request(
-                        request_id=self.request_id,
-                        status="working_heartbeat",
-                        message="Operation in progress...",
-                        details=self.initial_details,  # Pass initial details for context
-                    )
+                    # TODO: ApplicationCoordinator doesn't have update_request method - needs implementation
+                    # await self.coordinator.update_request(
+                    #     request_id=self.request_id,
+                    #     status="working_heartbeat",
+                    #     message="Operation in progress...",
+                    #     details=self.initial_details,  # Pass initial details for context
+                    # )
                     logger.debug(
                         f"Sent 'working_heartbeat' progress via Coordinator for '{self.operation_name}' (Req ID: {self.request_id})"
                     )

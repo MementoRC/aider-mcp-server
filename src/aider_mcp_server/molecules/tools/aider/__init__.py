@@ -1,0 +1,339 @@
+"""
+Aider AI Code Tool - Unified Public API
+
+This module provides a clean, unified public API for the refactored aider tool components.
+The decomposition follows atomic design principles, improving maintainability, reducing
+complexity, and enhancing code organization while preserving backward compatibility.
+
+The module provides access to all refactored components:
+- CoreExecutor: Core Aider execution logic
+- RateLimiter: Rate limit handling and fallback strategies
+- ResponseFormatter: Response processing and formatting
+- CacheManager: Diff cache integration and management
+- APIValidator: API key validation and setup
+- SessionCoordinator: Session lifecycle and event coordination
+
+Additionally, it provides an AiderTool facade class that maintains backward compatibility
+with the original aider_ai_code.py interface.
+"""
+
+import os
+from typing import Any, Dict, List, Optional
+
+from aider_mcp_server.atoms.logging.logger import get_logger
+
+# Import all refactored components
+from .api_validation import APIValidator
+from .cache_management import CacheManager
+from .core_execution import CoreExecutor
+from .rate_limiting import RateLimiter
+from .response_formatting import ResponseFormatter
+from .session_coordination import SessionCoordinator
+from .shared import (
+    ExecutionConfig,
+    ExecutionResult,
+    FileInfo,
+    ModelConfig,
+    ResponseDict,
+    RetryConfig,
+    SilentInputOutput,
+)
+
+logger = get_logger(__name__)
+
+
+class AiderTool:
+    """
+    Main entry point for the Aider AI tool, providing backward compatibility.
+
+    This facade class orchestrates all the refactored components to provide
+    a unified interface that maintains compatibility with the original
+    aider_ai_code.py implementation.
+    """
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """Initialize the AiderTool with configuration.
+
+        Args:
+            config: Configuration dictionary for all components
+        """
+        self.config = config or {}
+
+        # Initialize all components
+        self.api_validator = APIValidator()
+        self.cache_manager = CacheManager()
+        self.core_executor = CoreExecutor()
+        self.rate_limiter = RateLimiter()
+        self.response_formatter = ResponseFormatter()
+        self.session_coordinator = SessionCoordinator()
+
+        # Track initialization state
+        self._initialized = False
+
+    async def initialize(self) -> None:
+        """Initialize all components asynchronously."""
+        if self._initialized:
+            return
+
+        try:
+            # Initialize cache manager
+            await self.cache_manager.initialize_cache()
+
+            # Load environment variables for API validation
+            working_dir = self.config.get("working_dir")
+            self.api_validator.load_env_files(working_dir)
+
+            self._initialized = True
+            logger.info("AiderTool initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize AiderTool: {e}")
+            raise
+
+    async def shutdown(self) -> None:
+        """Shutdown all components gracefully."""
+        try:
+            await self.cache_manager.shutdown_cache()
+            self._initialized = False
+            logger.info("AiderTool shutdown successfully")
+        except Exception as e:
+            logger.error(f"Error during AiderTool shutdown: {e}")
+            raise
+
+    async def execute_command(
+        self,
+        ai_coding_prompt: str,
+        relative_editable_files: List[str],
+        relative_readonly_files: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> ResponseDict:
+        """
+        Execute an Aider command with the given parameters.
+
+        This is the main entry point that orchestrates all components
+        to execute an aider coding session.
+
+        Args:
+            ai_coding_prompt: The coding prompt for aider
+            relative_editable_files: List of files that can be edited
+            relative_readonly_files: List of files for context only
+            **kwargs: Additional parameters
+
+        Returns:
+            ResponseDict containing the execution results
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            # Extract common parameters
+            working_dir = kwargs.get("working_dir", os.getcwd())
+            model = kwargs.get("model", "gpt-4")
+            architect_mode = kwargs.get("architect_mode", False)
+            editor_model = kwargs.get("editor_model")
+
+            # Start session coordination
+            request_id = await self.session_coordinator.start_session(
+                ai_coding_prompt=ai_coding_prompt,
+                relative_editable_files=relative_editable_files,
+                relative_readonly_files=relative_readonly_files or [],
+                original_model=model,
+                working_dir=working_dir,
+                architect_mode=architect_mode,
+            )
+
+            # Validate API credentials
+            api_status = self.api_validator.check_api_keys(working_dir)
+            if not api_status.get("any_keys_found", False):
+                api_error_response: ResponseDict = {
+                    "success": False,
+                    "error": "API key validation failed",
+                    "api_key_status": api_status,
+                    "changes_summary": {},
+                    "file_status": {},
+                    "warnings": ["API key validation failed"],
+                }
+                return api_error_response
+
+            # Generate cache key
+            cache_key = self.cache_manager.generate_cache_key(working_dir=working_dir, files=relative_editable_files)
+
+            # Cache will be checked during execution and result formatting
+            # The cache manager works with raw diff output, not response dictionaries
+
+            # Convert to absolute paths
+            abs_editable_files = self.core_executor.convert_to_absolute_paths(relative_editable_files, working_dir)
+            abs_readonly_files = self.core_executor.convert_to_absolute_paths(
+                relative_readonly_files or [], working_dir
+            )
+
+            # Extract provider from model (simplified approach)
+            provider = "openai"  # Default provider
+            if "claude" in model.lower() or "anthropic" in model.lower():
+                provider = "anthropic"
+            elif "gemini" in model.lower() or "google" in model.lower():
+                provider = "gemini"
+
+            # Execute aider session with retry logic
+            result = await self.core_executor.execute_with_retry(
+                ai_coding_prompt=ai_coding_prompt,
+                relative_editable_files=relative_editable_files,
+                abs_editable_files=abs_editable_files,
+                abs_readonly_files=abs_readonly_files,
+                working_dir=working_dir,
+                model=model,
+                provider=provider,
+                use_diff_cache=True,
+                clear_cached_for_unchanged=True,
+                architect_mode=architect_mode,
+                editor_model=editor_model,
+                auto_accept_architect=kwargs.get("auto_accept_architect", True),
+                coordinator=self.session_coordinator.coordinator
+                if hasattr(self.session_coordinator, "coordinator")
+                else None,
+            )
+
+            # Format the response
+            formatted_result = self.response_formatter.finalize_aider_response(response=result, include_diff=True)
+
+            # Update API key status in response
+            self.response_formatter.update_api_key_status_in_response(formatted_result, api_status)
+
+            # Cache the result if successful and contains diff
+            if (
+                formatted_result.get("success", False)
+                and self.cache_manager.diff_cache
+                and formatted_result.get("diff")
+            ):
+                # Cache the raw diff output
+                await self.cache_manager.process_diff_cache(
+                    cache_key=cache_key, raw_diff_output=formatted_result["diff"], use_diff_cache=True
+                )
+
+            # Complete session coordination
+            if request_id:
+                await self.session_coordinator.complete_session(
+                    response=dict(formatted_result),  # Convert ResponseDict to dict
+                    actual_model_used=model,
+                    original_model=model,
+                    relative_editable_files=relative_editable_files,
+                    success=formatted_result.get("success", False),
+                )
+
+            return formatted_result
+
+        except Exception as e:
+            logger.error(f"Error executing aider command: {e}")
+            error_response: ResponseDict = {
+                "success": False,
+                "error": str(e),
+                "changes_summary": {},
+                "file_status": {},
+                "warnings": [str(e)],
+            }
+
+            # Handle session error if we have a request_id
+            if "request_id" in locals() and request_id:
+                await self.session_coordinator.handle_session_error(e)
+
+            return error_response
+
+    # Backward compatibility methods
+    async def aider_ai_code(
+        self,
+        ai_coding_prompt: str,
+        relative_editable_files: List[str],
+        relative_readonly_files: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> ResponseDict:
+        """Legacy method name for backward compatibility."""
+        return await self.execute_command(
+            ai_coding_prompt=ai_coding_prompt,
+            relative_editable_files=relative_editable_files,
+            relative_readonly_files=relative_readonly_files,
+            **kwargs,
+        )
+
+    def get_component(self, component_name: str) -> Any:
+        """Get direct access to a specific component.
+
+        Args:
+            component_name: Name of the component to retrieve
+
+        Returns:
+            The requested component instance
+
+        Raises:
+            ValueError: If component name is not recognized
+        """
+        components = {
+            "api_validator": self.api_validator,
+            "cache_manager": self.cache_manager,
+            "core_executor": self.core_executor,
+            "rate_limiter": self.rate_limiter,
+            "response_formatter": self.response_formatter,
+            "session_coordinator": self.session_coordinator,
+        }
+
+        if component_name not in components:
+            raise ValueError(f"Unknown component: {component_name}")
+
+        return components[component_name]
+
+
+# Convenience function for quick usage
+async def execute_aider_command(
+    ai_coding_prompt: str,
+    relative_editable_files: List[str],
+    relative_readonly_files: Optional[List[str]] = None,
+    **kwargs: Any,
+) -> ResponseDict:
+    """
+    Convenience function to execute an aider command without managing an AiderTool instance.
+
+    This function creates a temporary AiderTool instance, executes the command,
+    and cleans up automatically.
+
+    Args:
+        ai_coding_prompt: The coding prompt for aider
+        relative_editable_files: List of files that can be edited
+        relative_readonly_files: List of files for context only
+        **kwargs: Additional parameters
+
+    Returns:
+        ResponseDict containing the execution results
+    """
+    tool = AiderTool(kwargs.get("config", {}))
+    try:
+        return await tool.execute_command(
+            ai_coding_prompt=ai_coding_prompt,
+            relative_editable_files=relative_editable_files,
+            relative_readonly_files=relative_readonly_files,
+            **kwargs,
+        )
+    finally:
+        await tool.shutdown()
+
+
+# Export all public components and types
+__all__ = [
+    # Main facade class
+    "AiderTool",
+    # Individual components (for direct access)
+    "CoreExecutor",
+    "RateLimiter",
+    "ResponseFormatter",
+    "CacheManager",
+    "APIValidator",
+    "SessionCoordinator",
+    # Shared types
+    "ResponseDict",
+    "ExecutionConfig",
+    "ModelConfig",
+    "ExecutionResult",
+    "FileInfo",
+    "RetryConfig",
+    "SilentInputOutput",
+    # Convenience function
+    "execute_aider_command",
+]

@@ -72,6 +72,25 @@ from aider_mcp_server.molecules.tools.changes_summarizer import (  # noqa: E402
     summarize_changes,
 )
 
+# Instantiate a global DiffCache
+diff_cache: Optional[DiffCache] = None
+
+
+# Backward compatibility exports for existing tests
+async def init_diff_cache() -> None:
+    """Initialize the diff cache for change detection."""
+    global diff_cache
+    if diff_cache is None:
+        diff_cache = DiffCache()
+
+
+async def shutdown_diff_cache() -> None:
+    """Shutdown the diff cache."""
+    global diff_cache
+    if diff_cache is not None:
+        await diff_cache.shutdown()
+        diff_cache = None
+
 
 # Create a subclass of InputOutput that overrides tool_error to do nothing
 class SilentInputOutput(InputOutput):  # type: ignore[misc]
@@ -217,41 +236,6 @@ except Exception as e:
     }
 
 
-# Initialize to None, will be set by init_diff_cache
-diff_cache: Optional[DiffCache] = None
-
-
-async def init_diff_cache() -> None:
-    """Initializes the module-level DiffCache."""
-    global diff_cache
-    if diff_cache is not None:
-        # Already initialized
-        logger.warning("DiffCache already initialized.")
-        return
-
-    logger.info("Initializing DiffCache...")
-    # Create the instance
-    new_cache = DiffCache()
-    # Await the start method
-    await new_cache.start()
-    # Assign to the module-level variable
-    diff_cache = new_cache
-    logger.info("DiffCache initialized.")
-
-
-async def shutdown_diff_cache() -> None:
-    """Shuts down the module-level DiffCache."""
-    global diff_cache
-    if diff_cache is None:
-        logger.warning("DiffCache not initialized, nothing to shut down.")
-        return
-
-    logger.info("Shutting down DiffCache...")
-    await diff_cache.shutdown()
-    diff_cache = None  # Reset the global variable
-    logger.info("DiffCache shut down.")
-
-
 def load_env_files(working_dir: Optional[str] = None) -> None:
     """Load environment variables from .env files in relevant directories."""
     _log_browser_popup_phase(
@@ -350,10 +334,11 @@ def load_env_files(working_dir: Optional[str] = None) -> None:
 
 
 def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
-    """Check if necessary API keys are set in the environment and return status.
+    """
+    Check availability of API keys in environment variables.
 
     Args:
-        working_dir: Optional working directory to search for .env files
+        working_dir: Directory to load .env files from
 
     Returns:
         Dict with API key status info including:
@@ -395,14 +380,7 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
         "VERTEX_AI_API_KEY": "Vertex AI",
     }
 
-    provider_keys = {
-        "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-        "openai": ["OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"],
-        "anthropic": ["ANTHROPIC_API_KEY"],
-        "vertexai": ["VERTEX_AI_API_KEY"],
-    }
-
-    result: Dict[str, Any] = {
+    result = {
         "missing": [],
         "found": [],
         "available_providers": [],
@@ -412,9 +390,114 @@ def check_api_keys(working_dir: Optional[str] = None) -> Dict[str, Any]:
 
     _check_individual_api_keys(keys_to_check, result)
     _handle_gemini_api_key_alias(result)
+
+    provider_keys = {
+        "openai": ["OPENAI_API_KEY"],
+        "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+        "anthropic": ["ANTHROPIC_API_KEY"],
+        "azure": ["AZURE_OPENAI_API_KEY"],
+        "vertex": ["VERTEX_AI_API_KEY"],
+    }
+
     _determine_available_providers(provider_keys, result)
 
+    _log_browser_popup_phase(
+        "PHASE 2: API Key Check Complete",
+        {
+            "found_keys": len(result["found"]) if isinstance(result["found"], list) else 0,
+            "missing_keys": len(result["missing"]) if isinstance(result["missing"], list) else 0,
+            "available_providers": result["available_providers"],
+            "any_keys_found": result["any_keys_found"],
+        },
+    )
+
     return result
+
+
+def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
+    """Validate working directory and check API keys for the specified provider."""
+    # Validate working directory exists
+    if not working_dir:
+        error_message = json.dumps(
+            {
+                "success": False,
+                "changes_summary": {"summary": "Error: working_dir parameter is required but was not provided."},
+                "file_status": {"has_changes": False, "status_summary": "No changes detected."},
+                "is_cached_diff": False,
+            },
+            indent=4,
+        )
+        return error_message
+
+    if not os.path.isdir(working_dir):
+        error_message = json.dumps(
+            {
+                "success": False,
+                "changes_summary": {
+                    "summary": f"Error: working_dir '{working_dir}' does not exist or is not a directory."
+                },
+                "file_status": {"has_changes": False, "status_summary": "No changes detected."},
+                "is_cached_diff": False,
+            },
+            indent=4,
+        )
+        return error_message
+
+    return None
+
+
+def _handle_api_key_checks_and_warnings(
+    working_dir: Optional[str], provider_requested: str
+) -> tuple[Dict[str, Any], bool]:
+    """Handle API key checks and return status with warning flags."""
+    key_status = check_api_keys(working_dir)
+    any_keys_found = key_status.get("any_keys_found", False)
+
+    if not any_keys_found:
+        logger.warning("⚠️ No API keys found in environment. Aider may fail without valid API keys.")
+
+    return key_status, any_keys_found
+
+
+def _update_api_key_status_in_response(
+    response: ResponseDict,
+    key_status: Dict[str, Any],
+    requested_provider: str,
+    actual_model_used: str,
+    original_model_requested: str,
+) -> None:
+    """Update response with API key status information."""
+    response["api_key_status"] = {
+        "provider_requested": requested_provider,
+        "model_requested": original_model_requested,
+        "model_used": actual_model_used,
+        "keys_found": key_status.get("found", []),
+        "keys_missing": key_status.get("missing", []),
+        "available_providers": key_status.get("available_providers", []),
+        "any_keys_found": key_status.get("any_keys_found", False),
+    }
+
+
+def _add_provider_warning_to_response(
+    response: ResponseDict,
+    key_status: Dict[str, Any],
+    requested_provider: str,
+    actual_provider_used: str,
+    actual_model_used: str,
+) -> None:
+    """Add provider mismatch warning to response if applicable."""
+    if requested_provider != actual_provider_used:
+        warning_msg = f"Requested {requested_provider} but used {actual_provider_used} (model: {actual_model_used})"
+
+        if "warnings" not in response:
+            response["warnings"] = []
+        elif response["warnings"] is None:
+            response["warnings"] = []
+
+        if isinstance(response["warnings"], list):
+            response["warnings"].append(warning_msg)
+
+        logger.warning(f"Provider mismatch: {warning_msg}")
 
 
 def _normalize_file_paths(relative_editable_files: List[str], working_dir: Optional[str] = None) -> List[str]:
@@ -937,57 +1020,6 @@ def _check_for_meaningful_changes(relative_editable_files: List[str], working_di
     return False
 
 
-async def _handle_diff_cache_processing(
-    cache_key: str,
-    raw_diff_output: str,
-    use_diff_cache: bool,
-    clear_cached_for_unchanged: bool,
-) -> tuple[str, bool]:
-    """Handles diff cache logic and returns final diff content and cache status."""
-    global diff_cache
-    is_cached_diff = False
-    final_diff_content = raw_diff_output or "No git-tracked changes detected."
-
-    if use_diff_cache and diff_cache is not None:
-        logger.info(f"Attempting to use diff cache for key: {cache_key}")
-        try:
-            changes_from_cache = await diff_cache.compare_and_cache(
-                cache_key,
-                {"diff": raw_diff_output},  # Wrap the diff string in a dict as expected by cache
-                clear_cached_for_unchanged,
-            )
-            is_cached_diff = True
-            logger.info("Diff cache operation successful.")
-
-            if diff_cache is not None:  # Log cache stats
-                stats = diff_cache.get_stats()
-                logger.info(
-                    f"Diff cache stats: Hits={stats.get('hits')}, Misses={stats.get('misses')}, Total={stats.get('total_accesses')}, Size={stats.get('current_size')} bytes, Max Size={stats.get('max_size')} bytes, Hit Rate={stats.get('hit_rate', 0.0):.2f}"
-                )
-
-            if not changes_from_cache:  # Empty dict or None means no changes detected by cache
-                logger.info("Cache comparison detected no changes.")
-                final_diff_content = "No git-tracked changes detected by cache comparison."
-            else:  # Changes were detected by cache
-                logger.info("Cache comparison detected changes.")
-                final_diff_content = changes_from_cache.get("diff", "Error retrieving changes from cache.")
-                if not final_diff_content:  # Should not happen if changes_from_cache is not empty
-                    logger.warning(
-                        "Cache comparison returned empty diff string despite changes_from_cache not being empty."
-                    )
-                    final_diff_content = "No git-tracked changes detected by cache comparison."
-        except Exception as e:
-            logger.error(f"Error using diff cache for key {cache_key}: {e}")
-            # Fallback to using the raw diff_output if cache fails
-            final_diff_content = raw_diff_output or "No git-tracked changes detected."
-            logger.warning("Falling back to raw diff output due to cache error.")
-    else:
-        logger.info("Diff cache is disabled or not initialized.")
-        # Use the raw diff_output if cache is disabled
-        final_diff_content = raw_diff_output or "No git-tracked changes detected."
-    return final_diff_content, is_cached_diff
-
-
 def _update_summary_from_file_status(
     changes_summary: Dict[str, Any], file_status: Dict[str, Any], success: bool
 ) -> None:
@@ -1078,13 +1110,13 @@ async def _process_coder_results(
     Returns:
         Dictionary with success status and diff output
     """
-    global diff_cache
     logger.info("Processing coder results...")
 
     # Initialize diff_cache if it's None and we're using it
+    global diff_cache
     if use_diff_cache and diff_cache is None:
         logger.info("Initializing diff_cache in _process_coder_results")
-        await init_diff_cache()
+        diff_cache = DiffCache()
 
     raw_diff_output = get_changes_diff_or_content(relative_editable_files, working_dir)
     logger.info(f"Raw diff output obtained (length: {len(raw_diff_output)}).")
@@ -1092,10 +1124,28 @@ async def _process_coder_results(
     has_meaningful_content = _check_for_meaningful_changes(relative_editable_files, working_dir)
     logger.info(f"Meaningful content detected: {has_meaningful_content}")
 
-    cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
-    final_diff_content, is_cached_diff = await _handle_diff_cache_processing(
-        cache_key, raw_diff_output, use_diff_cache, clear_cached_for_unchanged
-    )
+    # Process diff cache
+    final_diff_content = raw_diff_output
+    is_cached_diff = False
+
+    if use_diff_cache and diff_cache is not None:
+        cache_key = f"{working_dir}:{':'.join(sorted(relative_editable_files))}"
+        cached_diff_data = await diff_cache.get(cache_key)
+
+        if cached_diff_data is not None:
+            cached_diff_content = cached_diff_data.get("content", "")
+            if cached_diff_content == raw_diff_output:
+                logger.info("Using cached diff - no changes detected")
+                is_cached_diff = True
+                final_diff_content = cached_diff_content
+                if clear_cached_for_unchanged:
+                    await diff_cache.clear(cache_key)
+            else:
+                logger.info("Diff content changed, updating cache")
+                await diff_cache.set(cache_key, {"content": raw_diff_output})
+        else:
+            logger.info("No cached diff found, caching current diff")
+            await diff_cache.set(cache_key, {"content": raw_diff_output})
 
     changes_summary = summarize_changes(final_diff_content)
     logger.info(f"Generated changes summary: {changes_summary['summary']}")
@@ -1689,37 +1739,6 @@ def _validate_aider_parameters_comprehensive(
     return None  # Validation passed
 
 
-def _validate_working_dir_and_api_keys(working_dir: Optional[str], provider: str) -> Optional[str]:
-    """Validate working directory and API keys. Returns error JSON string if validation fails."""
-    if not working_dir:
-        error_msg = "Error: working_dir is required for code_with_aider"
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "changes_summary": {"summary": error_msg},
-                "error": error_msg,
-                "api_key_status": check_api_keys(None),
-            }
-        )
-
-    key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
-    if not key_status["any_keys_found"]:
-        error_msg = "Error: No API keys found for any provider. Please set at least one API key."
-        logger.error(error_msg)
-        return json.dumps(
-            {
-                "success": False,
-                "error": error_msg,
-                "api_key_status": key_status,
-                "warnings": [error_msg],
-                "changes_summary": {"summary": error_msg},
-            }
-        )
-
-    return None  # No error
-
-
 async def _execute_aider_with_coordination(
     ai_coding_prompt: str,
     abs_editable_files: List[str],
@@ -2034,7 +2053,7 @@ async def _initial_setup_and_logging(
 
     if use_diff_cache and diff_cache is None:
         logger.info("Initializing DiffCache for code_with_aider...")
-        await init_diff_cache()  # Ensure this is awaited
+        diff_cache = DiffCache()
 
     if not working_dir:
         logger.error("CRITICAL: working_dir is None in _initial_setup_and_logging. This should not happen.")
@@ -2050,73 +2069,6 @@ async def _initial_setup_and_logging(
     if architect_mode:
         logger.info(f"Editor model: {editor_model if editor_model else 'Same as main model'}")
         logger.info(f"Auto accept architect: {auto_accept_architect}")
-
-
-def _handle_api_key_checks_and_warnings(  # This function is mostly for initial check
-    working_dir: Optional[str],
-    provider_requested: str,  # No response needed here
-) -> tuple[Dict[str, Any], bool]:
-    """Checks API keys. Returns key_status and if requested provider has keys."""
-    key_status = check_api_keys(working_dir)  # Loads .env files
-
-    # Log general API key status
-    if not key_status["any_keys_found"]:
-        logger.error("CRITICAL: No API keys found for ANY provider.")
-    else:
-        logger.info(f"Available providers with keys: {key_status['available_providers']}")
-        if key_status["missing_providers"]:
-            logger.warning(f"Providers missing keys: {key_status['missing_providers']}")
-
-    # Check for the specifically requested provider
-    provider_has_keys = provider_requested in key_status["available_providers"]
-    if not provider_has_keys:
-        logger.warning(
-            f"API key for the initially requested provider '{provider_requested}' is missing or invalid."
-            " Fallback mechanisms will be attempted if other provider keys are available."
-        )
-    return key_status, provider_has_keys
-
-
-def _update_api_key_status_in_response(
-    response: ResponseDict,
-    key_status: Dict[str, Any],
-    requested_provider: str,
-    actual_model_used: str,
-    original_model_requested: str,
-) -> None:
-    """Updates the API key status information in the response."""
-    actual_provider_used = _determine_provider(actual_model_used)
-    response["api_key_status"] = {
-        "available_providers": key_status.get("available_providers", []),
-        "missing_providers": key_status.get("missing_providers", []),
-        "requested_provider": requested_provider,
-        "used_provider": actual_provider_used,
-        "original_model_requested": original_model_requested,
-        "actual_model_used": actual_model_used,
-    }
-
-
-def _add_provider_warning_to_response(
-    response: ResponseDict,
-    key_status: Dict[str, Any],
-    requested_provider: str,
-    actual_provider_used: str,
-    actual_model_used: str,
-) -> None:
-    """Adds a warning if the requested provider's key was missing."""
-    if requested_provider not in key_status.get("available_providers", []):
-        warning_msg = (
-            f"Warning: API key for the initially requested provider '{requested_provider}' was missing. "
-            f"The system attempted to use provider '{actual_provider_used}' with model '{actual_model_used}'."
-        )
-        if "warnings" not in response:
-            response["warnings"] = []
-        # Ensure warnings is a list
-        if not isinstance(response.get("warnings"), list):
-            response["warnings"] = []
-
-        if warning_msg not in response["warnings"]:  # type: ignore
-            response["warnings"].append(warning_msg)  # type: ignore
 
 
 def _handle_diff_field_in_response(response: ResponseDict, include_raw_diff: bool) -> None:
