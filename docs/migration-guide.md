@@ -238,7 +238,7 @@ security = SecurityService(config)
 
 **Problem**: Getting `ImportError` or `ModuleNotFoundError`
 
-**Solution**: 
+**Solution**:
 1. Verify you're using the latest version of aider-mcp-server
 2. Check if you're using the correct import path
 3. Use the old import path temporarily while debugging
@@ -267,7 +267,7 @@ from aider_mcp_server.atoms.types.transport_protocols import ITransportAdapter
 
 **Problem**: Type checkers (mypy, pyright) showing errors with new imports
 
-**Solution**: 
+**Solution**:
 1. Update your type checker configuration
 2. Add the new paths to your PYTHONPATH
 3. Verify all dependencies are updated
@@ -276,7 +276,7 @@ from aider_mcp_server.atoms.types.transport_protocols import ITransportAdapter
 
 **Problem**: Can't find a function or class in the new location
 
-**Solution**: 
+**Solution**:
 1. Check the [architecture documentation](./atomic-design-architecture.md) for the new location
 2. Use the old import path temporarily
 3. Report the issue if functionality is truly missing
