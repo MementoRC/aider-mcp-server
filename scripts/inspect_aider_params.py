@@ -25,7 +25,9 @@ for param_name, param in coder_init_sig.parameters.items():
     if param_name == "self":
         continue
     print(
-        f"  {param_name}: {param.annotation if param.annotation != inspect.Parameter.empty else 'Any'} = {param.default if param.default != inspect.Parameter.empty else 'REQUIRED'}"
+        f"  {param_name}: "
+        f"{param.annotation if param.annotation != inspect.Parameter.empty else 'Any'} = "
+        f"{param.default if param.default != inspect.Parameter.empty else 'REQUIRED'}"
     )
 
 # Check Coder.create parameters
