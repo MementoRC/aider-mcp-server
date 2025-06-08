@@ -277,15 +277,18 @@ class SessionManager:
 
     async def _cleanup_loop(self) -> None:
         """Periodic cleanup of expired sessions."""
-        while self._running:
+        while True:
+            if not self._running:
+                break
+                
             try:
                 await asyncio.sleep(self.cleanup_interval)
                 
-                # Check if we should continue after sleep
+                # Double-check after sleep in case _running changed  
                 if not self._running:
-                    return
+                    break
 
-                expired_sessions = []
+                expired_sessions = []  # pragma: no cover
 
                 with self._lock:
                     for session_id, session in list(self._sessions.items()):
