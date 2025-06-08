@@ -27,6 +27,7 @@ from .dependency_resolver import (
     DependencyResolver,
     DependencyType,
 )
+from .legacy_bridge import LegacyConfigurationSystem, get_config
 from .service_locator import (
     IServiceFactory,
     ServiceLifecycle,
@@ -34,8 +35,6 @@ from .service_locator import (
     ServiceRegistration,
     ServiceScope,
 )
-
-from .legacy_bridge import LegacyConfigurationSystem, get_config
 
 __all__ = [
     # Dependency Resolution

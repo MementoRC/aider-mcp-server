@@ -41,7 +41,7 @@ config = get_config()  # Will show deprecation warning
 # OLD (deprecated)
 from aider_mcp_server.templates.configuration.dependency_container import DependencyContainer
 
-# NEW (recommended) 
+# NEW (recommended)
 from aider_mcp_server.molecules.configuration.service_locator import ServiceLocator
 from aider_mcp_server.molecules.configuration.dependency_resolver import DependencyResolver
 ```
