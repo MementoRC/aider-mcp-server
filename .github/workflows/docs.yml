@@ -2,7 +2,7 @@ name: Deploy Documentation
 
 on:
   push:
-    branches: 
+    branches:
       - development  # Deploy docs when pushing to development branch
     paths:
       - 'docs/**'

@@ -81,7 +81,7 @@ AIDER_PORT=5005
 The server attempts to use API keys in this order:
 
 1. **OpenAI** (`OPENAI_API_KEY`)
-2. **Anthropic** (`ANTHROPIC_API_KEY`) 
+2. **Anthropic** (`ANTHROPIC_API_KEY`)
 3. **Google/Gemini** (`GOOGLE_API_KEY`)
 4. **Other providers** as configured
 
@@ -196,7 +196,7 @@ mcp-aider-multi \
 - **Pros:** Simple, widely supported, low overhead
 - **Cons:** No real-time progress updates
 
-### SSE Transport  
+### SSE Transport
 
 - **Protocol:** Server-Sent Events over HTTP
 - **Use case:** Web applications, real-time dashboards
@@ -274,7 +274,7 @@ curl http://localhost:5005/sse-health
 Now that you have Aider MCP Server running:
 
 1. **[Explore the API Reference](api-reference.md)** - Learn about available tools and endpoints
-2. **[Check out Examples](examples.md)** - See practical usage scenarios  
+2. **[Check out Examples](examples.md)** - See practical usage scenarios
 3. **[Understand the Architecture](atomic-design-architecture.md)** - Dive into the atomic design structure
 4. **[Contributing](contributing.md)** - Help improve the project
 

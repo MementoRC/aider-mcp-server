@@ -60,7 +60,7 @@ Refactor existing code to improve performance and maintainability.
 
 ```json
 {
-  "jsonrpc": "2.0", 
+  "jsonrpc": "2.0",
   "id": 2,
   "method": "tools/call",
   "params": {
@@ -88,7 +88,7 @@ Generate comprehensive test coverage for existing code.
 {
   "jsonrpc": "2.0",
   "id": 3,
-  "method": "tools/call", 
+  "method": "tools/call",
   "params": {
     "name": "aider_ai_code",
     "arguments": {
@@ -118,12 +118,12 @@ Use two-phase generation for complex features.
   "id": 4,
   "method": "tools/call",
   "params": {
-    "name": "aider_ai_code", 
+    "name": "aider_ai_code",
     "arguments": {
       "ai_coding_prompt": "Implement a caching system with Redis backend, including cache invalidation, TTL support, and monitoring metrics",
       "relative_editable_files": [
         "src/cache/redis_cache.py",
-        "src/cache/cache_manager.py", 
+        "src/cache/cache_manager.py",
         "src/cache/metrics.py"
       ],
       "relative_readonly_files": [
@@ -152,7 +152,7 @@ Implement a complete feature across multiple files.
       "ai_coding_prompt": "Implement a complete user notification system with email and SMS support, including templates, queuing, and delivery tracking",
       "relative_editable_files": [
         "src/notifications/email.py",
-        "src/notifications/sms.py", 
+        "src/notifications/sms.py",
         "src/notifications/queue.py",
         "src/notifications/templates.py",
         "src/notifications/tracking.py",
@@ -188,7 +188,7 @@ async def call_aider_mcp(prompt: str, files: list[str]):
         response = await client.post(
             "http://localhost:5005/mcp",
             json={
-                "jsonrpc": "2.0", 
+                "jsonrpc": "2.0",
                 "id": 1,
                 "method": "tools/call",
                 "params": {
@@ -235,10 +235,10 @@ function AiderCodeGenerator() {
   // Listen for real-time progress
   useEffect(() => {
     const eventSource = new EventSource('http://localhost:5005/sse');
-    
+
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
+
       if (data.event_type === 'PROGRESS') {
         setProgress(data.data.progress);
       } else if (data.event_type === 'TOOL_RESULT') {
@@ -280,7 +280,7 @@ function AiderCodeGenerator() {
   return (
     <div>
       <h2>AI Code Generator</h2>
-      
+
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
@@ -373,7 +373,7 @@ class AiderCLI:
     def ask_question(self, question: str, files: list[str] = None):
         """Ask a question about the codebase"""
         request = {
-            "jsonrpc": "2.0", 
+            "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
             "params": {
@@ -397,7 +397,7 @@ def main():
     parser.add_argument('--prompt', required=True, help='Coding prompt')
     parser.add_argument('--files', nargs='+', required=True, help='Files to edit')
     parser.add_argument('--readonly', nargs='*', help='Read-only context files')
-    
+
     args = parser.parse_args()
 
     cli = AiderCLI(args.dir)
@@ -405,14 +405,14 @@ def main():
 
     try:
         result = cli.send_request(args.prompt, args.files, args.readonly)
-        
+
         if result.get('result', {}).get('isError'):
             print("Error:", result['result']['content'][0]['text'])
             sys.exit(1)
         else:
             print("Success!")
             print(result['result']['content'][0]['text'])
-            
+
     finally:
         if cli.process:
             cli.process.terminate()
@@ -496,7 +496,7 @@ python aider_cli.py \
       "ai_coding_prompt": "Review this authentication code for security vulnerabilities. Pay special attention to session management, password handling, and potential injection attacks.",
       "relative_readonly_files": [
         "src/auth/login.py",
-        "src/auth/session.py", 
+        "src/auth/session.py",
         "src/auth/password.py",
         "src/middleware/security.py"
       ]
@@ -575,9 +575,9 @@ const simpleTask = {
   }
 };
 
-// Complex tasks - use more capable models  
+// Complex tasks - use more capable models
 const complexTask = {
-  name: "aider_ai_code", 
+  name: "aider_ai_code",
   arguments: {
     ai_coding_prompt: "Refactor this legacy codebase to use modern patterns",
     relative_editable_files: ["legacy/", "modern/"],
@@ -600,16 +600,16 @@ from typing import Optional
 class AiderClient:
     def __init__(self, base_url: str = "http://localhost:5005"):
         self.base_url = base_url
-        
-    async def code_request(self, prompt: str, files: list[str], 
+
+    async def code_request(self, prompt: str, files: list[str],
                           readonly_files: Optional[list[str]] = None,
                           max_retries: int = 3) -> dict:
         """Make a code generation request with error handling and retries"""
-        
+
         request_data = {
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "tools/call", 
+            "method": "tools/call",
             "params": {
                 "name": "aider_ai_code",
                 "arguments": {
@@ -619,7 +619,7 @@ class AiderClient:
                 }
             }
         }
-        
+
         for attempt in range(max_retries):
             try:
                 async with httpx.AsyncClient(timeout=300.0) as client:
@@ -628,42 +628,42 @@ class AiderClient:
                         json=request_data
                     )
                     response.raise_for_status()
-                    
+
                     result = response.json()
-                    
+
                     # Check for application-level errors
                     if 'error' in result:
                         raise Exception(f"MCP Error: {result['error']['message']}")
-                    
+
                     if result.get('result', {}).get('isError'):
                         raise Exception(f"Tool Error: {result['result']['content'][0]['text']}")
-                    
+
                     return result
-                    
+
             except httpx.TimeoutException:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)  # Exponential backoff
                     continue
                 raise Exception("Request timed out after retries")
-                
+
             except httpx.HTTPStatusError as e:
                 if e.response.status_code >= 500 and attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
                     continue
                 raise Exception(f"HTTP Error: {e.response.status_code}")
-                
+
             except Exception as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
                     continue
                 raise e
-                
+
         raise Exception("Max retries exceeded")
 
 # Usage
 async def main():
     client = AiderClient()
-    
+
     try:
         result = await client.code_request(
             prompt="Add error handling to this function",
@@ -671,7 +671,7 @@ async def main():
             readonly_files=["tests/test_utils.py"]
         )
         print("Success:", result['result']['content'][0]['text'])
-        
+
     except Exception as e:
         print(f"Error: {e}")
 
@@ -690,7 +690,7 @@ from unittest.mock import Mock, patch
 from aider_client import AiderClient
 
 class TestAiderIntegration:
-    
+
     @pytest.fixture
     def mock_response(self):
         return {
@@ -706,33 +706,33 @@ class TestAiderIntegration:
                 "isError": False
             }
         }
-    
+
     @pytest.mark.asyncio
     async def test_successful_code_generation(self, mock_response):
         client = AiderClient()
-        
+
         with patch('httpx.AsyncClient') as mock_client:
             mock_client.return_value.__aenter__.return_value.post.return_value.json.return_value = mock_response
             mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.return_value = None
-            
+
             result = await client.code_request(
                 prompt="Test prompt",
                 files=["test.py"]
             )
-            
+
             assert result == mock_response
             assert not result['result']['isError']
-    
-    @pytest.mark.asyncio  
+
+    @pytest.mark.asyncio
     async def test_error_handling(self):
         client = AiderClient()
-        
+
         with patch('httpx.AsyncClient') as mock_client:
             mock_client.return_value.__aenter__.return_value.post.side_effect = Exception("Connection failed")
-            
+
             with pytest.raises(Exception, match="Connection failed"):
                 await client.code_request(
-                    prompt="Test prompt", 
+                    prompt="Test prompt",
                     files=["test.py"]
                 )
 ```

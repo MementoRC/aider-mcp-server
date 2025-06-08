@@ -187,7 +187,7 @@ When adding entries to this changelog:
 ### Categories
 
 - **Added** for new features
-- **Changed** for changes in existing functionality  
+- **Changed** for changes in existing functionality
 - **Deprecated** for soon-to-be removed features
 - **Removed** for now removed features
 - **Fixed** for any bug fixes

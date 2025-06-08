@@ -28,11 +28,11 @@ Thank you for your interest in contributing to Aider MCP Server! This guide will
     ```bash
     git clone https://github.com/YOUR_USERNAME/aider-mcp-server.git
     cd aider-mcp-server
-    
+
     # Install in development mode
     hatch env create dev
     hatch shell dev
-    
+
     # Install pre-commit hooks
     hatch run dev:pre-commit install
     ```
@@ -42,14 +42,14 @@ Thank you for your interest in contributing to Aider MCP Server! This guide will
     ```bash
     git clone https://github.com/YOUR_USERNAME/aider-mcp-server.git
     cd aider-mcp-server
-    
+
     # Create virtual environment
     python -m venv venv
     source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-    
+
     # Install in development mode
     pip install -e ".[dev]"
-    
+
     # Install pre-commit hooks
     pre-commit install
     ```
@@ -132,7 +132,7 @@ class ToolProtocol(Protocol):
     def execute(self, params: dict) -> dict: ...
 
 # 2. Molecule: Implement the tool
-# molecules/tools/my_new_tool.py  
+# molecules/tools/my_new_tool.py
 from ..types.tool_protocols import ToolProtocol
 
 class MyNewTool:
@@ -203,16 +203,16 @@ hatch run dev:pre-commit run --all-files
 ```python
 def my_function(param: str) -> dict:
     """Brief description of the function.
-    
+
     Args:
         param: Description of the parameter
-        
+
     Returns:
         Description of the return value
-        
+
     Raises:
         ValueError: When param is invalid
-        
+
     Example:
         >>> result = my_function("test")
         >>> assert result["status"] == "success"
@@ -240,22 +240,22 @@ from aider_mcp_server.molecules.tools.my_tool import MyTool
 
 class TestMyTool:
     """Test suite for MyTool"""
-    
+
     @pytest.fixture
     def tool(self):
         """Create a tool instance for testing"""
         return MyTool()
-    
+
     def test_successful_execution(self, tool):
         """Test normal operation"""
         result = tool.execute({"valid": "params"})
         assert result["status"] == "success"
-    
+
     def test_error_handling(self, tool):
         """Test error scenarios"""
         with pytest.raises(ValueError):
             tool.execute({"invalid": "params"})
-    
+
     @patch('aider_mcp_server.molecules.tools.my_tool.external_api')
     def test_with_mocks(self, mock_api, tool):
         """Test with external dependencies mocked"""
@@ -276,13 +276,13 @@ async def test_full_request_flow():
     """Test complete request processing"""
     coordinator = ApplicationCoordinator()
     await coordinator.initialize()
-    
+
     # Test actual request flow
     result = await coordinator.process_request({
         "method": "tools/call",
         "params": {"name": "my_tool", "arguments": {...}}
     })
-    
+
     assert result["status"] == "success"
 ```
 
@@ -299,20 +299,20 @@ def temp_project():
     """Create a temporary Git repository for testing"""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir)
-        
+
         # Initialize git repo
         subprocess.run(["git", "init"], cwd=project_path, check=True)
-        subprocess.run(["git", "config", "user.email", "test@example.com"], 
+        subprocess.run(["git", "config", "user.email", "test@example.com"],
                       cwd=project_path, check=True)
-        subprocess.run(["git", "config", "user.name", "Test User"], 
+        subprocess.run(["git", "config", "user.name", "Test User"],
                       cwd=project_path, check=True)
-        
+
         # Create initial commit
         (project_path / "README.md").write_text("# Test Project")
         subprocess.run(["git", "add", "."], cwd=project_path, check=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit"], 
+        subprocess.run(["git", "commit", "-m", "Initial commit"],
                       cwd=project_path, check=True)
-        
+
         yield project_path
 ```
 
@@ -421,15 +421,15 @@ DEFAULT_TIMEOUT = 30.0
 # Classes
 class MyClass:
     """Class docstring."""
-    
+
     def __init__(self, param: str) -> None:
         """Initialize the class."""
         self._param = param
-    
+
     def public_method(self) -> str:
         """Public method with docstring."""
         return self._private_method()
-    
+
     def _private_method(self) -> str:
         """Private method (single underscore)."""
         return f"processed: {self._param}"
@@ -475,15 +475,15 @@ def profile_function():
     """Profile function performance"""
     profiler = cProfile.Profile()
     profiler.enable()
-    
+
     # Your code here
     result = expensive_function()
-    
+
     profiler.disable()
     stats = pstats.Stats(profiler)
     stats.sort_stats('tottime')
     stats.print_stats(10)
-    
+
     return result
 ```
 
@@ -508,7 +508,7 @@ Update `docs/changelog.md` with:
 - New code analysis tool for complexity metrics
 - Support for custom model configurations
 
-### Changed  
+### Changed
 - Improved error handling in SSE transport
 - Updated atomic design documentation
 
@@ -572,7 +572,7 @@ New contributors can:
 Your contributions make Aider MCP Server better for everyone. Whether it's:
 
 - **Bug reports** and feature requests
-- **Code contributions** and reviews  
+- **Code contributions** and reviews
 - **Documentation** improvements
 - **Community support** and discussions
 

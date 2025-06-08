@@ -54,7 +54,7 @@ The primary tool for AI-assisted code generation and modification.
   "result": {
     "content": [
       {
-        "type": "text", 
+        "type": "text",
         "text": "## Summary\n\nAdded comprehensive error handling to the authentication system:\n\n### Changes Made\n\n- **login.py**: Added try-catch blocks for database exceptions\n- **session.py**: Implemented session validation with proper error codes\n\n### Files Modified\n\n- `src/auth/login.py`: 45 lines added\n- `src/auth/session.py`: 23 lines added\n\n### Testing\n\nAll existing tests pass. Consider adding tests for the new error scenarios."
       }
     ],
@@ -200,7 +200,7 @@ curl -N http://localhost:5005/sse
 
 **Event Types:**
 - `STATUS` - General status updates
-- `PROGRESS` - Operation progress (0-100%)  
+- `PROGRESS` - Operation progress (0-100%)
 - `TOOL_RESULT` - Final tool results
 - `HEARTBEAT` - Connection keepalive
 
@@ -262,12 +262,12 @@ General status information.
 }
 ```
 
-#### PROGRESS  
+#### PROGRESS
 Task progress updates (0-100%).
 
 ```json
 {
-  "event_type": "PROGRESS", 
+  "event_type": "PROGRESS",
   "data": {
     "progress": 75,
     "message": "Analyzing code structure...",
@@ -380,7 +380,7 @@ All requests are validated for:
 
 API keys are checked in order:
 1. OpenAI (`OPENAI_API_KEY`)
-2. Anthropic (`ANTHROPIC_API_KEY`) 
+2. Anthropic (`ANTHROPIC_API_KEY`)
 3. Google (`GOOGLE_API_KEY`)
 4. Other configured providers
 
@@ -484,7 +484,7 @@ eventSource.onmessage = (event) => {
 
 Regular health checks verify:
 - API connectivity
-- Model availability  
+- Model availability
 - File system access
 - Memory usage
 - Active connections
