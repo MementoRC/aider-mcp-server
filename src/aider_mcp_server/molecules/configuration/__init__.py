@@ -35,6 +35,8 @@ from .service_locator import (
     ServiceScope,
 )
 
+from .legacy_bridge import LegacyConfigurationSystem, get_config
+
 __all__ = [
     # Dependency Resolution
     "DependencyResolver",
@@ -55,6 +57,9 @@ __all__ = [
     "ConfigurationWatcher",
     "ConfigurationSource",
     "ConfigurationFormat",
+    # Legacy Bridge (deprecated)
+    "LegacyConfigurationSystem",
+    "get_config",
 ]
 
 
