@@ -456,7 +456,7 @@ class ConfigurationManager:
     def _load_yaml_content(self, f: Any) -> Dict[str, Any]:
         """Load YAML configuration content."""
         try:
-            import yaml  # type: ignore
+            import yaml  # type: ignore[import-untyped]
 
             return cast(Dict[str, Any], yaml.safe_load(f))
         except ImportError as e:
@@ -471,7 +471,7 @@ class ConfigurationManager:
                 return tomllib.load(bf)
         except ImportError:
             try:
-                import toml  # type: ignore
+                import toml  # type: ignore[import-untyped]
 
                 with open(file_path, "r", encoding="utf-8") as tf:
                     return cast(Dict[str, Any], toml.load(tf))

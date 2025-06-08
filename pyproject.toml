@@ -187,9 +187,6 @@ ignore_missing_imports = true
 module = "mcp.server.stdio"
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = "aider_mcp_server.molecules.session.session_manager"
-warn_unreachable = false
 
 [[tool.mypy.overrides]]
 module = "mcp.types"
