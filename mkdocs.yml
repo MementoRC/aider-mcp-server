@@ -1,9 +1,87 @@
-site_name: aider-mcp-server
-repo_name: https://github.com/MementoRC/aider-mcp-server
-edit_uri: edit/main/docs/
-docs_dir: .
+site_name: Aider MCP Server
+site_description: AI-powered coding server with Model Context Protocol support and Atomic Design architecture
+site_url: https://mementorc.github.io/aider-mcp-server/
+repo_name: MementoRC/aider-mcp-server
+repo_url: https://github.com/MementoRC/aider-mcp-server
+edit_uri: edit/development/
+
+# Configuration
 theme:
-  name: readthedocs
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+    - content.action.view
+
+# Extensions
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+# Plugins
+plugins:
+  - search
+  - mkdocstrings
+
+# Navigation
 nav:
-  - Home: docs/index.md
-  - README: README.md
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started.md
+  - Architecture:
+    - Overview: atomic-design-architecture.md
+    - Migration Guide: migration-guide.md
+    - Development: DEVELOPMENT.md
+  - User Guide:
+    - API Reference: api-reference.md
+    - Examples: examples.md
+  - Development:
+    - Contributing: contributing.md
+  - Reference:
+    - Changelog: changelog.md
+
+# Extra
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/MementoRC/aider-mcp-server
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/aider-mcp-server/
+  version:
+    provider: mike
+
+# Copyright
+copyright: Copyright &copy; 2024 MementoRC
