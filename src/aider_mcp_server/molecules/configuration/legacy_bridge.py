@@ -225,7 +225,7 @@ class LegacyConfigurationSystem:
 
     def _flatten_to_nested(self, flat_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Convert flat dot-notation keys to nested dictionary structure."""
-        result = {}
+        result: Dict[str, Any] = {}
 
         for key, value in flat_dict.items():
             parts = key.split(".")
