@@ -11,8 +11,8 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Protocol
 from statistics import mean, stdev
+from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.atoms.types.event_types import EventTypes
@@ -21,6 +21,7 @@ from aider_mcp_server.atoms.types.mcp_types import LoggerProtocol
 
 class HealthState(Enum):
     """Enumeration of possible health states with increasing severity."""
+
     HEALTHY = "healthy"
     WARNING = "warning"
     DEGRADED = "degraded"
@@ -30,6 +31,7 @@ class HealthState(Enum):
 
 class TrendDirection(Enum):
     """Direction of health trend analysis."""
+
     IMPROVING = "improving"
     STABLE = "stable"
     DEGRADING = "degrading"
@@ -39,6 +41,7 @@ class TrendDirection(Enum):
 @dataclass
 class HealthMetric:
     """Represents a single health metric data point."""
+
     component: str
     metric_name: str
     value: float
@@ -49,6 +52,7 @@ class HealthMetric:
 @dataclass
 class HealthEvent:
     """Represents a health-related event."""
+
     event_id: str
     component: str
     event_type: str
@@ -62,6 +66,7 @@ class HealthEvent:
 @dataclass
 class HealthPrediction:
     """Represents predicted health trends and early warnings."""
+
     component: str
     predicted_state: HealthState
     confidence: float  # 0.0 to 1.0
@@ -74,6 +79,7 @@ class HealthPrediction:
 @dataclass
 class ComponentHealth:
     """Comprehensive health information for a component."""
+
     component: str
     current_state: HealthState
     last_updated: float
@@ -85,11 +91,11 @@ class ComponentHealth:
 
 class HealthSource(Protocol):
     """Protocol for health data sources."""
-    
+
     async def get_health_metrics(self) -> List[HealthMetric]:
         """Retrieve current health metrics from this source."""
         ...
-    
+
     async def get_health_state(self) -> HealthState:
         """Get the current health state of this source."""
         ...
@@ -112,27 +118,27 @@ class HealthTracker:
         self._logger: LoggerProtocol = get_logger(__name__)
         self._application_coordinator = application_coordinator
         self._retention_hours = retention_hours
-        
+
         # Health data storage
         self._component_health: Dict[str, ComponentHealth] = {}
         self._health_sources: Dict[str, HealthSource] = {}
         self._health_metrics: deque[HealthMetric] = deque(maxlen=10000)  # Recent metrics
-        self._health_events: deque[HealthEvent] = deque(maxlen=5000)   # Recent events
-        
+        self._health_events: deque[HealthEvent] = deque(maxlen=5000)  # Recent events
+
         # Prediction and analysis
         self._threshold_configs: Dict[str, Dict[str, float]] = {}
         self._correlation_patterns: Dict[str, List[str]] = {}
         self._prediction_models: Dict[str, Callable[[], Any]] = {}
-        
+
         # Background tasks
         self._analysis_task: Optional[asyncio.Task[None]] = None
         self._cleanup_task: Optional[asyncio.Task[None]] = None
         self._monitoring_active = False
-        
+
         # Configuration
         self._analysis_interval = 30.0  # seconds
         self._prediction_window = 300.0  # 5 minutes prediction window
-        
+
         self._lock = asyncio.Lock()
         self._logger.info(f"HealthTracker initialized with {retention_hours} hour retention")
 
@@ -142,20 +148,20 @@ class HealthTracker:
             if self._monitoring_active:
                 self._logger.warning("Health tracking is already active")
                 return
-                
+
             self._monitoring_active = True
-            
+
             # Start background analysis task
             self._analysis_task = asyncio.create_task(self._analysis_loop())
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-            
+
             self._logger.info("Health tracking started")
 
     async def stop_tracking(self) -> None:
         """Stop the health tracking system."""
         async with self._lock:
             self._monitoring_active = False
-            
+
             # Cancel background tasks
             if self._analysis_task:
                 self._analysis_task.cancel()
@@ -164,7 +170,7 @@ class HealthTracker:
                 except asyncio.CancelledError:
                     pass
                 self._analysis_task = None
-                
+
             if self._cleanup_task:
                 self._cleanup_task.cancel()
                 try:
@@ -172,7 +178,7 @@ class HealthTracker:
                 except asyncio.CancelledError:
                     pass
                 self._cleanup_task = None
-                
+
             self._logger.info("Health tracking stopped")
 
     async def register_health_source(self, source_name: str, source: HealthSource) -> None:
@@ -227,29 +233,27 @@ class HealthTracker:
             event: Health event to record
         """
         self._health_events.append(event)
-        
+
         # Update component health
         if event.component not in self._component_health:
             self._component_health[event.component] = ComponentHealth(
-                component=event.component,
-                current_state=event.state,
-                last_updated=event.timestamp
+                component=event.component, current_state=event.state, last_updated=event.timestamp
             )
-        
+
         # Always update the component health with new event
         component_health = self._component_health[event.component]
         component_health.current_state = event.state
         component_health.last_updated = event.timestamp
         component_health.events.append(event)
-        
+
         # Keep only recent events per component
         if len(component_health.events) > 100:
             component_health.events = component_health.events[-50:]
-        
+
         # Broadcast health event if significant
         if event.state in [HealthState.CRITICAL, HealthState.DEGRADED]:
             await self._broadcast_health_event(event)
-        
+
         self._logger.debug(f"Recorded health event for component {event.component}: {event.state.value}")
 
     async def get_component_health(self, component: str) -> Optional[ComponentHealth]:
@@ -273,9 +277,9 @@ class HealthTracker:
         """
         if not self._component_health:
             return HealthState.UNKNOWN
-            
+
         states = [comp.current_state for comp in self._component_health.values()]
-        
+
         # Priority: CRITICAL > DEGRADED > WARNING > HEALTHY
         if any(state == HealthState.CRITICAL for state in states):
             return HealthState.CRITICAL
@@ -299,7 +303,7 @@ class HealthTracker:
             List of health predictions
         """
         predictions = []
-        
+
         if component:
             comp_health = self._component_health.get(component)
             if comp_health:
@@ -307,7 +311,7 @@ class HealthTracker:
         else:
             for comp_health in self._component_health.values():
                 predictions.extend(comp_health.predictions)
-                
+
         return predictions
 
     async def get_health_timeline(self, duration_hours: int = 1) -> List[HealthEvent]:
@@ -336,7 +340,7 @@ class HealthTracker:
         comp_health = self._component_health.get(component)
         if not comp_health or len(comp_health.events) < 3:
             return TrendDirection.STABLE
-            
+
         # Analyze recent events (last 10 events)
         recent_events = comp_health.events[-10:]
         state_scores = {
@@ -344,29 +348,29 @@ class HealthTracker:
             HealthState.WARNING: 3,
             HealthState.DEGRADED: 2,
             HealthState.CRITICAL: 1,
-            HealthState.UNKNOWN: 0
+            HealthState.UNKNOWN: 0,
         }
-        
+
         scores = [state_scores.get(event.state, 0) for event in recent_events]
-        
+
         if len(scores) < 3:
             return TrendDirection.STABLE
-            
+
         # Calculate trend
-        first_half = mean(scores[:len(scores)//2])
-        second_half = mean(scores[len(scores)//2:])
-        
+        first_half = mean(scores[: len(scores) // 2])
+        second_half = mean(scores[len(scores) // 2 :])
+
         diff = second_half - first_half
-        
+
         # Check volatility
         if len(scores) >= 5:
             try:
                 volatility = stdev(scores)
                 if volatility > 1.5:  # High volatility threshold
                     return TrendDirection.VOLATILE
-            except:
+            except (ValueError, TypeError, ZeroDivisionError):
                 pass  # Handle single value case
-        
+
         if diff > 0.5:
             return TrendDirection.IMPROVING
         elif diff < -0.5:
@@ -403,18 +407,18 @@ class HealthTracker:
         try:
             # Collect metrics from all sources
             await self._collect_metrics_from_sources()
-            
+
             # Update trend analysis for all components
             for component in self._component_health.keys():
                 trend = await self.analyze_health_trends(component)
                 self._component_health[component].trend_direction = trend
-            
+
             # Generate predictions
             await self._generate_health_predictions()
-            
+
             # Check correlation patterns
             await self._analyze_correlations()
-            
+
         except Exception as e:
             self._logger.error(f"Error during health analysis: {str(e)}")
 
@@ -425,19 +429,17 @@ class HealthTracker:
                 metrics = await source.get_health_metrics()
                 for metric in metrics:
                     self._health_metrics.append(metric)
-                    
+
                     # Update component metrics
                     component = metric.component
                     if component not in self._component_health:
                         self._component_health[component] = ComponentHealth(
-                            component=component,
-                            current_state=HealthState.UNKNOWN,
-                            last_updated=metric.timestamp
+                            component=component, current_state=HealthState.UNKNOWN, last_updated=metric.timestamp
                         )
-                    
+
                     self._component_health[component].metrics[metric.metric_name] = metric.value
                     self._component_health[component].last_updated = metric.timestamp
-                    
+
             except Exception as e:
                 self._logger.error(f"Error collecting metrics from source {source_name}: {str(e)}")
 
@@ -448,7 +450,7 @@ class HealthTracker:
                 # Simple trend-based prediction
                 trend = comp_health.trend_direction
                 current_state = comp_health.current_state
-                
+
                 # Generate prediction based on trend
                 if trend == TrendDirection.DEGRADING:
                     if current_state == HealthState.HEALTHY:
@@ -462,7 +464,7 @@ class HealthTracker:
                         confidence = 0.9
                     else:
                         continue
-                        
+
                     prediction = HealthPrediction(
                         component=component,
                         predicted_state=predicted_state,
@@ -470,12 +472,12 @@ class HealthTracker:
                         time_to_state=self._prediction_window,
                         trend_direction=trend,
                         risk_factors=["Degrading health trend detected"],
-                        recommendations=["Monitor component closely", "Check for resource constraints"]
+                        recommendations=["Monitor component closely", "Check for resource constraints"],
                     )
-                    
+
                     # Clear old predictions and add new one
                     comp_health.predictions = [prediction]
-                    
+
             except Exception as e:
                 self._logger.error(f"Error generating predictions for component {component}: {str(e)}")
 
@@ -487,9 +489,13 @@ class HealthTracker:
                 unhealthy_components = []
                 for component in components:
                     comp_health = self._component_health.get(component)
-                    if comp_health and comp_health.current_state in [HealthState.WARNING, HealthState.DEGRADED, HealthState.CRITICAL]:
+                    if comp_health and comp_health.current_state in [
+                        HealthState.WARNING,
+                        HealthState.DEGRADED,
+                        HealthState.CRITICAL,
+                    ]:
                         unhealthy_components.append(component)
-                
+
                 # If correlation detected, generate correlation event
                 if len(unhealthy_components) >= 2:
                     correlation_event = HealthEvent(
@@ -502,25 +508,22 @@ class HealthTracker:
                         details={
                             "pattern": pattern_name,
                             "affected_components": unhealthy_components,
-                            "correlation_strength": len(unhealthy_components) / len(components)
-                        }
+                            "correlation_strength": len(unhealthy_components) / len(components),
+                        },
                     )
                     await self.record_health_event(correlation_event)
-                    
+
             except Exception as e:
                 self._logger.error(f"Error analyzing correlation pattern {pattern_name}: {str(e)}")
 
     async def _cleanup_old_data(self) -> None:
         """Clean up old health data based on retention policy."""
         cutoff_time = time.time() - (self._retention_hours * 3600)
-        
+
         # Clean up old events in component health
         for comp_health in self._component_health.values():
-            comp_health.events = [
-                event for event in comp_health.events 
-                if event.timestamp >= cutoff_time
-            ]
-        
+            comp_health.events = [event for event in comp_health.events if event.timestamp >= cutoff_time]
+
         self._logger.debug(f"Cleaned up health data older than {self._retention_hours} hours")
 
     async def _broadcast_health_event(self, event: HealthEvent) -> None:
@@ -531,21 +534,18 @@ class HealthTracker:
             event: Health event to broadcast
         """
         try:
-            if self._application_coordinator and hasattr(self._application_coordinator, 'broadcast_event'):
+            if self._application_coordinator and hasattr(self._application_coordinator, "broadcast_event"):
                 event_data = {
                     "event_id": event.event_id,
                     "component": event.component,
                     "state": event.state.value,
                     "message": event.message,
                     "timestamp": event.timestamp,
-                    "details": event.details
+                    "details": event.details,
                 }
-                
-                await self._application_coordinator.broadcast_event(
-                    EventTypes.STATUS,
-                    event_data
-                )
-                
+
+                await self._application_coordinator.broadcast_event(EventTypes.STATUS, event_data)
+
         except Exception as e:
             self._logger.error(f"Error broadcasting health event: {str(e)}")
 
