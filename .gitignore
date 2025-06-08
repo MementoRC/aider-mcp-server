@@ -191,3 +191,9 @@ scripts/scripts/
 
 # Temporary or experimental directories
 src/aider_mcp_server/aider_mcp_server/
+
+# -----------------------------------------------------------------------------
+# Documentation build output
+# -----------------------------------------------------------------------------
+# MkDocs
+site/
