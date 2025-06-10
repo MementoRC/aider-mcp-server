@@ -15,17 +15,19 @@ Mocks subprocess and filesystem as needed.
 """
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from aider_mcp_server.atoms.utils.file_integrity import (
-    FileIntegrityManager,
     FileIntegrityError,
     FileIntegrityFileNotFoundError,
+    FileIntegrityManager,
     SyntaxValidationError,
 )
 
 # --- Fixtures and helpers ---
+
 
 @pytest.fixture
 def fake_repo_path(tmp_path):
@@ -33,9 +35,11 @@ def fake_repo_path(tmp_path):
     git_dir.mkdir()
     return str(tmp_path)
 
+
 @pytest.fixture
 def manager(fake_repo_path):
     return FileIntegrityManager(fake_repo_path)
+
 
 @pytest.fixture
 def make_file(tmp_path, fake_repo_path):
@@ -45,9 +49,12 @@ def make_file(tmp_path, fake_repo_path):
         with open(abs_path, "w", encoding="utf-8") as f:
             f.write(content)
         return rel_path, abs_path
+
     return _make_file
 
+
 # --- Tests ---
+
 
 class TestFileIntegrityManagerInit:
     def test_init_success(self, fake_repo_path):
@@ -67,12 +74,28 @@ class TestFileIntegrityManagerInit:
         mgr.repo_path = str(tmp_path)
         assert mgr.is_git_repo() is False
 
+
 class TestChecksumCalculation:
-    @pytest.mark.parametrize("content,md5,sha256", [
-        ("", "d41d8cd98f00b204e9800998ecf8427e", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
-        ("abc", "900150983cd24fb0d6963f7d28e17f72", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
-        ("hello\nworld", "9195d0beb2a889e1be05ed6bb1954837", "26c60a61d01db5836ca70fefd44a6a016620413c8ef5f259a6c5612d4f79d3b8"),
-    ])
+    @pytest.mark.parametrize(
+        "content,md5,sha256",
+        [
+            (
+                "",
+                "d41d8cd98f00b204e9800998ecf8427e",
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ),
+            (
+                "abc",
+                "900150983cd24fb0d6963f7d28e17f72",
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            ),
+            (
+                "hello\nworld",
+                "9195d0beb2a889e1be05ed6bb1954837",
+                "26c60a61d01db5836ca70fefd44a6a016620413c8ef5f259a6c5612d4f79d3b8",
+            ),
+        ],
+    )
     def test_checksum_md5_sha256(self, manager, content, md5, sha256):
         assert manager.calculate_checksum(content, algorithm="md5") == md5
         assert manager.calculate_checksum(content, algorithm="sha256") == sha256
@@ -81,16 +104,21 @@ class TestChecksumCalculation:
         with pytest.raises(ValueError):
             manager.calculate_checksum("abc", algorithm="sha1")
 
+
 class TestLineCounting:
-    @pytest.mark.parametrize("content,expected", [
-        ("", 0),
-        ("one line", 1),
-        ("line1\nline2", 2),
-        ("line1\nline2\n", 2),
-        ("\n\n", 2),
-    ])
+    @pytest.mark.parametrize(
+        "content,expected",
+        [
+            ("", 0),
+            ("one line", 1),
+            ("line1\nline2", 2),
+            ("line1\nline2\n", 2),
+            ("\n\n", 2),
+        ],
+    )
     def test_count_lines(self, manager, content, expected):
         assert manager.count_lines(content) == expected
+
 
 class TestSyntaxValidationPython:
     def test_valid_python(self, manager, make_file):
@@ -105,6 +133,7 @@ class TestSyntaxValidationPython:
             content = f.read()
         with pytest.raises(SyntaxValidationError):
             manager.validate_syntax(abs_path, content)
+
 
 class TestSyntaxValidationJS:
     @patch("aider_mcp_server.atoms.utils.file_integrity.subprocess.run")
@@ -124,6 +153,7 @@ class TestSyntaxValidationJS:
         with pytest.raises(SyntaxValidationError):
             manager.validate_syntax(abs_path, content)
 
+
 class TestSyntaxValidationTS:
     @patch("aider_mcp_server.atoms.utils.file_integrity.subprocess.run")
     def test_valid_ts(self, mock_run, manager, make_file):
@@ -142,6 +172,7 @@ class TestSyntaxValidationTS:
         with pytest.raises(SyntaxValidationError):
             manager.validate_syntax(abs_path, content)
 
+
 class TestSyntaxValidationOther:
     def test_unsupported_extension(self, manager, make_file):
         rel, abs_path = make_file("file.txt", "not code")
@@ -149,6 +180,7 @@ class TestSyntaxValidationOther:
             content = f.read()
         # Should not raise
         assert manager.validate_syntax(abs_path, content) is True
+
 
 class TestGitStatus:
     @patch("aider_mcp_server.atoms.utils.file_integrity.FileIntegrityManager._run_git")
@@ -168,6 +200,7 @@ class TestGitStatus:
         rel, abs_path = make_file("baz.py", "c=3")
         mock_run_git.return_value = " M baz.py"
         assert manager.get_git_status(abs_path) == "M baz.py"
+
 
 class TestCaptureFileIntegrityBaseline:
     @patch("aider_mcp_server.atoms.utils.file_integrity.FileIntegrityManager.get_git_status")
@@ -207,6 +240,7 @@ class TestCaptureFileIntegrityBaseline:
         baseline = manager.capture_file_integrity_baseline([rel1, rel2, rel3])
         assert set(baseline.keys()) == {rel1, rel2, rel3}
 
+
 class TestEdgeCases:
     def test_empty_file(self, manager, make_file):
         rel, abs_path = make_file("empty.py", "")
@@ -228,6 +262,7 @@ class TestEdgeCases:
     def test_nonexistent_file(self, manager):
         with pytest.raises(FileIntegrityFileNotFoundError):
             manager.capture_file_integrity_baseline(["doesnotexist.py"])
+
 
 class TestErrorClasses:
     def test_file_integrity_error(self):

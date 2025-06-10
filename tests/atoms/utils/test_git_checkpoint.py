@@ -12,18 +12,20 @@ Mocks subprocess and filesystem as needed.
 """
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from aider_mcp_server.atoms.utils.git_checkpoint import (
-    GitCheckpointManager,
     GitCheckpointError,
+    GitCheckpointManager,
+    GitCommandError,
     NotAGitRepositoryError,
     UncommittedChangesError,
-    GitCommandError,
 )
 
 # --- Fixtures and helpers ---
+
 
 @pytest.fixture
 def fake_repo_path(tmp_path):
@@ -32,11 +34,14 @@ def fake_repo_path(tmp_path):
     git_dir.mkdir()
     return str(tmp_path)
 
+
 @pytest.fixture
 def manager(fake_repo_path):
     return GitCheckpointManager(fake_repo_path)
 
+
 # --- Tests ---
+
 
 class TestGitCheckpointManagerInit:
     def test_init_success(self, fake_repo_path):
@@ -57,6 +62,7 @@ class TestGitCheckpointManagerInit:
         mgr.repo_path = str(tmp_path)
         assert mgr.is_git_repo() is False
 
+
 class TestUncommittedChanges:
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager._run_git")
     def test_has_uncommitted_changes_true(self, mock_run_git, manager):
@@ -67,6 +73,7 @@ class TestUncommittedChanges:
     def test_has_uncommitted_changes_false(self, mock_run_git, manager):
         mock_run_git.return_value = ""
         assert manager.has_uncommitted_changes() is False
+
 
 class TestHandleUncommittedChanges:
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager.has_uncommitted_changes")
@@ -95,13 +102,16 @@ class TestHandleUncommittedChanges:
         manager.handle_uncommitted_changes(strategy="commit")
         assert mock_run_git.call_count == 2
         mock_run_git.assert_any_call(["add", "-A"])
-        mock_run_git.assert_any_call(["commit", "-m", "Aider safety auto-commit: uncommitted changes before checkpoint"])
+        mock_run_git.assert_any_call(
+            ["commit", "-m", "Aider safety auto-commit: uncommitted changes before checkpoint"]
+        )
 
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager.has_uncommitted_changes")
     def test_handle_unknown_strategy(self, mock_has_changes, manager):
         mock_has_changes.return_value = True
         with pytest.raises(ValueError):
             manager.handle_uncommitted_changes(strategy="nonsense")
+
 
 class TestRunGit:
     @patch("subprocess.run")
@@ -123,12 +133,14 @@ class TestRunGit:
     @patch("subprocess.run")
     def test_run_git_git_command_error(self, mock_run, manager):
         from subprocess import CalledProcessError
+
         err = CalledProcessError(1, ["git", "status"], output="", stderr="fail")
         mock_run.side_effect = err
         with patch("aider_mcp_server.atoms.utils.git_checkpoint.logger"):
             with pytest.raises(GitCommandError) as exc_info:
                 manager._run_git(["status"], capture_output=True)
             assert "fail" in exc_info.value.output
+
 
 class TestCreateCheckpoint:
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager.handle_uncommitted_changes")
@@ -141,7 +153,7 @@ class TestCreateCheckpoint:
             model="gpt-4",
             target_files=["main.py"],
             operation_params={"foo": "bar"},
-            uncommitted_strategy="error"
+            uncommitted_strategy="error",
         )
         assert commit_hash == "abc123"
         assert mock_run_git.call_args_list[-1][0][0] == ["rev-parse", "HEAD"]
@@ -157,13 +169,14 @@ class TestCreateCheckpoint:
                 raise GitCommandError("fail", output="nothing to commit")
             if args[0] == "rev-parse":
                 return "deadbeef"
+
         mock_run_git.side_effect = side_effect
         commit_hash = manager.create_checkpoint(
             operation_id="op2",
             model="gpt-4",
             target_files=["main.py"],
             operation_params=None,
-            uncommitted_strategy="error"
+            uncommitted_strategy="error",
         )
         assert commit_hash == "deadbeef"
 
@@ -176,6 +189,7 @@ class TestCreateCheckpoint:
                 return ""
             if args[0] == "commit":
                 raise GitCommandError("fail", output="some other error")
+
         mock_run_git.side_effect = side_effect
         with pytest.raises(GitCommandError):
             manager.create_checkpoint(
@@ -183,8 +197,9 @@ class TestCreateCheckpoint:
                 model="gpt-4",
                 target_files=["main.py"],
                 operation_params=None,
-                uncommitted_strategy="error"
+                uncommitted_strategy="error",
             )
+
 
 class TestGetLatestCheckpoint:
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager._run_git")
@@ -211,6 +226,7 @@ class TestGetLatestCheckpoint:
         with patch("aider_mcp_server.atoms.utils.git_checkpoint.logger"):
             commit = manager.get_latest_checkpoint()
             assert commit is None
+
 
 class TestErrorClasses:
     def test_git_checkpoint_error(self):
