@@ -39,6 +39,16 @@ from aider_mcp_server.atoms.utils.git_checkpoint import (
     NotAGitRepositoryError,
     UncommittedChangesError,
 )
+from aider_mcp_server.atoms.utils.post_operation_verifier import (
+    ContentVerificationError,
+    FileVerificationMetrics,
+    LineCountVerificationError,
+    PostOperationVerifier,
+    SemanticVerificationError,
+    VerificationError,
+    VerificationResult,
+    VerificationResults,
+)
 
 __all__ = [
     # Configuration constants
@@ -70,4 +80,13 @@ __all__ = [
     "ContentValidationError",
     "WritePatternError",
     "MonitoringState",
+    # Post-operation verification system
+    "PostOperationVerifier",
+    "VerificationError",
+    "ContentVerificationError",
+    "LineCountVerificationError",
+    "SemanticVerificationError",
+    "VerificationResult",
+    "VerificationResults",
+    "FileVerificationMetrics",
 ]
