@@ -18,6 +18,12 @@ from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
+from aider_mcp_server.atoms.utils.file_integrity import (
+    FileIntegrityError,
+    FileIntegrityFileNotFoundError,
+    FileIntegrityManager,
+    SyntaxValidationError,
+)
 from aider_mcp_server.atoms.utils.git_checkpoint import (
     GitCheckpointError,
     GitCheckpointManager,
@@ -44,4 +50,9 @@ __all__ = [
     "NotAGitRepositoryError",
     "UncommittedChangesError",
     "GitCommandError",
+    # File integrity system
+    "FileIntegrityManager",
+    "FileIntegrityError",
+    "FileIntegrityFileNotFoundError",
+    "SyntaxValidationError",
 ]
