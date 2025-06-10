@@ -18,6 +18,13 @@ from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
+from aider_mcp_server.atoms.utils.git_checkpoint import (
+    GitCheckpointError,
+    GitCheckpointManager,
+    GitCommandError,
+    NotAGitRepositoryError,
+    UncommittedChangesError,
+)
 
 __all__ = [
     # Configuration constants
@@ -31,4 +38,10 @@ __all__ = [
     "validate_file_references",
     "detect_aider_misfire",
     "raise_on_aider_misfire",
+    # Git checkpoint system
+    "GitCheckpointManager",
+    "GitCheckpointError",
+    "NotAGitRepositoryError",
+    "UncommittedChangesError",
+    "GitCommandError",
 ]
