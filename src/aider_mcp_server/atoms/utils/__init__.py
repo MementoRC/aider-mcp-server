@@ -24,6 +24,14 @@ from aider_mcp_server.atoms.utils.file_integrity import (
     FileIntegrityManager,
     SyntaxValidationError,
 )
+from aider_mcp_server.atoms.utils.file_monitor import (
+    ContentValidationError,
+    FileAccessError,
+    FileMonitor,
+    FileMonitorError,
+    MonitoringState,
+    WritePatternError,
+)
 from aider_mcp_server.atoms.utils.git_checkpoint import (
     GitCheckpointError,
     GitCheckpointManager,
@@ -55,4 +63,11 @@ __all__ = [
     "FileIntegrityError",
     "FileIntegrityFileNotFoundError",
     "SyntaxValidationError",
+    # File monitor system
+    "FileMonitor",
+    "FileMonitorError",
+    "FileAccessError",
+    "ContentValidationError",
+    "WritePatternError",
+    "MonitoringState",
 ]
