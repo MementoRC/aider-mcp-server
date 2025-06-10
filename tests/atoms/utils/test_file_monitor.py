@@ -167,30 +167,27 @@ class TestWritePatternAnalysis:
         monitor.stop_monitoring()
 
     def test_suspicious_write_pattern(self, monitor, test_file):
-        base_time = 1000.0  # arbitrary start time
-        time_sequence = [base_time + i * 0.01 for i in range(20)]  # 20 timestamps 0.01s apart
+        monitor.start_monitoring([test_file])
+        monitor.stop_monitoring()  # Immediately stop the thread to avoid race conditions
+
+        abs_path = os.path.join(monitor.repo_path, test_file)
+
+        # Prepare the time sequence for mocking
+        base_time = 1000.0
+        time_sequence = [base_time + i * 0.01 for i in range(20)]
 
         with patch("time.time", side_effect=time_sequence):
-            monitor.start_monitoring([test_file])
-
-            # Make several rapid writes
-            abs_path = os.path.join(monitor.repo_path, test_file)
-
             # The monitor should raise an exception when the pattern is detected
             with pytest.raises((WritePatternError, FileMonitorError)):
                 for i in range(4):  # Write 4 times rapidly
                     with open(abs_path, "w", encoding="utf-8") as f:
                         f.write(f"def test_{i}():\n    return True\n")
-                        f.flush()  # Ensure write is flushed
-                        os.fsync(f.fileno())  # Force filesystem sync
+                        f.flush()
+                        os.fsync(f.fileno())
 
-                    # Force a monitoring check after each write
                     monitor._check_files()
 
-            # Should detect suspicious pattern due to rapid writes
             assert monitor.state == MonitoringState.ERROR
-
-            monitor.stop_monitoring()
 
 
 class TestFileLockDetection:
