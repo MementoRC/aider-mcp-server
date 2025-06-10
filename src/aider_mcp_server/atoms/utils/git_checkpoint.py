@@ -17,30 +17,39 @@ Author: Aider MCP Server Team
 
 import os
 import subprocess
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class GitCheckpointError(Exception):
     """Base exception for git checkpoint operations."""
+
     pass
+
 
 class NotAGitRepositoryError(GitCheckpointError):
     """Raised when the target directory is not a git repository."""
+
     pass
+
 
 class UncommittedChangesError(GitCheckpointError):
     """Raised when uncommitted changes are present and not allowed."""
+
     pass
+
 
 class GitCommandError(GitCheckpointError):
     """Raised when a git command fails."""
+
     def __init__(self, message: str, output: Optional[str] = None):
         super().__init__(message)
         self.output = output
+
 
 class GitCheckpointManager:
     """
@@ -110,13 +119,13 @@ class GitCheckpointManager:
         cmd = ["git"] + args
         try:
             logger.debug(f"Running git command: {' '.join(cmd)}")
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 cwd=self.repo_path,
                 check=True,
                 stdout=subprocess.PIPE if capture_output else None,
                 stderr=subprocess.PIPE if capture_output else None,
-                encoding="utf-8"
+                encoding="utf-8",
             )
             if capture_output:
                 logger.verbose(f"Git output: {result.stdout.strip()}")
@@ -124,16 +133,12 @@ class GitCheckpointManager:
             return ""
         except subprocess.CalledProcessError as e:
             logger.error(f"Git command failed: {' '.join(cmd)}\n{e.stderr}")
-            raise GitCommandError(
-                f"Git command failed: {' '.join(cmd)}",
-                output=e.stderr
-            )
+            raise GitCommandError(f"Git command failed: {' '.join(cmd)}", output=e.stderr) from e  # B904
         except Exception as e:
             logger.error(f"Unexpected error running git command: {' '.join(cmd)}\n{e}")
             raise GitCommandError(
-                f"Unexpected error running git command: {' '.join(cmd)}",
-                output=str(e)
-            )
+                f"Unexpected error running git command: {' '.join(cmd)}", output=str(e)
+            ) from e  # B904
 
     def handle_uncommitted_changes(self, strategy: str = "error") -> None:
         """
@@ -152,17 +157,15 @@ class GitCheckpointManager:
 
         if strategy == "error":
             logger.error("Uncommitted changes detected and strategy is 'error'.")
-            raise UncommittedChangesError(
-                "Uncommitted changes present in the repository."
-            )
+            raise UncommittedChangesError("Uncommitted changes present in the repository.")
         elif strategy == "stash":
             logger.info("Stashing uncommitted changes before checkpoint.")
-            self._run_git(["stash", "push", "-u", "-m", "Aider safety checkpoint stash"])
+            self._run_git(["stash", "push", "-u", "-m", "Aider safety checkpoint stash"])  # noqa: S603
         elif strategy == "commit":
             logger.info("Committing all uncommitted changes before checkpoint.")
-            self._run_git(["add", "-A"])
+            self._run_git(["add", "-A"])  # noqa: S603
             commit_msg = "Aider safety auto-commit: uncommitted changes before checkpoint"
-            self._run_git(["commit", "-m", commit_msg])
+            self._run_git(["commit", "-m", commit_msg])  # noqa: S603
         else:
             logger.error(f"Unknown uncommitted changes strategy: {strategy}")
             raise ValueError(f"Unknown uncommitted changes strategy: {strategy}")
@@ -173,7 +176,7 @@ class GitCheckpointManager:
         model: str,
         target_files: List[str],
         operation_params: Optional[Dict[str, Any]] = None,
-        uncommitted_strategy: str = "error"
+        uncommitted_strategy: str = "error",
     ) -> str:
         """
         Create a git safety checkpoint commit.
@@ -197,15 +200,12 @@ class GitCheckpointManager:
         self.handle_uncommitted_changes(strategy=uncommitted_strategy)
 
         # Stage all changes (if any)
-        self._run_git(["add", "-A"])
+        self._run_git(["add", "-A"])  # noqa: S603
 
         # Prepare commit message with metadata
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         checkpoint_tag = f"AIDER_SAFETY_CHECKPOINT_{timestamp}_{operation_id}"
-        params_str = (
-            "\n".join(f"{k}: {v}" for k, v in (operation_params or {}).items())
-            if operation_params else ""
-        )
+        params_str = "\n".join(f"{k}: {v}" for k, v in (operation_params or {}).items()) if operation_params else ""
         commit_message = (
             f"{checkpoint_tag}\n"
             f"Model: {model}\n"
@@ -215,7 +215,7 @@ class GitCheckpointManager:
 
         # Commit the checkpoint
         try:
-            self._run_git(["commit", "-m", commit_message])
+            self._run_git(["commit", "-m", commit_message])  # noqa: S603
         except GitCommandError as e:
             # If nothing to commit, still return the current HEAD as checkpoint
             if "nothing to commit" in (e.output or ""):
@@ -224,7 +224,7 @@ class GitCheckpointManager:
                 raise
 
         # Get the commit hash of the checkpoint
-        commit_hash = self._run_git(["rev-parse", "HEAD"], capture_output=True).strip()
+        commit_hash = self._run_git(["rev-parse", "HEAD"], capture_output=True).strip()  # noqa: S603
         logger.info(f"Created git checkpoint {checkpoint_tag} at {commit_hash}")
         return commit_hash
 
@@ -243,10 +243,7 @@ class GitCheckpointManager:
             pattern = f"AIDER_SAFETY_CHECKPOINT_*_{operation_id}"
 
         try:
-            log_output = self._run_git(
-                ["log", "--grep", pattern, "--pretty=format:%H", "-n", "1"],
-                capture_output=True
-            )
+            log_output = self._run_git(["log", "--grep", pattern, "--pretty=format:%H", "-n", "1"], capture_output=True)  # noqa: S603
             commit_hash = log_output.strip()
             if commit_hash:
                 logger.debug(f"Latest checkpoint for pattern '{pattern}': {commit_hash}")

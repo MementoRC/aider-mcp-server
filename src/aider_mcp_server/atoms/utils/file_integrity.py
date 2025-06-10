@@ -15,8 +15,8 @@ Features:
 Author: Aider MCP Server Team
 """
 
-import os
 import hashlib
+import os
 import subprocess
 from typing import Any, Dict, List
 
@@ -24,17 +24,24 @@ from aider_mcp_server.atoms.logging.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class FileIntegrityError(Exception):
     """Base exception for file integrity operations."""
+
     pass
+
 
 class FileIntegrityFileNotFoundError(FileIntegrityError):
     """Raised when a target file is not found."""
+
     pass
+
 
 class SyntaxValidationError(FileIntegrityError):
     """Raised when syntax validation fails."""
+
     pass
+
 
 class FileIntegrityManager:
     """
@@ -86,13 +93,13 @@ class FileIntegrityManager:
         cmd = ["git"] + args
         try:
             logger.debug(f"Running git command: {' '.join(cmd)}")
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 cwd=self.repo_path,
                 check=True,
                 stdout=subprocess.PIPE if capture_output else None,
                 stderr=subprocess.PIPE if capture_output else None,
-                encoding="utf-8"
+                encoding="utf-8",
             )
             if capture_output:
                 logger.verbose(f"Git output: {result.stdout.strip()}")
@@ -100,16 +107,12 @@ class FileIntegrityManager:
             return ""
         except subprocess.CalledProcessError as e:
             logger.error(f"Git command failed: {' '.join(cmd)}\n{e.stderr}")
-            raise FileIntegrityError(
-                f"Git command failed: {' '.join(cmd)}: {e.stderr}"
-            )
+            raise FileIntegrityError(f"Git command failed: {' '.join(cmd)}: {e.stderr}") from e  # B904
         except Exception as e:
             logger.error(f"Unexpected error running git command: {' '.join(cmd)}\n{e}")
-            raise FileIntegrityError(
-                f"Unexpected error running git command: {' '.join(cmd)}: {e}"
-            )
+            raise FileIntegrityError(f"Unexpected error running git command: {' '.join(cmd)}: {e}") from e  # B904
 
-    def calculate_checksum(self, content: str, algorithm: str = 'sha256') -> str:
+    def calculate_checksum(self, content: str, algorithm: str = "sha256") -> str:
         """
         Calculate the checksum of the file content.
 
@@ -123,13 +126,13 @@ class FileIntegrityManager:
         Raises:
             ValueError: If an unsupported algorithm is specified.
         """
-        if algorithm not in ('md5', 'sha256'):
+        if algorithm not in ("md5", "sha256"):
             logger.error(f"Unsupported checksum algorithm: {algorithm}")
             raise ValueError(f"Unsupported checksum algorithm: {algorithm}")
 
-        data = content.encode('utf-8')
-        if algorithm == 'md5':
-            checksum = hashlib.md5(data).hexdigest()
+        data = content.encode("utf-8")
+        if algorithm == "md5":
+            checksum = hashlib.md5(data).hexdigest()  # noqa: S324
         else:
             checksum = hashlib.sha256(data).hexdigest()
         logger.debug(f"Calculated {algorithm} checksum: {checksum}")
@@ -165,33 +168,29 @@ class FileIntegrityManager:
         """
         ext = os.path.splitext(file_path)[1].lower()
         logger.debug(f"Validating syntax for {file_path} (ext: {ext})")
-        if ext == '.py':
+        if ext == ".py":
             try:
-                compile(content, file_path, 'exec')
+                compile(content, file_path, "exec")
                 logger.debug("Python syntax valid")
                 return True
             except SyntaxError as e:
                 logger.error(f"Python syntax error in {file_path}: {e}")
-                raise SyntaxValidationError(f"Python syntax error in {file_path}: {e}")
-        elif ext in ('.js', '.ts'):
+                raise SyntaxValidationError(f"Python syntax error in {file_path}: {e}") from e
+        elif ext in (".js", ".ts"):
             # Use node or tsc for JS/TS syntax check
             temp_filename = None
             import tempfile
+
             try:
-                with tempfile.NamedTemporaryFile('w', suffix=ext, delete=False) as tmp:
+                with tempfile.NamedTemporaryFile("w", suffix=ext, delete=False) as tmp:
                     tmp.write(content)
                     temp_filename = tmp.name
-                if ext == '.js':
-                    cmd = ['node', '--check', temp_filename]
+                if ext == ".js":
+                    cmd = ["node", "--check", temp_filename]
                 else:
-                    cmd = ['tsc', '--noEmit', temp_filename]
+                    cmd = ["tsc", "--noEmit", temp_filename]
                 logger.debug(f"Running syntax check: {' '.join(cmd)}")
-                result = subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    encoding='utf-8'
-                )
+                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")  # noqa: S603
                 if result.returncode != 0:
                     logger.error(f"Syntax error in {file_path}: {result.stderr.strip()}")
                     raise SyntaxValidationError(f"Syntax error in {file_path}: {result.stderr.strip()}")
@@ -216,14 +215,14 @@ class FileIntegrityManager:
             The git status string (e.g., 'modified', 'untracked', 'clean', etc.)
         """
         rel_path = os.path.relpath(file_path, self.repo_path)
-        status_output = self._run_git(['status', '--porcelain', '--', rel_path], capture_output=True)
+        status_output = self._run_git(["status", "--porcelain", "--", rel_path], capture_output=True)  # noqa: S603
         status = status_output.strip()
         if not status:
             logger.debug(f"File {file_path} is clean in git")
-            return 'clean'
-        elif status.startswith('??'):
+            return "clean"
+        elif status.startswith("??"):
             logger.debug(f"File {file_path} is untracked in git")
-            return 'untracked'
+            return "untracked"
         else:
             logger.debug(f"File {file_path} has status in git: {status}")
             return status
@@ -249,22 +248,22 @@ class FileIntegrityManager:
                 logger.error(f"File not found: {abs_path}")
                 raise FileIntegrityFileNotFoundError(f"File not found: {abs_path}")
             try:
-                with open(abs_path, 'r', encoding='utf-8') as f:
+                with open(abs_path, "r", encoding="utf-8") as f:
                     content = f.read()
             except Exception as e:
                 logger.error(f"Error reading file {abs_path}: {e}")
-                raise FileIntegrityError(f"Error reading file {abs_path}: {e}")
+                raise FileIntegrityError(f"Error reading file {abs_path}: {e}") from e
 
             # Calculate metrics
-            checksum = self.calculate_checksum(content, algorithm='sha256')
+            checksum = self.calculate_checksum(content, algorithm="sha256")
             line_count = self.count_lines(content)
             self.validate_syntax(abs_path, content)
             git_status = self.get_git_status(abs_path)
 
             baseline[file_path] = {
-                'checksum_sha256': checksum,
-                'line_count': line_count,
-                'git_status': git_status,
+                "checksum_sha256": checksum,
+                "line_count": line_count,
+                "git_status": git_status,
             }
             logger.info(f"Captured baseline for {file_path}: {baseline[file_path]}")
         return baseline
