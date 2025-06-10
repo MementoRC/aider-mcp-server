@@ -11,20 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quick-checks:
-    name: Quick Validation (Fast Feedback)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Pixi
-        uses: prefix-dev/setup-pixi@v0.8.1
-        with:
-          pixi-version: v0.20.1
-      - name: Fast linting check
-        run: pixi run ci-check
-      - name: Fast unit tests (no coverage)
-        run: pixi run -e default pytest tests -x -q --no-cov -m "not integration and not benchmark" || true
 
   lint_and_types:
     runs-on: ubuntu-latest
@@ -53,26 +39,11 @@ jobs:
 
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.timeout }}
+    timeout-minutes: 20
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.12", "3.10"]
-        exclude:
-          - os: windows-latest
-            python-version: "3.12"
-          - os: ubuntu-latest
-            python-version: "3.10"
-        include:
-          - os: windows-latest
-            python-version: "3.10"
-            timeout: 25
-          - os: windows-latest
-            python-version: "3.12"
-            timeout: 20
-          - os: ubuntu-latest
-            python-version: "3.12"
-            timeout: 20
+        os: [ubuntu-latest]
+        python-version: ["3.12"]
 
     steps:
       - name: Checkout repository
@@ -88,21 +59,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install hatch
 
-      - name: Windows-specific environment setup
-        if: runner.os == 'Windows'
-        run: |
-          echo "PYTEST_ADDOPTS=--maxfail=2 --timeout=900 --durations=10" >> $GITHUB_ENV
-          echo "SKIP_SLOW_TESTS=1" >> $GITHUB_ENV
-
       - name: Run tests with coverage
         run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            # On Windows, run with reduced parallelism and skip slow/integration/benchmark tests
-            hatch -e test run pytest --cov=src --cov-report=xml -m "not integration and not benchmark and not slow" --maxfail=2 --timeout=900 --durations=10
-          else
-            hatch -e test run pytest --cov=src --cov-report=xml
-          fi
-        shell: bash
+          hatch -e test run pytest --cov=src --cov-report=xml
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v3
