@@ -3,7 +3,7 @@ Comprehensive tests for the AutomaticRollbackManager and related classes.
 
 Covers:
 - Full rollback scenarios with git reset integration
-- Selective file restoration scenarios  
+- Selective file restoration scenarios
 - Notification message generation and formatting
 - Rollback logging functionality
 - Error handling during rollback failures
@@ -70,7 +70,7 @@ def sample_failure_detection():
             recommended_action="Fix syntax errors before proceeding",
         ),
     ]
-    
+
     return FailureDetectionResult(
         has_failures=True,
         triggers=triggers,
@@ -153,7 +153,7 @@ class TestGitOperations:
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.subprocess.run")
     def test_run_git_failure(self, mock_run, manager):
         mock_run.side_effect = Exception("Git command failed")
-        
+
         with pytest.raises(RollbackExecutionError):
             manager._run_git(["status"])
 
@@ -195,7 +195,7 @@ class TestRollbackStrategy:
             low_count=0,
             detection_summary="Large scope failure",
         )
-        
+
         rollback_type, affected_files = manager._determine_rollback_strategy(large_failure)
         assert rollback_type == "full"
 
@@ -221,7 +221,7 @@ class TestRollbackStrategy:
             low_count=0,
             detection_summary="Many critical failures",
         )
-        
+
         rollback_type, affected_files = manager._determine_rollback_strategy(critical_failure)
         assert rollback_type == "full"
 
@@ -246,11 +246,11 @@ class TestFullRollback:
     def test_perform_full_rollback_success(self, mock_run_git, manager):
         mock_run_git.side_effect = [
             "Saved working directory",  # stash output
-            "HEAD is now at abc123",   # reset output
+            "HEAD is now at abc123",  # reset output
         ]
-        
+
         commands, output = manager._perform_full_rollback("abc123")
-        
+
         assert len(commands) == 2
         assert "git stash push" in commands[0]
         assert "git reset --hard abc123" in commands[1]
@@ -264,9 +264,9 @@ class TestFullRollback:
             RollbackExecutionError("Nothing to stash"),  # stash fails
             "HEAD is now at abc123",  # reset succeeds
         ]
-        
+
         commands, output = manager._perform_full_rollback("abc123")
-        
+
         assert len(commands) == 1  # Only reset command recorded
         assert "git reset --hard abc123" in commands[0]
 
@@ -276,7 +276,7 @@ class TestFullRollback:
             "Saved working directory",  # stash succeeds
             RollbackExecutionError("Reset failed"),  # reset fails
         ]
-        
+
         with pytest.raises(RollbackExecutionError):
             manager._perform_full_rollback("abc123")
 
@@ -288,14 +288,14 @@ class TestSelectiveRollback:
             "",  # checkout output for first file
             "",  # checkout output for second file
         ]
-        
+
         affected_files = ["test.py", "main.py"]
         commands, file_results = manager._perform_selective_rollback("abc123", affected_files)
-        
+
         assert len(commands) == 2
         assert "git checkout abc123 -- test.py" in commands[0]
         assert "git checkout abc123 -- main.py" in commands[1]
-        
+
         assert file_results["test.py"].startswith("SUCCESS")
         assert file_results["main.py"].startswith("SUCCESS")
 
@@ -305,10 +305,10 @@ class TestSelectiveRollback:
             "",  # First file succeeds
             RollbackExecutionError("File not found"),  # Second file fails
         ]
-        
+
         affected_files = ["test.py", "nonexistent.py"]
         commands, file_results = manager._perform_selective_rollback("abc123", affected_files)
-        
+
         assert len(commands) == 2
         assert file_results["test.py"].startswith("SUCCESS")
         assert file_results["nonexistent.py"].startswith("FAILED")
@@ -329,7 +329,7 @@ class TestNotificationGeneration:
             success=True,
             affected_files=[],
         )
-        
+
         assert "ROLLBACK SUCCESSFUL" in message
         assert "Full repository rollback to checkpoint abc123de" in message
         assert "ORIGINAL FAILURES DETECTED:" in message
@@ -346,7 +346,7 @@ class TestNotificationGeneration:
             success=True,
             affected_files=["test.py", "main.py"],
         )
-        
+
         assert "ROLLBACK SUCCESSFUL" in message
         assert "Selective rollback of 2 file(s)" in message
         assert "FILES RESTORED:" in message
@@ -361,7 +361,7 @@ class TestNotificationGeneration:
             affected_files=[],
             error_details="Git command failed",
         )
-        
+
         assert "ROLLBACK FAILED" in message
         assert "Error: Git command failed" in message
         assert "Manual intervention required" in message
@@ -387,7 +387,7 @@ class TestNotificationGeneration:
             low_count=0,
             detection_summary="Many files failure",
         )
-        
+
         message = manager._generate_notification_message(
             rollback_type="selective",
             checkpoint_id="abc123",
@@ -395,7 +395,7 @@ class TestNotificationGeneration:
             success=True,
             affected_files=[],
         )
-        
+
         assert "(and 2 more)" in message  # Should truncate file list
 
 
@@ -406,7 +406,7 @@ class TestRecoverySuggestions:
             success=True,
             failure_detection=sample_failure_detection,
         )
-        
+
         assert "Review original failure triggers before retrying operation" in suggestions
         assert "Check syntax validation before next operation" in suggestions  # Due to syntax error
         assert "Verify file preservation strategies for next operation" in suggestions  # Due to empty file
@@ -418,7 +418,7 @@ class TestRecoverySuggestions:
             failure_detection=sample_failure_detection,
             error_details="permission denied",
         )
-        
+
         assert "Check git repository status manually" in suggestions
         assert "Check file permissions and disk space" in suggestions  # Due to permission error
 
@@ -429,7 +429,7 @@ class TestRecoverySuggestions:
             failure_detection=sample_failure_detection,
             error_details="file not found",
         )
-        
+
         assert "Verify git repository integrity" in suggestions
 
 
@@ -439,14 +439,14 @@ class TestPerformRollback:
     def test_perform_rollback_full_success(self, mock_full_rollback, mock_validate, manager, sample_failure_detection):
         mock_validate.return_value = True
         mock_full_rollback.return_value = (["git reset --hard abc123"], "Reset successful")
-        
+
         result = manager.perform_rollback(
             checkpoint_id="abc123",
             failure_detection=sample_failure_detection,
             operation_id="test_op",
             force_full_rollback=True,
         )
-        
+
         assert result.success is True
         assert result.rollback_type == "full"
         assert result.checkpoint_id == "abc123"
@@ -455,19 +455,21 @@ class TestPerformRollback:
 
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._validate_checkpoint")
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._perform_selective_rollback")
-    def test_perform_rollback_selective_success(self, mock_selective_rollback, mock_validate, manager, sample_failure_detection):
+    def test_perform_rollback_selective_success(
+        self, mock_selective_rollback, mock_validate, manager, sample_failure_detection
+    ):
         mock_validate.return_value = True
         mock_selective_rollback.return_value = (
             ["git checkout abc123 -- test.py"],
-            {"test.py": "SUCCESS: File restored"}
+            {"test.py": "SUCCESS: File restored"},
         )
-        
+
         result = manager.perform_rollback(
             checkpoint_id="abc123",
             failure_detection=sample_failure_detection,
             operation_id="test_op",
         )
-        
+
         assert result.success is True
         assert result.rollback_type == "selective"
 
@@ -481,34 +483,38 @@ class TestPerformRollback:
 
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._validate_checkpoint")
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._perform_full_rollback")
-    def test_perform_rollback_execution_failure(self, mock_full_rollback, mock_validate, manager, sample_failure_detection):
+    def test_perform_rollback_execution_failure(
+        self, mock_full_rollback, mock_validate, manager, sample_failure_detection
+    ):
         mock_validate.return_value = True
         mock_full_rollback.side_effect = RollbackExecutionError("Git failed")
-        
+
         result = manager.perform_rollback(
             checkpoint_id="abc123",
             failure_detection=sample_failure_detection,
             operation_id="test_op",
             force_full_rollback=True,
         )
-        
+
         assert result.success is False
         assert "ROLLBACK FAILED" in result.notification_message
         assert result.should_escalate() is True
 
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._validate_checkpoint")
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._perform_full_rollback")
-    def test_perform_rollback_unexpected_error(self, mock_full_rollback, mock_validate, manager, sample_failure_detection):
+    def test_perform_rollback_unexpected_error(
+        self, mock_full_rollback, mock_validate, manager, sample_failure_detection
+    ):
         mock_validate.return_value = True
         mock_full_rollback.side_effect = Exception("Unexpected error")
-        
+
         result = manager.perform_rollback(
             checkpoint_id="abc123",
             failure_detection=sample_failure_detection,
             operation_id="test_op",
             force_full_rollback=True,
         )
-        
+
         assert result.success is False
         assert "Unexpected error" in result.error_details
 
@@ -526,7 +532,7 @@ class TestLogEntry:
             notification_message="Success message",
             recovery_suggestions=["Review changes"],
         )
-        
+
         assert log_entry.operation_id == "test_op"
         assert log_entry.checkpoint_id == "abc123"
         assert log_entry.rollback_type == "selective"
@@ -547,7 +553,7 @@ class TestLogEntry:
             notification_message="Success",
             recovery_suggestions=[],
         )
-        
+
         # Verify trigger serialization
         assert log_entry.triggers[0]["type"] == "empty_files"
         assert log_entry.triggers[0]["severity"] == "critical"
@@ -564,9 +570,9 @@ class TestRollbackStatus:
             "abc123",  # current HEAD
             "",  # git status (clean)
         ]
-        
+
         status = manager.get_rollback_status("abc123")
-        
+
         assert status["valid_checkpoint"] is True
         assert status["at_checkpoint"] is True
         assert status["has_uncommitted_changes"] is False
@@ -581,9 +587,9 @@ class TestRollbackStatus:
             " M file.py",  # git status (dirty)
             "1 file changed, 5 insertions(+), 2 deletions(-)",  # diff stat
         ]
-        
+
         status = manager.get_rollback_status("abc123")
-        
+
         assert status["valid_checkpoint"] is True
         assert status["at_checkpoint"] is False
         assert status["has_uncommitted_changes"] is True
@@ -592,9 +598,9 @@ class TestRollbackStatus:
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._validate_checkpoint")
     def test_get_rollback_status_invalid_checkpoint(self, mock_validate, manager):
         mock_validate.return_value = False
-        
+
         status = manager.get_rollback_status("invalid")
-        
+
         assert status["valid_checkpoint"] is False
         assert "error" in status
 
@@ -603,9 +609,9 @@ class TestRollbackStatus:
     def test_get_rollback_status_git_error(self, mock_run_git, mock_validate, manager):
         mock_validate.return_value = True
         mock_run_git.side_effect = RollbackExecutionError("Git failed")
-        
+
         status = manager.get_rollback_status("abc123")
-        
+
         assert status["can_rollback"] is False
         assert "error" in status
 
@@ -622,7 +628,7 @@ class TestRollbackResult:
             recovery_suggestions=[],
             git_commands_executed=[],
         )
-        
+
         assert result.should_escalate() is False
 
     def test_rollback_result_should_escalate_failure(self):
@@ -637,7 +643,7 @@ class TestRollbackResult:
             git_commands_executed=[],
             error_details="Git failed",
         )
-        
+
         assert result.should_escalate() is True
 
 
@@ -650,20 +656,20 @@ class TestIntegrationScenarios:
             "",  # checkout test.py
             "",  # checkout main.py
         ]
-        
+
         result = manager.perform_rollback(
             checkpoint_id="abc123",
             failure_detection=sample_failure_detection,
             operation_id="integration_test",
         )
-        
+
         assert result.success is True
         assert result.rollback_type == "selective"
         assert "test.py" in result.affected_files
         assert "main.py" in result.affected_files
         assert "ROLLBACK SUCCESSFUL" in result.notification_message
         assert len(result.recovery_suggestions) > 0
-        
+
         # Verify log entry
         assert result.log_entry.success is True
         assert result.log_entry.operation_id == "integration_test"
@@ -671,13 +677,15 @@ class TestIntegrationScenarios:
 
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._validate_checkpoint")
     @patch("aider_mcp_server.atoms.utils.automatic_rollback.AutomaticRollbackManager._run_git")
-    def test_end_to_end_full_rollback_with_diff_analysis(self, mock_run_git, mock_validate, manager, sample_failure_detection, sample_diff_analysis):
+    def test_end_to_end_full_rollback_with_diff_analysis(
+        self, mock_run_git, mock_validate, manager, sample_failure_detection, sample_diff_analysis
+    ):
         mock_validate.return_value = True
         mock_run_git.side_effect = [
             "Saved working directory",  # stash
             "HEAD is now at abc123",  # reset
         ]
-        
+
         # Force large scope to trigger full rollback
         large_failure = FailureDetectionResult(
             has_failures=True,
@@ -698,14 +706,14 @@ class TestIntegrationScenarios:
             low_count=0,
             detection_summary="Critical failure",
         )
-        
+
         result = manager.perform_rollback(
             checkpoint_id="abc123",
             failure_detection=large_failure,
             operation_id="critical_recovery",
             diff_analysis=sample_diff_analysis,
         )
-        
+
         assert result.success is True
         assert result.rollback_type == "full"
         assert "git reset --hard abc123" in result.git_commands_executed[1]

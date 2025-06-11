@@ -177,9 +177,7 @@ class AutomaticRollbackManager:
             raise RollbackExecutionError(f"Git command failed: {' '.join(cmd)}", output=e.stderr) from e
         except Exception as e:
             logger.error(f"Unexpected error running git command: {' '.join(cmd)}\n{e}")
-            raise RollbackExecutionError(
-                f"Unexpected error running git command: {' '.join(cmd)}", output=str(e)
-            ) from e
+            raise RollbackExecutionError(f"Unexpected error running git command: {' '.join(cmd)}", output=str(e)) from e
 
     def _validate_checkpoint(self, checkpoint_id: str) -> bool:
         """
@@ -228,7 +226,7 @@ class AutomaticRollbackManager:
 
         # Determine strategy based on number of files and severity
         critical_failures = [t for t in failure_detection.triggers if t.severity.value == "critical"]
-        
+
         if (
             len(affected_files_list) <= self.max_affected_files_for_selective
             and len(critical_failures) <= 2
@@ -237,7 +235,9 @@ class AutomaticRollbackManager:
             logger.info(f"Using selective rollback for {len(affected_files_list)} files")
             return ("selective", affected_files_list)
         else:
-            logger.info(f"Using full rollback due to scope ({len(affected_files_list)} files, {len(critical_failures)} critical)")
+            logger.info(
+                f"Using full rollback due to scope ({len(affected_files_list)} files, {len(critical_failures)} critical)"
+            )
             return ("full", affected_files_list)
 
     def _perform_full_rollback(self, checkpoint_id: str) -> tuple[List[str], str]:
@@ -312,6 +312,77 @@ class AutomaticRollbackManager:
 
         return commands_executed, file_results
 
+    def _generate_status_message(
+        self,
+        rollback_type: str,
+        checkpoint_id: str,
+        success: bool,
+        affected_files: List[str],
+        error_details: Optional[str],
+    ) -> str:
+        """Generate the main status message for rollback notification."""
+        if rollback_type == "full":
+            rollback_desc = f"Full repository rollback to checkpoint {checkpoint_id[:8]}"
+        else:
+            rollback_desc = f"Selective rollback of {len(affected_files)} file(s) to checkpoint {checkpoint_id[:8]}"
+
+        if success:
+            status_msg = f"ROLLBACK SUCCESSFUL\n{rollback_desc} completed successfully."
+        else:
+            status_msg = f"ROLLBACK FAILED\n{rollback_desc} encountered errors."
+            if error_details:
+                status_msg += f"\nError: {error_details}"
+
+        return status_msg
+
+    def _generate_trigger_summary(self, failure_detection: FailureDetectionResult) -> List[str]:
+        """Generate failure trigger summary for notification."""
+        trigger_summary = ["", "ORIGINAL FAILURES DETECTED:"]
+
+        # Group triggers by type for cleaner output
+        by_type: Dict[str, List[Any]] = {}
+        for trigger in failure_detection.triggers:
+            type_name = trigger.failure_type.value
+            if type_name not in by_type:
+                by_type[type_name] = []
+            by_type[type_name].append(trigger)
+
+        for failure_type, triggers in by_type.items():
+            trigger_summary.append(f"   {failure_type.upper()}:")
+            for trigger in triggers:
+                trigger_summary.append(f"      • [{trigger.severity.value}] {trigger.description}")
+                if trigger.affected_files:
+                    files_str = ", ".join(trigger.affected_files[:3])
+                    if len(trigger.affected_files) > 3:
+                        files_str += f" (and {len(trigger.affected_files) - 3} more)"
+                    trigger_summary.append(f"        Files: {files_str}")
+
+        return trigger_summary
+
+    def _generate_next_steps(self, success: bool) -> List[str]:
+        """Generate next steps section for notification."""
+        next_steps = ["", "NEXT STEPS:"]
+
+        if success:
+            next_steps.extend(
+                [
+                    "   • Repository has been restored to a safe state",
+                    "   • Review the original failures before retrying operation",
+                    "   • Consider adjusting operation parameters if needed",
+                ]
+            )
+        else:
+            next_steps.extend(
+                [
+                    "   • Manual intervention required",
+                    "   • Check git status and repository state",
+                    "   • Consider manual rollback if automatic rollback failed",
+                    "   • Contact support if issues persist",
+                ]
+            )
+
+        return next_steps
+
     def _generate_notification_message(
         self,
         rollback_type: str,
@@ -335,69 +406,15 @@ class AutomaticRollbackManager:
         Returns:
             Formatted notification message
         """
-        if rollback_type == "full":
-            rollback_desc = f"Full repository rollback to checkpoint {checkpoint_id[:8]}"
-        else:
-            rollback_desc = f"Selective rollback of {len(affected_files)} file(s) to checkpoint {checkpoint_id[:8]}"
+        status_msg = self._generate_status_message(rollback_type, checkpoint_id, success, affected_files, error_details)
 
-        if success:
-            status_msg = f"ROLLBACK SUCCESSFUL\n{rollback_desc} completed successfully."
-        else:
-            status_msg = f"ROLLBACK FAILED\n{rollback_desc} encountered errors."
-            if error_details:
-                status_msg += f"\nError: {error_details}"
-
-        # Add failure trigger information
-        trigger_summary = [
-            "",
-            "ORIGINAL FAILURES DETECTED:",
-        ]
-
-        # Group triggers by type for cleaner output
-        by_type: Dict[str, List[Any]] = {}
-        for trigger in failure_detection.triggers:
-            type_name = trigger.failure_type.value
-            if type_name not in by_type:
-                by_type[type_name] = []
-            by_type[type_name].append(trigger)
-
-        for failure_type, triggers in by_type.items():
-            trigger_summary.append(f"   {failure_type.upper()}:")
-            for trigger in triggers:
-                trigger_summary.append(f"      • [{trigger.severity.value}] {trigger.description}")
-                if trigger.affected_files:
-                    files_str = ", ".join(trigger.affected_files[:3])
-                    if len(trigger.affected_files) > 3:
-                        files_str += f" (and {len(trigger.affected_files) - 3} more)"
-                    trigger_summary.append(f"        Files: {files_str}")
+        trigger_summary = self._generate_trigger_summary(failure_detection)
 
         # Add affected files summary for selective rollback
         if rollback_type == "selective" and affected_files:
-            trigger_summary.extend([
-                "",
-                "FILES RESTORED:",
-                f"   {', '.join(affected_files)}"
-            ])
+            trigger_summary.extend(["", "FILES RESTORED:", f"   {', '.join(affected_files)}"])
 
-        # Add next steps
-        next_steps = [
-            "",
-            "NEXT STEPS:",
-        ]
-        
-        if success:
-            next_steps.extend([
-                "   • Repository has been restored to a safe state",
-                "   • Review the original failures before retrying operation",
-                "   • Consider adjusting operation parameters if needed"
-            ])
-        else:
-            next_steps.extend([
-                "   • Manual intervention required",
-                "   • Check git status and repository state",
-                "   • Consider manual rollback if automatic rollback failed",
-                "   • Contact support if issues persist"
-            ])
+        next_steps = self._generate_next_steps(success)
 
         return status_msg + "\n".join(trigger_summary) + "\n".join(next_steps)
 
@@ -423,15 +440,17 @@ class AutomaticRollbackManager:
         suggestions = []
 
         if success:
-            suggestions.extend([
-                "Review original failure triggers before retrying operation",
-                "Consider using more conservative operation parameters",
-                "Verify file contents are as expected after rollback"
-            ])
+            suggestions.extend(
+                [
+                    "Review original failure triggers before retrying operation",
+                    "Consider using more conservative operation parameters",
+                    "Verify file contents are as expected after rollback",
+                ]
+            )
 
             # Add specific suggestions based on failure types
             failure_types = {t.failure_type.value for t in failure_detection.triggers}
-            
+
             if "syntax_errors" in failure_types:
                 suggestions.append("Check syntax validation before next operation")
             if "lint_failures" in failure_types:
@@ -443,11 +462,13 @@ class AutomaticRollbackManager:
             if "content_loss" in failure_types:
                 suggestions.append("Consider smaller, incremental changes")
         else:
-            suggestions.extend([
-                "Check git repository status manually",
-                "Verify checkpoint existence and validity",
-                "Consider manual git reset or checkout operations"
-            ])
+            suggestions.extend(
+                [
+                    "Check git repository status manually",
+                    "Verify checkpoint existence and validity",
+                    "Consider manual git reset or checkout operations",
+                ]
+            )
 
             if error_details and "permission" in error_details.lower():
                 suggestions.append("Check file permissions and disk space")
@@ -626,9 +647,7 @@ class AutomaticRollbackManager:
 
         # Log trigger details for analysis
         for trigger in log_entry.triggers:
-            logger.info(
-                f"Trigger: {trigger['type']} ({trigger['severity']}) - {trigger['description']}"
-            )
+            logger.info(f"Trigger: {trigger['type']} ({trigger['severity']}) - {trigger['description']}")
 
         # Log git command results
         for cmd in log_entry.git_commands_executed:
@@ -650,7 +669,7 @@ class AutomaticRollbackManager:
 
             # Get current HEAD
             current_head = self._run_git(["rev-parse", "HEAD"]).strip()
-            
+
             # Check if we're at the checkpoint
             at_checkpoint = current_head == checkpoint_id
 
