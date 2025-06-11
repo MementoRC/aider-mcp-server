@@ -51,6 +51,15 @@ from aider_mcp_server.atoms.utils.git_checkpoint import (
     NotAGitRepositoryError,
     UncommittedChangesError,
 )
+from aider_mcp_server.atoms.utils.git_diff_analyzer import (
+    DiffAnalysisFailedError,
+    DiffAnalysisResult,
+    FileChangeStats,
+    GitDiffAnalysisError,
+    GitDiffAnalyzer,
+    InvalidGitReferenceError,
+    SuspiciousPattern,
+)
 from aider_mcp_server.atoms.utils.model_response_validator import (
     ModelResponseValidator,
     ResponseValidationResult,
@@ -94,6 +103,14 @@ __all__ = [
     "NotAGitRepositoryError",
     "UncommittedChangesError",
     "GitCommandError",
+    # Git diff analysis system
+    "GitDiffAnalyzer",
+    "GitDiffAnalysisError",
+    "InvalidGitReferenceError",
+    "DiffAnalysisFailedError",
+    "DiffAnalysisResult",
+    "FileChangeStats",
+    "SuspiciousPattern",
     # File integrity system
     "FileIntegrityManager",
     "FileIntegrityError",
