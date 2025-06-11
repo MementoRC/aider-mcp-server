@@ -6,18 +6,20 @@ syntax errors, lint failures, test breakage, and suspicious patterns.
 """
 
 import os
+import subprocess
 from dataclasses import dataclass
 from unittest.mock import Mock
 
 import pytest
 
 from aider_mcp_server.atoms.utils.failure_detector import (
-    FailureDetector,
     FailureDetectionResult,
+    FailureDetector,
     FailureSeverity,
     FailureTrigger,
     FailureType,
 )
+from aider_mcp_server.atoms.utils.file_integrity import FileIntegrityError
 from aider_mcp_server.atoms.utils.git_diff_analyzer import DiffAnalysisResult, SuspiciousPattern
 from aider_mcp_server.atoms.utils.post_operation_verifier import (
     FileVerificationMetrics,
@@ -31,19 +33,19 @@ def temp_git_repo(tmp_path):
     """Create a temporary git repository for testing."""
     repo_path = tmp_path / "test_repo"
     repo_path.mkdir()
-    
+
     # Initialize git repo
     os.chdir(repo_path)
-    os.system("git init")
-    os.system("git config user.email 'test@example.com'")
-    os.system("git config user.name 'Test User'")
-    
+    subprocess.run(["git", "init"], check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "test@example.com"], check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "Test User"], check=True)  # noqa: S603, S607
+
     # Create initial file
     test_file = repo_path / "test_file.py"
     test_file.write_text("print('hello world')\n")
-    os.system("git add test_file.py")
-    os.system("git commit -m 'Initial commit'")
-    
+    subprocess.run(["git", "add", "test_file.py"], check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)  # noqa: S603, S607
+
     return str(repo_path)
 
 
@@ -102,12 +104,12 @@ def sample_verification_results():
 @dataclass
 class MockFunctionalResults:
     """Mock functional validation results."""
-    
+
     overall_success: bool = True
     critical_violations: list = None
     linting_results: Mock = None
     testing_results: Mock = None
-    
+
     def __post_init__(self):
         if self.critical_violations is None:
             self.critical_violations = []
@@ -153,7 +155,7 @@ class TestFailureDetector:
 
     def test_init_with_nonexistent_repo(self):
         """Test initialization with non-existent repository."""
-        with pytest.raises(Exception):  # FileIntegrityManager will raise an error
+        with pytest.raises(FileIntegrityError):  # FileIntegrityManager will raise an error
             FailureDetector("/nonexistent/path")
 
 
@@ -357,7 +359,7 @@ class TestLintFailureDetection:
                 "test.py:10:1: F401 'os' imported but unused",
                 "test.py:15:1: E902 IOError: No such file",
                 "test.py:20:1: F821 undefined name 'unknown_var'",
-            ]
+            ],
         )
 
         triggers = failure_detector.detect_critical_lint_failures(functional_results)
@@ -371,10 +373,7 @@ class TestLintFailureDetection:
     def test_detect_critical_lint_failures_many_violations(self, failure_detector):
         """Test detection with many critical lint violations (should be CRITICAL)."""
         violations = [f"test.py:{i}:1: F401 unused import" for i in range(10)]
-        functional_results = MockFunctionalResults(
-            overall_success=False,
-            critical_violations=violations
-        )
+        functional_results = MockFunctionalResults(overall_success=False, critical_violations=violations)
 
         triggers = failure_detector.detect_critical_lint_failures(functional_results)
 
@@ -388,7 +387,9 @@ class TestLintFailureDetection:
         """Test detection of lint failures from linting results."""
         functional_results = MockFunctionalResults()
         functional_results.linting_results.success = False
-        functional_results.linting_results.output = "test.py:10:1: F401 'os' imported but unused\ntest.py:15:1: E902 IOError"
+        functional_results.linting_results.output = (
+            "test.py:10:1: F401 'os' imported but unused\ntest.py:15:1: E902 IOError"
+        )
         functional_results.linting_results.exit_code = 1
 
         triggers = failure_detector.detect_critical_lint_failures(functional_results)
@@ -476,7 +477,7 @@ class TestSuspiciousPatternDetection:
         triggers = failure_detector.detect_suspicious_patterns(diff_analysis)
 
         assert len(triggers) == 2
-        
+
         # Check mass deletion trigger
         mass_deletion_trigger = next(t for t in triggers if t.affected_files == ["test.py"])
         assert mass_deletion_trigger.failure_type == FailureType.SUSPICIOUS_PATTERNS
@@ -545,8 +546,7 @@ class TestFailureDetectionIntegration:
 
         # Create functional results with lint failures
         functional_results = MockFunctionalResults(
-            overall_success=False,
-            critical_violations=["test.py:1:1: F401 unused import"]
+            overall_success=False, critical_violations=["test.py:1:1: F401 unused import"]
         )
 
         # Create diff analysis with suspicious patterns
@@ -595,7 +595,7 @@ class TestFailureDetectionIntegration:
     def test_detect_failures_no_issues(self, failure_detector, sample_baseline_metrics, sample_verification_results):
         """Test failure detection when no issues are found."""
         functional_results = MockFunctionalResults(overall_success=True)
-        
+
         diff_analysis = Mock(spec=DiffAnalysisResult)
         diff_analysis.suspicious_patterns = []
         diff_analysis.has_critical_issues = False
@@ -623,8 +623,7 @@ class TestFailureDetectionIntegration:
         )
 
         functional_results = MockFunctionalResults(
-            overall_success=False,
-            critical_violations=["test.py:1:1: F401 unused import"]
+            overall_success=False, critical_violations=["test.py:1:1: F401 unused import"]
         )
         functional_results.testing_results.success = False
 
@@ -652,7 +651,7 @@ class TestFailureDetectionResults:
             details={},
             recommended_action="Rollback immediately",
         )
-        
+
         high_trigger = FailureTrigger(
             failure_type=FailureType.LINT_FAILURES,
             severity=FailureSeverity.HIGH,
@@ -661,7 +660,7 @@ class TestFailureDetectionResults:
             details={},
             recommended_action="Review and rollback",
         )
-        
+
         medium_trigger = FailureTrigger(
             failure_type=FailureType.SUSPICIOUS_PATTERNS,
             severity=FailureSeverity.MEDIUM,
@@ -774,7 +773,7 @@ class TestConfigurationAndThresholds:
         detector = FailureDetector(temp_git_repo, content_loss_threshold=0.75)  # Set to 75% to detect 75% reduction
 
         baseline_metrics = {"test.py": {"line_count": 100}}
-        
+
         file_results = {
             "test.py": FileVerificationMetrics(
                 file_path="test.py",
