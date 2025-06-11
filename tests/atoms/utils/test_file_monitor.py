@@ -23,7 +23,6 @@ from aider_mcp_server.atoms.utils.file_monitor import (
     ContentValidationError,
     FileAccessError,
     FileMonitor,
-    FileMonitorError,
     MonitoringState,
     WritePatternError,
 )
@@ -168,26 +167,24 @@ class TestWritePatternAnalysis:
 
     def test_suspicious_write_pattern(self, monitor, test_file):
         monitor.start_monitoring([test_file])
-        monitor.stop_monitoring()  # Immediately stop the thread to avoid race conditions
 
+        # Get file metrics and create fake stats
+        metrics = monitor.monitored_files[test_file]
         abs_path = os.path.join(monitor.repo_path, test_file)
+        stats = os.stat(abs_path)
 
-        # Prepare the time sequence for mocking
-        base_time = 1000.0
-        time_sequence = [base_time + i * 0.01 for i in range(20)]
+        try:
+            # Simulate multiple rapid writes
+            for _ in range(monitor.max_consecutive_writes + 1):
+                monitor._process_file_modification(test_file, abs_path, stats, metrics)
 
-        with patch("time.time", side_effect=time_sequence):
-            # The monitor should raise an exception when the pattern is detected
-            with pytest.raises((WritePatternError, FileMonitorError)):
-                for i in range(4):  # Write 4 times rapidly
-                    with open(abs_path, "w", encoding="utf-8") as f:
-                        f.write(f"def test_{i}():\n    return True\n")
-                        f.flush()
-                        os.fsync(f.fileno())
-
-                    monitor._check_files()
-
+            pytest.fail("Expected WritePatternError was not raised")
+        except WritePatternError:
+            # Verify error state
             assert monitor.state == MonitoringState.ERROR
+            assert metrics.consecutive_writes > monitor.max_consecutive_writes
+        finally:
+            monitor.stop_monitoring()
 
 
 class TestFileLockDetection:

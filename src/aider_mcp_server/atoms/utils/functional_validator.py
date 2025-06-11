@@ -62,7 +62,7 @@ class ValidationLevel(Enum):
 
     CRITICAL = "critical"  # Only critical checks (F, E9)
     STANDARD = "standard"  # Standard validation suite
-    STRICT = "strict"     # Full validation including style
+    STRICT = "strict"  # Full validation including style
 
 
 class ValidationCategory(Enum):
@@ -126,7 +126,9 @@ class FunctionalValidator:
         if not os.path.isdir(self.repo_path):
             raise FunctionalValidationError(f"Invalid repository path: {self.repo_path}")
 
-    def _run_hatch_command(self, env: str, command: str, capture_output: bool = True) -> subprocess.CompletedProcess[str]:
+    def _run_hatch_command(
+        self, env: str, command: str, capture_output: bool = True
+    ) -> subprocess.CompletedProcess[str]:
         """
         Run a command in a hatch environment.
 
@@ -144,7 +146,7 @@ class FunctionalValidator:
         cmd = ["hatch", "-e", env, "run"] + command.split()
         try:
             logger.debug(f"Running hatch command: {' '.join(cmd)}")
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 cwd=self.repo_path,
                 check=False,  # Don't raise on non-zero exit
