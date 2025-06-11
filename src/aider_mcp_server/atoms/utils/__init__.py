@@ -39,6 +39,12 @@ from aider_mcp_server.atoms.utils.git_checkpoint import (
     NotAGitRepositoryError,
     UncommittedChangesError,
 )
+from aider_mcp_server.atoms.utils.model_response_validator import (
+    ModelResponseValidator,
+    ResponseValidationResult,
+    ValidationCategory,
+    ValidationError,
+)
 from aider_mcp_server.atoms.utils.post_operation_verifier import (
     ContentVerificationError,
     FileVerificationMetrics,
@@ -80,6 +86,11 @@ __all__ = [
     "ContentValidationError",
     "WritePatternError",
     "MonitoringState",
+    # Model response validation system
+    "ModelResponseValidator",
+    "ResponseValidationResult",
+    "ValidationCategory",
+    "ValidationError",
     # Post-operation verification system
     "PostOperationVerifier",
     "VerificationError",
