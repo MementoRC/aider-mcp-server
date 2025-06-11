@@ -13,6 +13,14 @@ from aider_mcp_server.atoms.utils.aider_validation import (
     validate_aider_parameters,
     validate_file_references,
 )
+from aider_mcp_server.atoms.utils.automatic_rollback import (
+    AutomaticRollbackError,
+    AutomaticRollbackManager,
+    InvalidCheckpointError,
+    RollbackExecutionError,
+    RollbackLogEntry,
+    RollbackResult,
+)
 from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_EDITOR_MODEL,
     DEFAULT_WS_HOST,
@@ -168,4 +176,11 @@ __all__ = [
     "FailureTrigger",
     "FailureType",
     "FailureSeverity",
+    # Automatic rollback system
+    "AutomaticRollbackManager",
+    "AutomaticRollbackError",
+    "RollbackExecutionError",
+    "InvalidCheckpointError",
+    "RollbackResult",
+    "RollbackLogEntry",
 ]
