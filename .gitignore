@@ -197,3 +197,13 @@ src/aider_mcp_server/aider_mcp_server/
 # -----------------------------------------------------------------------------
 # MkDocs
 site/
+
+# Added by Task Master AI
+# Logs
+logs
+# Dependency directories
+# Editor directories and files
+.idea
+.vscode
+# OS specific
+# Task files
