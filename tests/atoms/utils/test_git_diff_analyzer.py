@@ -27,7 +27,6 @@ from aider_mcp_server.atoms.utils.git_diff_analyzer import (
     SuspiciousPattern,
 )
 
-
 # --- Fixtures and helpers ---
 
 
@@ -321,9 +320,7 @@ class TestRollbackCommandGeneration:
         suspicious_files = {"suspicious.py", "problematic.py"}
         large_change_files = {"large.py", "problematic.py"}  # overlap with suspicious
 
-        commands, selective_files = analyzer._generate_rollback_commands(
-            "abc123", suspicious_files, large_change_files
-        )
+        commands, selective_files = analyzer._generate_rollback_commands("abc123", suspicious_files, large_change_files)
 
         # Check stash command is first
         assert commands[0] == "git stash push -u -m 'Pre-rollback stash'"

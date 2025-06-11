@@ -405,8 +405,7 @@ class GitDiffAnalyzer:
             if file_change.total_change >= self.large_change_threshold:
                 large_changes.append(file_change.filename)
                 logger.warning(
-                    f"Large change detected in {file_change.filename}: "
-                    f"{file_change.total_change} total changes"
+                    f"Large change detected in {file_change.filename}: {file_change.total_change} total changes"
                 )
         return large_changes
 
@@ -564,7 +563,17 @@ class GitDiffAnalyzer:
             for pattern in analysis_result.suspicious_patterns:
                 if pattern.severity in ["high", "critical"]:
                     script_content.append(f"echo '  - {pattern.filename}: {pattern.description}'")
-            script_content.extend(["", "read -p 'Continue with rollback? (y/N): ' confirm", "if [[ $confirm != [yY] ]]; then", "  echo 'Rollback cancelled'", "  exit 1", "fi", ""])
+            script_content.extend(
+                [
+                    "",
+                    "read -p 'Continue with rollback? (y/N): ' confirm",
+                    "if [[ $confirm != [yY] ]]; then",
+                    "  echo 'Rollback cancelled'",
+                    "  exit 1",
+                    "fi",
+                    "",
+                ]
+            )
 
         script_content.extend(["echo 'Executing rollback commands...'", ""])
         for cmd in analysis_result.rollback_commands:
@@ -580,8 +589,8 @@ class GitDiffAnalyzer:
         with open(script_path, "w", encoding="utf-8") as f:
             f.write("\n".join(script_content))
 
-        # Make script executable
-        os.chmod(script_path, 0o755)
+        # Make script executable (owner read/write/execute only)
+        os.chmod(script_path, 0o700)
 
         logger.info(f"Recovery script generated: {script_path}")
         return script_path
