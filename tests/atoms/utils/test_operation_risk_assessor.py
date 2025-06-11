@@ -14,8 +14,6 @@ import pytest
 from aider_mcp_server.atoms.utils.operation_risk_assessor import (
     OperationRiskAssessor,
     RiskLevel,
-    RiskFactor,
-    OperationRiskAssessment,
 )
 
 

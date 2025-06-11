@@ -8,7 +8,6 @@ assessment for use by the safety system.
 Author: Aider MCP Server Team
 """
 
-import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -81,10 +80,10 @@ class OperationRiskAssessor:
         "format": 0,
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logger
 
-    def assess_operation_risk(
+    def assess_operation_risk(  # noqa: C901
         self,
         model: str,
         operation_type: str,
@@ -112,20 +111,24 @@ class OperationRiskAssessor:
         model_key = model.lower()
         op_key = operation_type.lower()
         model_risk_score = self._model_risk.get(model_key, 2)
-        factors.append(RiskFactor(
-            name="model_risk",
-            score=model_risk_score,
-            description=f"Base risk for model '{model_key}'",
-        ))
+        factors.append(
+            RiskFactor(
+                name="model_risk",
+                score=model_risk_score,
+                description=f"Base risk for model '{model_key}'",
+            )
+        )
         total_score += model_risk_score
 
         combo_score = self._problematic_models.get((model_key, op_key), 0)
         if combo_score > 0:
-            factors.append(RiskFactor(
-                name="model_operation_combo",
-                score=combo_score,
-                description=f"Known problematic combination: {model_key} + {op_key}",
-            ))
+            factors.append(
+                RiskFactor(
+                    name="model_operation_combo",
+                    score=combo_score,
+                    description=f"Known problematic combination: {model_key} + {op_key}",
+                )
+            )
             total_score += combo_score
 
         # 2. File count risk scaling
@@ -137,11 +140,13 @@ class OperationRiskAssessor:
             file_risk = 4
         else:
             file_risk = 6
-        factors.append(RiskFactor(
-            name="file_count_risk",
-            score=file_risk,
-            description=f"Risk based on {file_count} files affected",
-        ))
+        factors.append(
+            RiskFactor(
+                name="file_count_risk",
+                score=file_risk,
+                description=f"Risk based on {file_count} files affected",
+            )
+        )
         total_score += file_risk
 
         # 3. Complexity risk
@@ -158,23 +163,27 @@ class OperationRiskAssessor:
             if operation_params.get("experimental"):
                 complexity_score += 3
                 complexity_details["experimental"] = True
-        factors.append(RiskFactor(
-            name="complexity_risk",
-            score=complexity_score,
-            description=f"Complexity risk for operation type '{op_key}'",
-            details=complexity_details,
-        ))
+        factors.append(
+            RiskFactor(
+                name="complexity_risk",
+                score=complexity_score,
+                description=f"Complexity risk for operation type '{op_key}'",
+                details=complexity_details,
+            )
+        )
         total_score += complexity_score
 
         # 4. Historical risk
         history_score, history_details = self._analyze_history(operation_history, model_key, op_key)
         if history_score > 0:
-            factors.append(RiskFactor(
-                name="historical_risk",
-                score=history_score,
-                description="Elevated risk due to past failures or patterns",
-                details=history_details,
-            ))
+            factors.append(
+                RiskFactor(
+                    name="historical_risk",
+                    score=history_score,
+                    description="Elevated risk due to past failures or patterns",
+                    details=history_details,
+                )
+            )
             total_score += history_score
 
         # 5. Risk level mapping
@@ -202,7 +211,7 @@ class OperationRiskAssessor:
         operation_history: Optional[List[Dict[str, Any]]],
         model: str,
         operation_type: str,
-    ) -> (int, Dict[str, Any]):
+    ) -> tuple[int, Dict[str, Any]]:
         """
         Analyze operation history for risk patterns.
 
@@ -217,10 +226,7 @@ class OperationRiskAssessor:
         for op in operation_history[-10:]:
             if op.get("success") is False:
                 recent_failures += 1
-                if (
-                    op.get("model", "").lower() == model
-                    and op.get("operation_type", "").lower() == operation_type
-                ):
+                if op.get("model", "").lower() == model and op.get("operation_type", "").lower() == operation_type:
                     similar_failures += 1
 
         score = 0

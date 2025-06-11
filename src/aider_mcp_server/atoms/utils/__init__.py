@@ -32,6 +32,18 @@ from aider_mcp_server.atoms.utils.file_monitor import (
     MonitoringState,
     WritePatternError,
 )
+from aider_mcp_server.atoms.utils.functional_validator import (
+    BuildError,
+    FunctionalValidationError,
+    FunctionalValidationResults,
+    FunctionalValidator,
+    LintingError,
+    QualityGateError,
+    TestingError,
+    ValidationCategory,
+    ValidationLevel,
+    ValidationResult,
+)
 from aider_mcp_server.atoms.utils.git_checkpoint import (
     GitCheckpointError,
     GitCheckpointManager,
@@ -42,8 +54,16 @@ from aider_mcp_server.atoms.utils.git_checkpoint import (
 from aider_mcp_server.atoms.utils.model_response_validator import (
     ModelResponseValidator,
     ResponseValidationResult,
-    ValidationCategory,
+)
+from aider_mcp_server.atoms.utils.model_response_validator import ValidationCategory as ModelValidationCategory
+from aider_mcp_server.atoms.utils.model_response_validator import (
     ValidationError,
+)
+from aider_mcp_server.atoms.utils.operation_risk_assessor import (
+    OperationRiskAssessment,
+    OperationRiskAssessor,
+    RiskFactor,
+    RiskLevel,
 )
 from aider_mcp_server.atoms.utils.post_operation_verifier import (
     ContentVerificationError,
@@ -54,12 +74,6 @@ from aider_mcp_server.atoms.utils.post_operation_verifier import (
     VerificationError,
     VerificationResult,
     VerificationResults,
-)
-from aider_mcp_server.atoms.utils.operation_risk_assessor import (
-    OperationRiskAssessor,
-    OperationRiskAssessment,
-    RiskLevel,
-    RiskFactor,
 )
 
 __all__ = [
@@ -92,10 +106,21 @@ __all__ = [
     "ContentValidationError",
     "WritePatternError",
     "MonitoringState",
+    # Functional validation system
+    "FunctionalValidator",
+    "FunctionalValidationError",
+    "FunctionalValidationResults",
+    "ValidationResult",
+    "ValidationLevel",
+    "ValidationCategory",
+    "LintingError",
+    "TestingError",
+    "BuildError",
+    "QualityGateError",
     # Model response validation system
     "ModelResponseValidator",
     "ResponseValidationResult",
-    "ValidationCategory",
+    "ModelValidationCategory",
     "ValidationError",
     # Post-operation verification system
     "PostOperationVerifier",
