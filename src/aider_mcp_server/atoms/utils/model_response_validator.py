@@ -21,14 +21,16 @@ logger = get_logger(__name__)
 
 class ValidationCategory(Enum):
     """Categories of validation checks."""
+
     COMPLETENESS = "completeness"
-    MODEL_CONSISTENCY = "model_consistency" 
+    MODEL_CONSISTENCY = "model_consistency"
     API_ERROR = "api_error"
     FALLBACK = "fallback"
 
 
 class ValidationError(Exception):
     """Raised when a model response fails validation."""
+
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(message)
         self.details = details or {}
@@ -36,6 +38,7 @@ class ValidationError(Exception):
 
 class ResponseValidationResult(TypedDict, total=False):
     """Result of model response validation."""
+
     valid: bool
     errors: List[str]
     warnings: List[str]
@@ -89,10 +92,7 @@ class ModelResponseValidator:
         if requested_model:
             if not self.is_model_consistent(response, requested_model):
                 actual_model = self.get_actual_model_used(response)
-                msg = (
-                    f"Model inconsistency: requested '{requested_model}', "
-                    f"but actual model used was '{actual_model}'."
-                )
+                msg = f"Model inconsistency: requested '{requested_model}', but actual model used was '{actual_model}'."
                 if not allow_fallback:
                     errors.append(msg)
                 self.logger.warning(msg)
