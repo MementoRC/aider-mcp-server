@@ -55,6 +55,12 @@ from aider_mcp_server.atoms.utils.post_operation_verifier import (
     VerificationResult,
     VerificationResults,
 )
+from aider_mcp_server.atoms.utils.operation_risk_assessor import (
+    OperationRiskAssessor,
+    OperationRiskAssessment,
+    RiskLevel,
+    RiskFactor,
+)
 
 __all__ = [
     # Configuration constants
@@ -100,4 +106,9 @@ __all__ = [
     "VerificationResult",
     "VerificationResults",
     "FileVerificationMetrics",
+    # Operation risk assessment system
+    "OperationRiskAssessor",
+    "OperationRiskAssessment",
+    "RiskLevel",
+    "RiskFactor",
 ]
