@@ -18,6 +18,14 @@ from aider_mcp_server.atoms.utils.config_constants import (
     DEFAULT_WS_HOST,
     DEFAULT_WS_PORT,
 )
+from aider_mcp_server.atoms.utils.failure_detector import (
+    FailureDetectionError,
+    FailureDetectionResult,
+    FailureDetector,
+    FailureSeverity,
+    FailureTrigger,
+    FailureType,
+)
 from aider_mcp_server.atoms.utils.file_integrity import (
     FileIntegrityError,
     FileIntegrityFileNotFoundError,
@@ -153,4 +161,11 @@ __all__ = [
     "OperationRiskAssessment",
     "RiskLevel",
     "RiskFactor",
+    # Failure detection system
+    "FailureDetector",
+    "FailureDetectionError",
+    "FailureDetectionResult",
+    "FailureTrigger",
+    "FailureType",
+    "FailureSeverity",
 ]
