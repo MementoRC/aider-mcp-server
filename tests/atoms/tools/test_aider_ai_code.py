@@ -1122,7 +1122,7 @@ def test_failure_case(temp_dir: str) -> None:
                 "File contents after editing (git not used):" in diff_content
                 or "No meaningful changes detected" in diff_content
                 or "No git-tracked changes detected" in diff_content
-                or "filesystem changes detected" in diff_content
+                or "filesystem changes detected" in diff_content.lower()  # Handle case-insensitive
                 or "Error:" in diff_content  # Handle general error messages
                 or "Unhandled Error" in diff_content  # Handle unhandled errors
             ), f"Expected error information in diff, but got: {diff_content}"
