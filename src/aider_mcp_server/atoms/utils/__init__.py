@@ -100,6 +100,14 @@ from aider_mcp_server.atoms.utils.post_operation_verifier import (
     VerificationResult,
     VerificationResults,
 )
+from aider_mcp_server.atoms.utils.recovery_guidance import (
+    GuidanceItem,
+    GuidancePriority,
+    GuidanceType,
+    RecoveryGuidanceError,
+    RecoveryGuidanceManager,
+    RecoveryGuidanceResult,
+)
 
 __all__ = [
     # Configuration constants
@@ -183,4 +191,11 @@ __all__ = [
     "InvalidCheckpointError",
     "RollbackResult",
     "RollbackLogEntry",
+    # Recovery guidance system
+    "RecoveryGuidanceManager",
+    "RecoveryGuidanceError",
+    "RecoveryGuidanceResult",
+    "GuidanceItem",
+    "GuidanceType",
+    "GuidancePriority",
 ]
