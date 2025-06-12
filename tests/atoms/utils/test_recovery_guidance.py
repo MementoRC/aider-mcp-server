@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 
-from aider_mcp_server.atoms.utils.automatic_rollback import RollbackResult, RollbackLogEntry
+from aider_mcp_server.atoms.utils.automatic_rollback import RollbackLogEntry, RollbackResult
 from aider_mcp_server.atoms.utils.failure_detector import (
     FailureDetectionResult,
     FailureSeverity,
@@ -200,9 +200,7 @@ class TestRecoveryGuidanceManager:
         alternatives = guidance_manager.suggest_alternatives(failure_detection)
 
         # Should suggest conservative operations for content loss
-        conservative_item = next(
-            (item for item in alternatives if "Conservative File Operations" in item.title), None
-        )
+        conservative_item = next((item for item in alternatives if "Conservative File Operations" in item.title), None)
         assert conservative_item is not None
         assert conservative_item.guidance_type == GuidanceType.ALTERNATIVE_APPROACHES
         assert conservative_item.priority == GuidancePriority.HIGH

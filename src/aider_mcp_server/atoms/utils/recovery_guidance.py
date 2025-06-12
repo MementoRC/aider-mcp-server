@@ -22,8 +22,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from aider_mcp_server.atoms.logging.logger import get_logger
-from aider_mcp_server.atoms.utils.failure_detector import FailureDetectionResult, FailureType
 from aider_mcp_server.atoms.utils.automatic_rollback import RollbackResult
+from aider_mcp_server.atoms.utils.failure_detector import FailureDetectionResult, FailureType
 
 logger = get_logger(__name__)
 
@@ -390,7 +390,9 @@ class RecoveryGuidanceManager:
             return "No rollback attempted"
 
         if rollback_result.success:
-            return f"Rollback successful: {rollback_result.rollback_type} rollback to {rollback_result.checkpoint_id[:8]}"
+            return (
+                f"Rollback successful: {rollback_result.rollback_type} rollback to {rollback_result.checkpoint_id[:8]}"
+            )
         else:
             return f"Rollback failed: {rollback_result.rollback_type} rollback attempt failed"
 
