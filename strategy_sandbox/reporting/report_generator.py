@@ -71,11 +71,9 @@ class ReportGenerator:
         """
         status = build_status_data.get("status", "unknown")
         failed_tests = build_status_data.get("failed_tests", [])
-        actionable = ""
-        if status != "success":
-            actionable = f"Action Required: {len(failed_tests)} test(s) failed."
-        else:
-            actionable = "All checks passed."
+        actionable = (
+            f"Action Required: {len(failed_tests)} test(s) failed." if status != "success" else "All checks passed."
+        )
         return f"Build Status: {status.upper()}\n{actionable}"
 
     def render_report(self, aggregated_data: Dict[str, Any]) -> str:

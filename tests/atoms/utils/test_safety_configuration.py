@@ -66,12 +66,16 @@ class TestSafetyConfiguration:
     def test_validation_error_on_inconsistent_settings(self):
         """Test that validation raises an error for logically inconsistent settings."""
         with pytest.raises(SafetyConfigurationError):
-            SafetyConfiguration(profile=SafetyProfile.CUSTOM, enable_automatic_rollback=True, enable_failure_detection=False)
+            SafetyConfiguration(
+                profile=SafetyProfile.CUSTOM, enable_automatic_rollback=True, enable_failure_detection=False
+            )
 
     def test_validation_warning_on_risky_settings(self):
         """Test that validation accepts risky but valid settings."""
         # This should not raise an exception, but should log a warning
-        config = SafetyConfiguration(profile=SafetyProfile.CUSTOM, enable_automatic_rollback=True, enable_git_checkpoint=False)
+        config = SafetyConfiguration(
+            profile=SafetyProfile.CUSTOM, enable_automatic_rollback=True, enable_git_checkpoint=False
+        )
         assert config.enable_automatic_rollback is True
         assert config.enable_git_checkpoint is False
 
