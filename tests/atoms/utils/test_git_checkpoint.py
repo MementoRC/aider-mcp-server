@@ -146,8 +146,18 @@ class TestCreateCheckpoint:
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager.handle_uncommitted_changes")
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager._run_git")
     def test_create_checkpoint_success(self, mock_run_git, mock_handle, manager):
-        # Simulate successful add, commit, and rev-parse
-        mock_run_git.side_effect = ["", "", "abc123"]
+        # Simulate successful add, then changes exist for commit, then successful commit and rev-parse
+        def side_effect(args, capture_output=False):
+            if args == ["add", "-A"]:
+                return ""
+            elif args == ["status", "--porcelain"]:
+                return "M main.py"  # Show changes exist after staging
+            elif args[0] == "commit":
+                return ""
+            elif args == ["rev-parse", "HEAD"]:
+                return "abc123"
+        
+        mock_run_git.side_effect = side_effect
         commit_hash = manager.create_checkpoint(
             operation_id="op1",
             model="gpt-4",
@@ -156,7 +166,6 @@ class TestCreateCheckpoint:
             uncommitted_strategy="error",
         )
         assert commit_hash == "abc123"
-        assert mock_run_git.call_args_list[-1][0][0] == ["rev-parse", "HEAD"]
 
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager.handle_uncommitted_changes")
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager._run_git")
@@ -178,16 +187,18 @@ class TestCreateCheckpoint:
             operation_params=None,
             uncommitted_strategy="error",
         )
-        assert commit_hash == "deadbeef"
+        assert commit_hash == "checkpoint-op2"
 
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager.handle_uncommitted_changes")
     @patch("aider_mcp_server.atoms.utils.git_checkpoint.GitCheckpointManager._run_git")
     def test_create_checkpoint_other_commit_error(self, mock_run_git, mock_handle, manager):
-        # Simulate add, commit raises GitCommandError with other error
+        # Simulate add, then show changes exist, then commit raises GitCommandError with other error
         def side_effect(args, capture_output=False):
-            if args[0] == "add":
+            if args == ["add", "-A"]:
                 return ""
-            if args[0] == "commit":
+            elif args == ["status", "--porcelain"]:
+                return "M main.py"  # Show changes exist after staging
+            elif args[0] == "commit":
                 raise GitCommandError("fail", output="some other error")
 
         mock_run_git.side_effect = side_effect

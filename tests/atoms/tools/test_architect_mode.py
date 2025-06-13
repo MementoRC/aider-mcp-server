@@ -146,6 +146,7 @@ async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, 
             architect_mode=True,
             editor_model="gemini/gemini-2.5-flash-preview-04-17",
             auto_accept_architect=True,
+            bypass_safety=True,  # Bypass safety for test environment
         )
 
         # Check that _configure_model was called with architect mode params
@@ -204,6 +205,7 @@ async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mo
             relative_editable_files=["file.py"],
             model="gemini/gemini-2.5-pro-exp-03-25",
             working_dir=temp_dir,
+            bypass_safety=True,  # Bypass safety for test environment
         )
 
         # Check that _configure_model was called without architect mode

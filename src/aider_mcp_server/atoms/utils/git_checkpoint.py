@@ -98,7 +98,7 @@ class GitCheckpointManager:
             True if there are uncommitted changes, False otherwise.
         """
         result = self._run_git(["status", "--porcelain"], capture_output=True)
-        has_changes = bool(result.strip())
+        has_changes = bool(result and result.strip())
         logger.debug(f"Uncommitted changes present: {has_changes}")
         return has_changes
 
