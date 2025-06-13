@@ -480,7 +480,7 @@ class PostOperationVerifier:
     def _verify_yaml_semantics(self, content: str, file_path: str) -> bool:
         """Verify YAML file is valid."""
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml
 
             yaml.safe_load(content)
             logger.debug(f"YAML semantic validation passed for {file_path}")
