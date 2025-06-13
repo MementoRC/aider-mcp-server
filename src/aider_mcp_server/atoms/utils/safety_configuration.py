@@ -15,8 +15,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import toml
-import yaml
+import toml  # type: ignore[import-untyped]
+import yaml  # type: ignore[import-untyped]
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 
@@ -65,32 +65,56 @@ class SafetyConfiguration:
     # Component toggles
     enable_git_checkpoint: bool = field(default=True, metadata={"description": "Enable git safety checkpoints."})
     enable_file_integrity: bool = field(default=True, metadata={"description": "Enable file integrity checks."})
-    enable_risk_assessment: bool = field(default=True, metadata={"description": "Enable pre-operation risk assessment."})
-    enable_file_monitoring: bool = field(default=True, metadata={"description": "Enable file monitoring during operations."})
-    enable_response_validation: bool = field(default=True, metadata={"description": "Enable validation of model responses."})
-    enable_post_operation_verification: bool = field(default=True, metadata={"description": "Enable post-operation verification."})
-    enable_functional_validation: bool = field(default=True, metadata={"description": "Enable functional validation (linting, tests)."})
-    enable_diff_analysis: bool = field(default=True, metadata={"description": "Enable git diff analysis for suspicious patterns."})
+    enable_risk_assessment: bool = field(
+        default=True, metadata={"description": "Enable pre-operation risk assessment."}
+    )
+    enable_file_monitoring: bool = field(
+        default=True, metadata={"description": "Enable file monitoring during operations."}
+    )
+    enable_response_validation: bool = field(
+        default=True, metadata={"description": "Enable validation of model responses."}
+    )
+    enable_post_operation_verification: bool = field(
+        default=True, metadata={"description": "Enable post-operation verification."}
+    )
+    enable_functional_validation: bool = field(
+        default=True, metadata={"description": "Enable functional validation (linting, tests)."}
+    )
+    enable_diff_analysis: bool = field(
+        default=True, metadata={"description": "Enable git diff analysis for suspicious patterns."}
+    )
     enable_failure_detection: bool = field(default=True, metadata={"description": "Enable failure detection system."})
-    enable_automatic_rollback: bool = field(default=True, metadata={"description": "Enable automatic rollback on critical failures."})
-    enable_recovery_guidance: bool = field(default=True, metadata={"description": "Enable recovery guidance generation."})
+    enable_automatic_rollback: bool = field(
+        default=True, metadata={"description": "Enable automatic rollback on critical failures."}
+    )
+    enable_recovery_guidance: bool = field(
+        default=True, metadata={"description": "Enable recovery guidance generation."}
+    )
 
     # Rollback triggers
-    rollback_on_critical_failures: bool = field(default=True, metadata={"description": "Trigger rollback on CRITICAL failures."})
-    rollback_on_high_failures: bool = field(default=False, metadata={"description": "Trigger rollback on HIGH failures."})
+    rollback_on_critical_failures: bool = field(
+        default=True, metadata={"description": "Trigger rollback on CRITICAL failures."}
+    )
+    rollback_on_high_failures: bool = field(
+        default=False, metadata={"description": "Trigger rollback on HIGH failures."}
+    )
 
     # Validation and performance
-    validation_level: ValidationLevel = field(default=ValidationLevel.NORMAL, metadata={"description": "Strictness of functional validation."})
-    performance_timeout_seconds: float = field(default=30.0, metadata={"description": "Timeout for safety checks in seconds."})
+    validation_level: ValidationLevel = field(
+        default=ValidationLevel.NORMAL, metadata={"description": "Strictness of functional validation."}
+    )
+    performance_timeout_seconds: float = field(
+        default=30.0, metadata={"description": "Timeout for safety checks in seconds."}
+    )
     bypass_on_timeout: bool = field(default=True, metadata={"description": "Bypass safety checks if they time out."})
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Apply profile defaults and validate the configuration."""
         if self.profile != SafetyProfile.CUSTOM:
             self.apply_profile(self.profile)
         self.validate()
 
-    def apply_profile(self, profile: SafetyProfile):
+    def apply_profile(self, profile: SafetyProfile) -> None:
         """Apply settings from a predefined profile."""
         logger.debug(f"Applying safety profile: {profile.value}")
         if profile == SafetyProfile.MAXIMUM:
@@ -117,18 +141,16 @@ class SafetyConfiguration:
             self.performance_timeout_seconds = 20.0
             self.bypass_on_timeout = True
 
-    def _set_all_components(self, value: bool):
+    def _set_all_components(self, value: bool) -> None:
         """Helper to enable or disable all component toggles."""
         for f in self.__dataclass_fields__.values():
             if f.name.startswith("enable_"):
                 setattr(self, f.name, value)
 
-    def validate(self):
+    def validate(self) -> None:
         """Validate the configuration for logical consistency."""
         if self.enable_automatic_rollback and not self.enable_failure_detection:
-            raise SafetyConfigurationError(
-                "Automatic rollback cannot be enabled without failure detection."
-            )
+            raise SafetyConfigurationError("Automatic rollback cannot be enabled without failure detection.")
         if self.enable_automatic_rollback and not self.enable_git_checkpoint:
             logger.warning("Automatic rollback is enabled but git checkpoints are not. Rollback may not be possible.")
         if self.performance_timeout_seconds <= 0:
@@ -138,8 +160,8 @@ class SafetyConfiguration:
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to a dictionary."""
         data = asdict(self)
-        data['profile'] = self.profile.value
-        data['validation_level'] = self.validation_level.value
+        data["profile"] = self.profile.value
+        data["validation_level"] = self.validation_level.value
         return data
 
 
@@ -178,29 +200,29 @@ class SafetyConfigurationSystem:
         file_config = self._load_from_file()
         merged_config = {**file_config, **(cli_overrides or {})}
 
-        profile_name = merged_config.get('profile', 'balanced')
+        profile_name = merged_config.get("profile", "balanced")
         try:
             profile = SafetyProfile(profile_name.lower())
-        except (ValueError, AttributeError):
-            raise SafetyConfigurationError(f"Invalid profile name: {profile_name}")
+        except (ValueError, AttributeError) as e:
+            raise SafetyConfigurationError(f"Invalid profile name: {profile_name}") from e
 
         config = SafetyConfiguration(profile=profile)
 
-        if 'validation_level' in merged_config and isinstance(merged_config['validation_level'], str):
+        if "validation_level" in merged_config and isinstance(merged_config["validation_level"], str):
             try:
-                merged_config['validation_level'] = ValidationLevel(merged_config['validation_level'].lower())
-            except ValueError:
-                raise SafetyConfigurationError(f"Invalid validation_level: {merged_config['validation_level']}")
+                merged_config["validation_level"] = ValidationLevel(merged_config["validation_level"].lower())
+            except ValueError as e:
+                raise SafetyConfigurationError(f"Invalid validation_level: {merged_config['validation_level']}") from e
 
         for key, value in merged_config.items():
-            if hasattr(config, key) and key != 'profile':
+            if hasattr(config, key) and key != "profile":
                 setattr(config, key, value)
 
         if file_config or cli_overrides:
             config.profile = SafetyProfile.CUSTOM
 
         config.validate()
-        
+
         logger.info(f"Loaded safety configuration with effective profile: {config.profile.value}")
         return config
 
@@ -210,7 +232,7 @@ class SafetyConfigurationSystem:
         if not config_file:
             logger.debug("No safety configuration file found. Using default settings.")
             return {}
-        
+
         logger.info(f"Loading safety configuration from: {config_file}")
         return self._parse_config_file(config_file)
 
@@ -234,12 +256,12 @@ class SafetyConfigurationSystem:
                     return yaml.safe_load(f) or {}
                 elif file_path.name == "pyproject.toml":
                     data = toml.load(f)
-                    return data.get("tool", {}).get("aider", {}).get("safety", {})
+                    return data.get("tool", {}).get("aider", {}).get("safety", {})  # type: ignore[no-any-return]
             return {}
         except (yaml.YAMLError, toml.TomlDecodeError, IOError) as e:
-            raise SafetyConfigurationError(f"Error parsing configuration file {file_path}: {e}")
+            raise SafetyConfigurationError(f"Error parsing configuration file {file_path}: {e}") from e
 
-    def save_config(self, config: SafetyConfiguration, file_path: str = ".aider-safety.yaml"):
+    def save_config(self, config: SafetyConfiguration, file_path: str = ".aider-safety.yaml") -> None:
         """
         Save a SafetyConfiguration object to a YAML file.
 
@@ -253,4 +275,4 @@ class SafetyConfigurationSystem:
             with path.open("w", encoding="utf-8") as f:
                 yaml.dump(config.to_dict(), f, default_flow_style=False, sort_keys=False)
         except IOError as e:
-            raise SafetyConfigurationError(f"Error saving configuration file {path}: {e}")
+            raise SafetyConfigurationError(f"Error saving configuration file {path}: {e}") from e

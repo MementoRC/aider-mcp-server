@@ -110,15 +110,8 @@ class AiderTool:
     def _get_safety_manager(self, working_dir: str, **kwargs: Any) -> Optional[SafetySystemManager]:
         """Get or create safety system manager with lazy initialization."""
         if self._safety_manager is None:
-            # Extract safety configuration from kwargs
-            safety_level = kwargs.get("safety_level", "balanced")
-            custom_config = kwargs.get("safety_config")
-
             # Create safety manager
-            self._safety_manager = create_safety_system_manager(
-                safety_level=safety_level,
-                custom_config=custom_config,
-            )
+            self._safety_manager = create_safety_system_manager()
 
         return self._safety_manager
 
@@ -401,7 +394,7 @@ class AiderTool:
                 # Add safety information to result
                 result["safety_status"] = {
                     "enabled": True,
-                    "level": safety_manager.config.safety_level.value,
+                    "level": safety_manager.config.profile.value,
                     "checkpoint_id": checkpoint_result.checkpoint_id,
                     "safety_success": safety_result.success,
                     "performance_metrics": safety_result.performance_metrics,

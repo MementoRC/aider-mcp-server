@@ -1923,7 +1923,7 @@ async def code_with_aider(  # noqa: C901
     if enable_safety_system and not bypass_safety:
         try:
             # Initialize safety system
-            safety_system_manager = create_safety_system_manager(safety_level=safety_level)
+            safety_system_manager = create_safety_system_manager()
 
             # Check if safety should be bypassed
             operation_params = {
