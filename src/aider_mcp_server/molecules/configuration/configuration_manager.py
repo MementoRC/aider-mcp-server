@@ -456,7 +456,7 @@ class ConfigurationManager:
     def _load_yaml_content(self, f: Any) -> Dict[str, Any]:
         """Load YAML configuration content."""
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml
 
             return cast(Dict[str, Any], yaml.safe_load(f))
         except ImportError as e:
