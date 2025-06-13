@@ -1,9 +1,10 @@
-from .github_reporter import GitHubReporter
-from .template_engine import TemplateEngine
-from .artifact_manager import ArtifactManager
-
 import datetime
 from typing import Any, Dict, List, Optional
+
+from .artifact_manager import ArtifactManager
+from .github_reporter import GitHubReporter
+from .template_engine import TemplateEngine
+
 
 class ReportGenerator:
     """
@@ -102,9 +103,7 @@ class ReportGenerator:
         """
         High-level orchestration: aggregate data, render report, publish artifacts.
         """
-        aggregated = self.aggregate_data(
-            coverage_data, performance_data, build_status_data, additional_sources
-        )
+        aggregated = self.aggregate_data(coverage_data, performance_data, build_status_data, additional_sources)
         report_html = self.render_report(aggregated)
         self.artifact_manager.save_artifact(artifact_name, report_html)
         if publish_to_github:

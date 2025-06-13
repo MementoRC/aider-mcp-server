@@ -17,10 +17,10 @@ class TemplateEngine:
             return f"""<html>
 <body>
 <h1>CI Report</h1>
-<p>Coverage: {context.get('coverage_summary', 'N/A')}</p>
-<p>Performance: {context.get('performance_trends', 'N/A')}</p>
-<p>Build: {context.get('build_dashboard', 'N/A')}</p>
-<p>Generated: {context.get('timestamp', 'N/A')}</p>
+<p>Coverage: {context.get("coverage_summary", "N/A")}</p>
+<p>Performance: {context.get("performance_trends", "N/A")}</p>
+<p>Build: {context.get("build_dashboard", "N/A")}</p>
+<p>Generated: {context.get("timestamp", "N/A")}</p>
 </body>
 </html>"""
         return f"Template: {template_name}, Context: {context}"
