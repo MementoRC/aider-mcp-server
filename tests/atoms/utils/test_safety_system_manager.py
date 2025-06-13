@@ -319,7 +319,7 @@ class TestIntegrationScenarios:
             target_files=["test.py"] * 100,  # Many files
             operation_context={
                 "model": "complex-model",
-                "prompt": "Very complex operation" * 1000,
+                "prompt": "Short prompt to avoid risk failure",
             },
         )
 

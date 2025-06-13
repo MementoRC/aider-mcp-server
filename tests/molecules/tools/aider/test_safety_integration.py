@@ -29,7 +29,7 @@ class TestAiderToolSafetyIntegration:
         """Create a mock safety system manager."""
         manager = MagicMock()
         manager.should_bypass_safety.return_value = False
-        manager.config.safety_level.value = "balanced"
+        manager.config.profile.value = "balanced"
 
         # Mock pre-execution check
         pre_check = MagicMock()
@@ -252,7 +252,7 @@ class TestAiderToolSafetyIntegration:
                 # Mock safety manager with rollback scenario
                 mock_manager = MagicMock()
                 mock_manager.should_bypass_safety.return_value = False
-                mock_manager.config.safety_level.value = "balanced"
+                mock_manager.config.profile.value = "balanced"
 
                 # Mock pre-execution check (passes)
                 pre_check = MagicMock()
