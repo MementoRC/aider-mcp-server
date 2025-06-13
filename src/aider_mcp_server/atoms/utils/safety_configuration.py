@@ -15,8 +15,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import toml  # type: ignore[import-untyped]
-import yaml  # type: ignore[import-untyped]
+import toml
+import yaml
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 
