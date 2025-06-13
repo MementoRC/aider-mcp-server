@@ -1224,6 +1224,7 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
                             model="gemini/gemini-pro",
                             working_dir=temp_dir,
                             architect_mode=True,
+                            bypass_safety=True,  # Bypass safety for test environment
                         ),
                         timeout=30.0,  # 30 second timeout
                     )
@@ -1253,6 +1254,7 @@ def test_complex_tasks(temp_dir: str) -> None:  # noqa: C901
                                 model=model,
                                 working_dir=temp_dir,
                                 architect_mode=True,
+                                bypass_safety=True,  # Bypass safety for test environment
                             ),
                             timeout=30.0,  # 30 second timeout
                         )

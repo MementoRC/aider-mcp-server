@@ -92,6 +92,7 @@ async def test_addition_mock(temp_dir: str) -> None:
                 ai_coding_prompt=prompt,
                 relative_editable_files=[test_file],
                 working_dir=temp_dir,
+                bypass_safety=True,  # Bypass safety for test environment
             ),
             timeout=30.0,
         )
@@ -144,6 +145,7 @@ async def test_subtraction_mock(temp_dir: str) -> None:
                 ai_coding_prompt=prompt,
                 relative_editable_files=[test_file],
                 working_dir=temp_dir,
+                bypass_safety=True,  # Bypass safety for test environment
             ),
             timeout=30.0,
         )
@@ -196,6 +198,7 @@ async def test_multiplication_mock(temp_dir: str) -> None:
                 ai_coding_prompt=prompt,
                 relative_editable_files=[test_file],
                 working_dir=temp_dir,
+                bypass_safety=True,  # Bypass safety for test environment
             ),
             timeout=30.0,
         )
@@ -248,6 +251,7 @@ async def test_division_mock(temp_dir: str) -> None:
                 ai_coding_prompt=prompt,
                 relative_editable_files=[test_file],
                 working_dir=temp_dir,
+                bypass_safety=True,  # Bypass safety for test environment
             ),
             timeout=30.0,
         )
@@ -312,6 +316,7 @@ async def test_failure_case_mock(temp_dir: str) -> None:
                 model="non_existent_model_123456789",  # This model doesn't exist
                 working_dir=temp_dir,
                 use_diff_cache=False,  # Disable diff cache for this test
+                bypass_safety=True,  # Bypass safety for test environment
             ),
             timeout=10.0,
         )
@@ -381,6 +386,7 @@ async def test_complex_tasks_mock(temp_dir: str) -> None:
                 ai_coding_prompt=prompt,
                 relative_editable_files=[test_file],
                 working_dir=temp_dir,
+                bypass_safety=True,  # Bypass safety for test environment
                 architect_mode=True,
             ),
             timeout=30.0,

@@ -199,8 +199,12 @@ class GitCheckpointManager:
         # Handle uncommitted changes as per strategy
         self.handle_uncommitted_changes(strategy=uncommitted_strategy)
 
-        # Stage all changes (if any)
+        # Check if there are any changes to commit after staging
         self._run_git(["add", "-A"])  # noqa: S603
+        if not self.has_uncommitted_changes():
+            logger.info("No changes to commit after staging, checkpoint creation skipped")
+            # Return the operation_id as checkpoint_id when no commit is needed
+            return f"checkpoint-{operation_id}"
 
         # Prepare commit message with metadata
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
