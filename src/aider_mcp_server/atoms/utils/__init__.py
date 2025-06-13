@@ -108,6 +108,18 @@ from aider_mcp_server.atoms.utils.recovery_guidance import (
     RecoveryGuidanceManager,
     RecoveryGuidanceResult,
 )
+from aider_mcp_server.atoms.utils.safety_system_manager import (
+    CheckpointResult,
+    PreExecutionResult,
+    SafetyConfiguration,
+    SafetyConfigurationError,
+    SafetyLevel,
+    SafetyOperationError,
+    SafetyOperationResult,
+    SafetySystemError,
+    SafetySystemManager,
+    create_safety_system_manager,
+)
 
 __all__ = [
     # Configuration constants
@@ -198,4 +210,15 @@ __all__ = [
     "GuidanceItem",
     "GuidanceType",
     "GuidancePriority",
+    # Safety system manager
+    "SafetySystemManager",
+    "SafetyConfiguration",
+    "SafetyLevel",
+    "SafetySystemError",
+    "SafetyConfigurationError",
+    "SafetyOperationError",
+    "PreExecutionResult",
+    "CheckpointResult",
+    "SafetyOperationResult",
+    "create_safety_system_manager",
 ]

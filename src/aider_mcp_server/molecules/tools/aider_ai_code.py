@@ -60,6 +60,9 @@ from aider_mcp_server.atoms.utils.fallback_config import (  # noqa: E402
     detect_rate_limit_error,
     get_fallback_model,
 )
+from aider_mcp_server.atoms.utils.safety_system_manager import (  # noqa: E402
+    create_safety_system_manager,
+)
 from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor  # noqa: E402
 from aider_mcp_server.molecules.tools.aider_compatibility import (  # noqa: E402
     filter_supported_params,
@@ -114,6 +117,11 @@ class ResponseDict(TypedDict, total=False):
     diff: Optional[str]  # Raw diff output, optional
     api_key_status: Optional[Dict[str, Any]]  # Information about API key status
     warnings: Optional[List[str]]  # List of warnings to display to the user
+    error: str  # Error message
+    error_code: str  # Error code
+    error_details: Dict[str, Any]  # Error details
+    safety_status: Dict[str, Any]  # Safety system status
+    safety_details: Dict[str, Any]  # Safety system details
 
 
 # Try to import dotenv for environment variable loading
@@ -1812,6 +1820,10 @@ async def code_with_aider(  # noqa: C901
     auto_accept_architect: bool = True,
     include_raw_diff: bool = False,
     coordinator: Optional["IApplicationCoordinator"] = None,
+    # Safety system parameters
+    enable_safety_system: bool = True,
+    safety_level: Optional[str] = None,
+    bypass_safety: bool = False,
 ) -> str:
     """
     Run Aider to perform AI coding tasks based on the provided prompt and files.
@@ -1836,9 +1848,13 @@ async def code_with_aider(  # noqa: C901
         coordinator (IApplicationCoordinator, optional): Coordinator instance for event broadcasting.
                                                      Enables real-time streaming of rate limits, progress,
                                                      and errors. Defaults to None.
+        enable_safety_system (bool, optional): Enable safety system integration. Defaults to True.
+        safety_level (str, optional): Safety level ('disabled', 'minimal', 'balanced', 'maximum').
+                                     Defaults to 'balanced' when safety system is enabled.
+        bypass_safety (bool, optional): Bypass safety system for this operation. Defaults to False.
 
     Returns:
-        str: JSON string containing 'success', 'changes_summary', 'file_status', and other relevant information.
+        str: JSON string containing 'success', 'changes_summary', 'file_status', 'safety_status', and other relevant information.
     """
     # ========== BROWSER POPUP INVESTIGATION START ==========
     logger.info("🔍 ========== AIDER EXECUTION START - BROWSER POPUP INVESTIGATION ==========")
@@ -1902,6 +1918,78 @@ async def code_with_aider(  # noqa: C901
     if working_dir is None:
         raise ValueError("working_dir should not be None after validation")
 
+    # ========== SAFETY SYSTEM INTEGRATION START ==========
+    safety_system_manager = None
+    if enable_safety_system and not bypass_safety:
+        try:
+            # Initialize safety system
+            safety_system_manager = create_safety_system_manager(safety_level=safety_level)
+
+            # Check if safety should be bypassed
+            operation_params = {
+                "prompt": ai_coding_prompt,
+                "model": model,
+                "architect_mode": architect_mode,
+                "bypass_safety": bypass_safety,
+            }
+
+            if safety_system_manager.should_bypass_safety(operation_params):
+                logger.warning("Safety system bypassed due to configuration")
+                safety_system_manager = None
+            else:
+                # Pre-execution safety check
+                pre_execution_result = safety_system_manager.pre_execution_check(
+                    working_directory=working_dir,
+                    target_files=relative_editable_files,
+                    operation_context={
+                        "prompt": ai_coding_prompt,
+                        "model": model,
+                        "architect_mode": architect_mode,
+                        "file_count": len(relative_editable_files),
+                    },
+                )
+
+                if not pre_execution_result.is_safe:
+                    logger.error(f"Safety pre-execution check failed: {pre_execution_result.reason}")
+                    return json.dumps(
+                        {
+                            "success": False,
+                            "error": f"Safety check failed: {pre_execution_result.reason}",
+                            "error_code": "SAFETY_PRE_EXECUTION_BLOCKED",
+                            "safety_details": pre_execution_result.details or {},
+                            "warnings": [pre_execution_result.user_message]
+                            if pre_execution_result.user_message
+                            else [],
+                            "safety_status": {
+                                "enabled": True,
+                                "level": safety_level or "balanced",
+                                "pre_execution_blocked": True,
+                                "risk_assessment": pre_execution_result.risk_assessment.__dict__
+                                if pre_execution_result.risk_assessment
+                                else None,
+                            },
+                        },
+                        indent=4,
+                    )
+
+                logger.info("Safety pre-execution check passed")
+        except Exception as e:
+            logger.error(f"Safety system initialization failed: {e}")
+            if safety_level == "maximum":
+                return json.dumps(
+                    {
+                        "success": False,
+                        "error": f"Safety system initialization failed: {str(e)}",
+                        "error_code": "SAFETY_SYSTEM_INITIALIZATION_FAILED",
+                        "safety_status": {"enabled": False, "initialization_error": str(e)},
+                    },
+                    indent=4,
+                )
+            else:
+                logger.warning("Continuing without safety system due to initialization failure")
+                safety_system_manager = None
+    # ========== SAFETY SYSTEM INTEGRATION END ==========
+
     abs_editable_files = _convert_to_absolute_paths(relative_editable_files, working_dir)
     abs_readonly_files = _convert_to_absolute_paths(relative_readonly_files, working_dir)
 
@@ -1944,6 +2032,49 @@ async def code_with_aider(  # noqa: C901
                 },
             )
 
+        # ========== SAFETY SYSTEM CHECKPOINT CREATION ==========
+        checkpoint_id = None
+        if safety_system_manager:
+            try:
+                checkpoint_result = safety_system_manager.create_checkpoint(
+                    repo_path=working_dir,
+                    files_to_track=abs_editable_files,
+                    operation_metadata={
+                        "model": normalized_model_name,
+                        "prompt_hash": str(hash(ai_coding_prompt))[:8],
+                        "architect_mode": architect_mode,
+                        "editable_files": len(abs_editable_files),
+                    },
+                )
+
+                if checkpoint_result.success:
+                    checkpoint_id = checkpoint_result.checkpoint_id
+                    logger.info(f"Safety checkpoint created: {checkpoint_id}")
+                else:
+                    logger.warning(f"Checkpoint creation failed: {checkpoint_result.error_message}")
+                    if safety_level == "maximum":
+                        return json.dumps(
+                            {
+                                "success": False,
+                                "error": f"Checkpoint creation failed: {checkpoint_result.error_message}",
+                                "error_code": "SAFETY_CHECKPOINT_FAILED",
+                                "safety_status": {"enabled": True, "checkpoint_failed": True},
+                            },
+                            indent=4,
+                        )
+            except Exception as e:
+                logger.error(f"Checkpoint creation exception: {e}")
+                if safety_level == "maximum":
+                    return json.dumps(
+                        {
+                            "success": False,
+                            "error": f"Checkpoint creation exception: {str(e)}",
+                            "error_code": "SAFETY_CHECKPOINT_EXCEPTION",
+                            "safety_status": {"enabled": True, "checkpoint_failed": True},
+                        },
+                        indent=4,
+                    )
+
         # Execute AIDER with coordination support
         response = await _execute_aider_with_coordination(
             ai_coding_prompt,
@@ -1975,6 +2106,70 @@ async def code_with_aider(  # noqa: C901
                 session_id = f"aider_{int(time.time() * 1000)}"
                 await _broadcast_changes_summary(coordinator, response, session_id, relative_editable_files)
 
+        # ========== SAFETY SYSTEM POST-EXECUTION VALIDATION ==========
+        safety_operation_result = None
+        if safety_system_manager and checkpoint_id:
+            try:
+                # Complete safety operation with failure detection and potential rollback
+                safety_operation_result = safety_system_manager.complete_safety_operation(
+                    repo_path=working_dir,
+                    target_files=relative_editable_files,
+                    checkpoint_id=checkpoint_id,
+                    operation_context={
+                        "prompt": ai_coding_prompt,
+                        "model": normalized_model_name,
+                        "success": response.get("success", False),
+                        "changes_detected": bool(response.get("changes_summary", {}).get("files")),
+                    },
+                )
+
+                # If failures detected and rollback performed, update response
+                if not safety_operation_result.success and safety_operation_result.rollback_result:
+                    logger.warning("Safety system triggered rollback due to failures")
+
+                    # Update response to reflect safety rollback (simplified)
+                    response["success"] = False
+                    # Add safety rollback info as additional fields
+                    response_update = {
+                        "error": "Safety system detected failures and performed rollback",
+                        "error_code": "SAFETY_ROLLBACK_TRIGGERED",
+                        "safety_rollback": {
+                            "performed": True,
+                            "checkpoint_id": checkpoint_id,
+                            "rollback_type": getattr(
+                                safety_operation_result.rollback_result, "rollback_type", "unknown"
+                            ),
+                            "failure_summary": getattr(
+                                safety_operation_result.failure_detection, "failure_summary", "Unknown failures"
+                            ),
+                            "recovery_guidance_available": safety_operation_result.recovery_guidance is not None,
+                        },
+                    }
+                    response.update(response_update)  # type: ignore[typeddict-item]
+
+                    # Add recovery guidance to warnings if available
+                    if safety_operation_result.recovery_guidance:
+                        warnings_list = response.get("warnings", [])
+                        if warnings_list is None:
+                            warnings_list = []
+                        warnings_list.append("Recovery guidance available - check safety_rollback section")
+                        response.setdefault("warnings", warnings_list)
+
+                logger.info(f"Safety system validation completed: success={safety_operation_result.success}")
+
+            except Exception as e:
+                logger.error(f"Safety system post-execution validation failed: {e}")
+                # Don't fail the operation for safety system errors unless in maximum mode
+                if safety_level == "maximum":
+                    response["success"] = False
+                    # Add error information using update method
+                    response.update(
+                        {
+                            "error": f"Safety system validation failed: {str(e)}",
+                            "error_code": "SAFETY_VALIDATION_FAILED",
+                        }
+                    )
+
         # Check for aider misfire (empty files despite success)
         try:
             if response.get("success", False):
@@ -1989,9 +2184,9 @@ async def code_with_aider(  # noqa: C901
             logger.error(f"Aider misfire detected: {e.user_friendly_message}")
             # Update response to reflect the misfire (using setdefault for type safety)
             response["success"] = False
-            response.setdefault("error", e.user_friendly_message)  # type: ignore
-            response.setdefault("error_code", e.error_code)  # type: ignore
-            response.setdefault("error_details", e.details)  # type: ignore
+            response.setdefault("error", e.user_friendly_message)
+            response.setdefault("error_code", e.error_code)
+            response.setdefault("error_details", e.details)
             warnings_list = response.get("warnings", [])
             if warnings_list is None:
                 warnings_list = []
@@ -2001,6 +2196,50 @@ async def code_with_aider(  # noqa: C901
 
         # Get API key status for final response
         key_status, _ = _handle_api_key_checks_and_warnings(working_dir, provider)
+
+        # Add safety status to response before finalization
+        if enable_safety_system:
+            safety_status = {
+                "enabled": True,
+                "level": safety_level or "balanced",
+                "bypassed": safety_system_manager is None,
+                "checkpoint_created": checkpoint_id is not None,
+                "checkpoint_id": checkpoint_id if checkpoint_id and checkpoint_id != "disabled" else None,
+            }
+
+            if safety_operation_result:
+                safety_status.update(
+                    {
+                        "validation_completed": True,
+                        "failures_detected": safety_operation_result.failure_detection.has_failures
+                        if safety_operation_result.failure_detection
+                        else False,
+                        "rollback_performed": safety_operation_result.rollback_result.success
+                        if safety_operation_result.rollback_result
+                        else False,
+                        "recovery_guidance_available": safety_operation_result.recovery_guidance is not None,
+                        "performance_metrics": safety_operation_result.performance_metrics,
+                    }
+                )
+
+                # Include detailed recovery guidance if available
+                if safety_operation_result.recovery_guidance:
+                    safety_status["recovery_guidance"] = {
+                        "total_recommendations": getattr(
+                            safety_operation_result.recovery_guidance, "total_recommendations", 0
+                        ),
+                        "critical_count": getattr(safety_operation_result.recovery_guidance, "critical_count", 0),
+                        "high_count": getattr(safety_operation_result.recovery_guidance, "high_count", 0),
+                        "summary": getattr(
+                            safety_operation_result.recovery_guidance,
+                            "detection_summary",
+                            "Recovery guidance available",
+                        ),
+                    }
+
+            response["safety_status"] = safety_status
+        else:
+            response["safety_status"] = {"enabled": False}
 
         _finalize_aider_response(response, key_status, original_model, actual_model_used, provider, include_raw_diff)
 

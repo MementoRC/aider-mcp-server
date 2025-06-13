@@ -23,7 +23,10 @@ class ResponseDict(TypedDict, total=False):
     rate_limit_info: Dict[str, Any]
     api_key_status: Dict[str, Any]
     error: str
+    error_code: str
     warnings: List[str]
+    safety_status: Dict[str, Any]
+    safety_details: Dict[str, Any]
 
 
 class ExecutionConfig(TypedDict, total=False):
