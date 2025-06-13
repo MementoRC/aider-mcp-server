@@ -5,16 +5,21 @@ Tests the coordinated safety system that integrates all safety components
 (Tasks 1-11) into a unified system for the MCP aider tool.
 """
 
+import dataclasses
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 
-from aider_mcp_server.atoms.utils.safety_system_manager import (
+from aider_mcp_server.atoms.utils.safety_configuration import (
     SafetyConfiguration,
-    SafetyLevel,
+    SafetyProfile,
+    ValidationLevel,
+)
+from aider_mcp_server.atoms.utils.safety_system_manager import (
     SafetySystemManager,
     create_safety_system_manager,
 )
@@ -43,62 +48,25 @@ def temp_git_repo():
         yield repo_path
 
 
-class TestSafetyConfiguration:
-    """Test safety configuration creation and validation."""
-
-    def test_default_configuration(self):
-        """Test default safety configuration."""
-        config = SafetyConfiguration()
-
-        assert config.safety_level == SafetyLevel.BALANCED
-        assert config.enable_git_checkpoint is True
-        assert config.enable_failure_detection is True
-        assert config.enable_automatic_rollback is True
-
-    def test_disabled_configuration(self):
-        """Test disabled safety level configuration."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.DISABLED)
-
-        assert config.safety_level == SafetyLevel.DISABLED
-        assert config.enable_git_checkpoint is False
-        assert config.enable_failure_detection is False
-        assert config.enable_automatic_rollback is False
-
-    def test_minimal_configuration(self):
-        """Test minimal safety level configuration."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.MINIMAL)
-
-        assert config.safety_level == SafetyLevel.MINIMAL
-        assert config.enable_git_checkpoint is True
-        assert config.enable_file_integrity is True
-        assert config.enable_risk_assessment is False
-        assert config.enable_file_monitoring is False
-
-    def test_maximum_configuration(self):
-        """Test maximum safety level configuration."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.MAXIMUM)
-
-        assert config.safety_level == SafetyLevel.MAXIMUM
-        assert config.performance_timeout_seconds == 60.0
-        assert config.bypass_on_timeout is False
-
-
 class TestSafetySystemManager:
     """Test safety system manager core functionality."""
 
     def test_initialization_with_default_config(self):
         """Test manager initialization with default configuration."""
-        manager = SafetySystemManager()
-
-        assert manager.config.safety_level == SafetyLevel.BALANCED
-        assert manager._git_checkpoint_manager is None  # Lazy initialization
+        with patch(
+            "aider_mcp_server.atoms.utils.safety_configuration.SafetyConfigurationSystem._find_config_file",
+            return_value=None,
+        ):
+            manager = SafetySystemManager()
+            assert manager.config.profile == SafetyProfile.BALANCED
+            assert manager._git_checkpoint_manager is None  # Lazy initialization
 
     def test_initialization_with_custom_config(self):
         """Test manager initialization with custom configuration."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.MINIMAL)
+        config = SafetyConfiguration(profile=SafetyProfile.MINIMAL)
         manager = SafetySystemManager(config)
 
-        assert manager.config.safety_level == SafetyLevel.MINIMAL
+        assert manager.config.profile == SafetyProfile.MINIMAL
         assert manager.config.enable_risk_assessment is False
 
     def test_should_bypass_safety_parameter(self):
@@ -121,11 +89,15 @@ class TestSafetySystemManager:
         with patch.dict(os.environ, {"AIDER_BYPASS_SAFETY": "true"}):
             assert manager.should_bypass_safety({})
 
-    def test_should_bypass_safety_disabled_level(self):
-        """Test bypass safety when level is disabled."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.DISABLED)
-        manager = SafetySystemManager(config)
+    def test_should_bypass_safety_disabled_profile(self):
+        """Test bypass safety when all components are disabled."""
+        config = SafetyConfiguration(profile=SafetyProfile.CUSTOM)
+        # Manually disable all components
+        for f in dataclasses.fields(config):
+            if f.name.startswith("enable_"):
+                setattr(config, f.name, False)
 
+        manager = SafetySystemManager(config)
         assert manager.should_bypass_safety({})
 
     def test_pre_execution_check_success(self, temp_git_repo):
@@ -146,7 +118,7 @@ class TestSafetySystemManager:
 
     def test_pre_execution_check_with_risk_assessment(self, temp_git_repo):
         """Test pre-execution check with risk assessment."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.BALANCED)
+        config = SafetyConfiguration(profile=SafetyProfile.BALANCED)
         manager = SafetySystemManager(config)
 
         result = manager.pre_execution_check(
@@ -176,7 +148,7 @@ class TestSafetySystemManager:
 
     def test_create_checkpoint_disabled(self):
         """Test checkpoint creation when disabled."""
-        config = SafetyConfiguration(enable_git_checkpoint=False)
+        config = SafetyConfiguration(profile=SafetyProfile.CUSTOM, enable_git_checkpoint=False)
         manager = SafetySystemManager(config)
 
         result = manager.create_checkpoint(
@@ -208,7 +180,9 @@ class TestSafetySystemManager:
 
     def test_detect_failures_disabled(self):
         """Test failure detection when disabled."""
-        config = SafetyConfiguration(enable_failure_detection=False)
+        config = SafetyConfiguration(
+            profile=SafetyProfile.CUSTOM, enable_failure_detection=False, enable_automatic_rollback=False
+        )
         manager = SafetySystemManager(config)
 
         result = manager.detect_failures(repo_path="/nonexistent", target_files=[], checkpoint_id="test")
@@ -253,39 +227,45 @@ class TestSafetySystemManager:
 class TestCreateSafetySystemManager:
     """Test safety system manager factory function."""
 
-    def test_create_with_default_settings(self):
-        """Test factory function with default settings."""
-        manager = create_safety_system_manager()
+    def test_create_with_default_settings(self, temp_git_repo):
+        """Test factory function with default settings (no config file)."""
+        manager = create_safety_system_manager(project_root=temp_git_repo)
 
         assert isinstance(manager, SafetySystemManager)
-        assert manager.config.safety_level == SafetyLevel.BALANCED
+        assert manager.config.profile == SafetyProfile.BALANCED
 
-    def test_create_with_string_level(self):
-        """Test factory function with string safety level."""
-        manager = create_safety_system_manager(safety_level="minimal")
+    def test_create_with_cli_overrides(self, temp_git_repo):
+        """Test factory function with CLI overrides."""
+        overrides = {"profile": "minimal", "performance_timeout_seconds": 99}
+        manager = create_safety_system_manager(project_root=temp_git_repo, cli_overrides=overrides)
 
-        assert manager.config.safety_level == SafetyLevel.MINIMAL
+        assert manager.config.profile == SafetyProfile.CUSTOM
+        assert manager.config.validation_level == ValidationLevel.BASIC
+        assert manager.config.performance_timeout_seconds == 99
 
-    def test_create_with_enum_level(self):
-        """Test factory function with enum safety level."""
-        manager = create_safety_system_manager(safety_level=SafetyLevel.MAXIMUM)
+    def test_create_with_config_file(self, temp_git_repo):
+        """Test factory function loading from a config file."""
+        config_data = {"profile": "maximum"}
+        with (temp_git_repo / ".aider-safety.yaml").open("w") as f:
+            yaml.dump(config_data, f)
 
-        assert manager.config.safety_level == SafetyLevel.MAXIMUM
+        manager = create_safety_system_manager(project_root=temp_git_repo)
+        assert manager.config.profile == SafetyProfile.CUSTOM
+        assert manager.config.validation_level == ValidationLevel.STRICT
 
-    def test_create_with_invalid_level(self):
-        """Test factory function with invalid safety level."""
-        manager = create_safety_system_manager(safety_level="invalid")
+    def test_create_with_file_and_overrides(self, temp_git_repo):
+        """Test factory with file and CLI overrides."""
+        config_data = {"profile": "maximum", "enable_diff_analysis": False}
+        with (temp_git_repo / ".aider-safety.yaml").open("w") as f:
+            yaml.dump(config_data, f)
 
-        # Should default to balanced
-        assert manager.config.safety_level == SafetyLevel.BALANCED
+        overrides = {"enable_diff_analysis": True, "validation_level": "basic"}
+        manager = create_safety_system_manager(project_root=temp_git_repo, cli_overrides=overrides)
 
-    def test_create_with_custom_config(self):
-        """Test factory function with custom configuration."""
-        custom_config = SafetyConfiguration(safety_level=SafetyLevel.MINIMAL, performance_timeout_seconds=15.0)
-        manager = create_safety_system_manager(custom_config=custom_config)
-
-        assert manager.config.safety_level == SafetyLevel.MINIMAL
-        assert manager.config.performance_timeout_seconds == 15.0
+        assert manager.config.profile == SafetyProfile.CUSTOM
+        assert manager.config.enable_diff_analysis is True  # from override
+        assert manager.config.validation_level == ValidationLevel.BASIC  # from override
+        assert manager.config.rollback_on_high_failures is True  # from maximum profile base
 
 
 class TestIntegrationScenarios:
@@ -293,7 +273,7 @@ class TestIntegrationScenarios:
 
     def test_full_safety_workflow_success(self, temp_git_repo):
         """Test complete safety workflow without failures."""
-        manager = create_safety_system_manager(safety_level="balanced")
+        manager = create_safety_system_manager(cli_overrides={"profile": "balanced"})
 
         # 1. Pre-execution check
         pre_result = manager.pre_execution_check(
@@ -322,15 +302,14 @@ class TestIntegrationScenarios:
         assert operation_result.success
 
     def test_disabled_safety_workflow(self):
-        """Test workflow with safety system disabled."""
-        manager = create_safety_system_manager(safety_level="disabled")
-
-        # Should bypass all operations
+        """Test workflow with safety system disabled via config."""
+        overrides = {f.name: False for f in dataclasses.fields(SafetyConfiguration()) if f.name.startswith("enable_")}
+        manager = create_safety_system_manager(cli_overrides=overrides)
         assert manager.should_bypass_safety({})
 
     def test_maximum_safety_workflow_with_timeout(self, temp_git_repo):
         """Test maximum safety level with performance considerations."""
-        config = SafetyConfiguration.from_safety_level(SafetyLevel.MAXIMUM)
+        config = SafetyConfiguration(profile=SafetyProfile.MAXIMUM)
         config.performance_timeout_seconds = 0.001  # Very short timeout
         manager = SafetySystemManager(config)
 
@@ -344,6 +323,6 @@ class TestIntegrationScenarios:
             },
         )
 
-        # With bypass_on_timeout=False in maximum mode, should fail or timeout
-        # The exact behavior depends on the implementation details
-        assert pre_result is not None
+        # With bypass_on_timeout=False in maximum mode, should fail on timeout
+        assert pre_result.is_safe is False
+        assert "timeout" in pre_result.reason.lower()

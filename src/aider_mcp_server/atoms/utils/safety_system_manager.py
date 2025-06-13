@@ -5,10 +5,10 @@ Coordinates all safety components (Tasks 1-11) into a unified safety system that
 integrates with the aider execution flow to provide comprehensive operation safety.
 """
 
+import dataclasses
 import os
 import time
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -34,17 +34,12 @@ from aider_mcp_server.atoms.utils.operation_risk_assessor import (
 )
 from aider_mcp_server.atoms.utils.post_operation_verifier import PostOperationVerifier
 from aider_mcp_server.atoms.utils.recovery_guidance import RecoveryGuidanceManager
+from aider_mcp_server.atoms.utils.safety_configuration import (
+    SafetyConfiguration,
+    SafetyConfigurationSystem,
+)
 
 logger = get_logger(__name__)
-
-
-class SafetyLevel(Enum):
-    """Safety system operation levels."""
-
-    DISABLED = "disabled"
-    MINIMAL = "minimal"
-    BALANCED = "balanced"
-    MAXIMUM = "maximum"
 
 
 class SafetySystemError(Exception):
@@ -53,80 +48,10 @@ class SafetySystemError(Exception):
     pass
 
 
-class SafetyConfigurationError(SafetySystemError):
-    """Raised when safety system configuration is invalid."""
-
-    pass
-
-
 class SafetyOperationError(SafetySystemError):
     """Raised when safety operations fail."""
 
     pass
-
-
-@dataclass
-class SafetyConfiguration:
-    """Configuration for safety system operation."""
-
-    safety_level: SafetyLevel = SafetyLevel.BALANCED
-    enable_git_checkpoint: bool = True
-    enable_file_integrity: bool = True
-    enable_risk_assessment: bool = True
-    enable_file_monitoring: bool = True
-    enable_response_validation: bool = True
-    enable_post_operation_verification: bool = True
-    enable_functional_validation: bool = True
-    enable_diff_analysis: bool = True
-    enable_failure_detection: bool = True
-    enable_automatic_rollback: bool = True
-    enable_recovery_guidance: bool = True
-    performance_timeout_seconds: float = 30.0
-    bypass_on_timeout: bool = True
-
-    @classmethod
-    def from_safety_level(cls, level: SafetyLevel) -> "SafetyConfiguration":
-        """Create configuration from safety level."""
-        if level == SafetyLevel.DISABLED:
-            return cls(
-                safety_level=level,
-                enable_git_checkpoint=False,
-                enable_file_integrity=False,
-                enable_risk_assessment=False,
-                enable_file_monitoring=False,
-                enable_response_validation=False,
-                enable_post_operation_verification=False,
-                enable_functional_validation=False,
-                enable_diff_analysis=False,
-                enable_failure_detection=False,
-                enable_automatic_rollback=False,
-                enable_recovery_guidance=False,
-            )
-        elif level == SafetyLevel.MINIMAL:
-            return cls(
-                safety_level=level,
-                enable_git_checkpoint=True,
-                enable_file_integrity=True,
-                enable_risk_assessment=False,
-                enable_file_monitoring=False,
-                enable_response_validation=False,
-                enable_post_operation_verification=True,
-                enable_functional_validation=False,
-                enable_diff_analysis=True,
-                enable_failure_detection=True,
-                enable_automatic_rollback=True,
-                enable_recovery_guidance=True,
-            )
-        elif level == SafetyLevel.BALANCED:
-            return cls(safety_level=level)  # Uses defaults (all enabled)
-        elif level == SafetyLevel.MAXIMUM:
-            return cls(
-                safety_level=level,
-                performance_timeout_seconds=60.0,
-                bypass_on_timeout=False,
-            )
-        else:
-            raise SafetyConfigurationError(f"Unknown safety level: {level}")
 
 
 @dataclass
@@ -172,7 +97,12 @@ class SafetySystemManager:
 
     def __init__(self, config: Optional[SafetyConfiguration] = None):
         """Initialize safety system manager."""
-        self.config = config or SafetyConfiguration()
+        if config is None:
+            config_system = SafetyConfigurationSystem()
+            self.config = config_system.load_config()
+        else:
+            self.config = config
+
         self.logger = get_logger(__name__)
 
         # Initialize safety components
@@ -301,8 +231,12 @@ class SafetySystemManager:
             self.logger.warning("Safety system bypassed via environment variable")
             return True
 
-        # Check if safety level is disabled
-        if self.config.safety_level == SafetyLevel.DISABLED:
+        # Check if all safety components are disabled in the configuration
+        all_disabled = all(
+            not getattr(self.config, f.name) for f in dataclasses.fields(self.config) if f.name.startswith("enable_")
+        )
+        if all_disabled:
+            self.logger.info("All safety features are disabled in the configuration, bypassing.")
             return True
 
         return False
@@ -387,7 +321,10 @@ class SafetySystemManager:
                     },
                 )()
 
-                if self.config.safety_level == SafetyLevel.MAXIMUM and risk_assessment.risk_level == RiskLevel.CRITICAL:
+                # A strict profile is one that does not bypass on timeout.
+                # This is a proxy for a "maximum" safety setting.
+                is_strict_profile = not self.config.bypass_on_timeout
+                if is_strict_profile and risk_assessment.risk_level == RiskLevel.CRITICAL:
                     return PreExecutionResult(
                         is_safe=False,
                         reason=f"Critical risk level detected: {risk_assessment.total_score}",
@@ -405,10 +342,11 @@ class SafetySystemManager:
                     )
             except Exception as e:
                 self.logger.warning(f"Risk assessment failed: {e}")
-                if self.config.safety_level == SafetyLevel.MAXIMUM:
+                is_strict_profile = not self.config.bypass_on_timeout
+                if is_strict_profile:
                     return PreExecutionResult(
                         is_safe=False,
-                        reason="Risk assessment failed in maximum safety mode",
+                        reason="Risk assessment failed in a strict safety profile",
                         user_message="Operation blocked due to risk assessment failure",
                     )
         return risk_assessment
@@ -480,7 +418,7 @@ class SafetySystemManager:
             metadata = operation_metadata or {}
             metadata.update(
                 {
-                    "safety_level": self.config.safety_level.value,
+                    "safety_profile": self.config.profile.value,
                     "timestamp": time.time(),
                     "file_count": len(files_to_track),
                 }
@@ -732,34 +670,19 @@ class SafetySystemManager:
 
 
 def create_safety_system_manager(
-    safety_level: Optional[Union[str, SafetyLevel]] = None,
-    custom_config: Optional[SafetyConfiguration] = None,
+    project_root: Optional[Union[str, Path]] = None,
+    cli_overrides: Optional[Dict[str, Any]] = None,
 ) -> SafetySystemManager:
     """
     Factory function to create safety system manager.
 
     Args:
-        safety_level: Safety level string or enum
-        custom_config: Custom configuration (overrides safety_level)
+        project_root: The project root directory to search for config files.
+        cli_overrides: Dictionary of command-line configuration overrides.
 
     Returns:
         SafetySystemManager instance
     """
-    if custom_config:
-        return SafetySystemManager(custom_config)
-
-    # Parse safety level
-    if isinstance(safety_level, str):
-        try:
-            level = SafetyLevel(safety_level.lower())
-        except ValueError:
-            logger.warning(f"Invalid safety level '{safety_level}', using BALANCED")
-            level = SafetyLevel.BALANCED
-    elif isinstance(safety_level, SafetyLevel):
-        level = safety_level
-    else:
-        level = SafetyLevel.BALANCED
-
-    # Create configuration from level
-    config = SafetyConfiguration.from_safety_level(level)
+    config_system = SafetyConfigurationSystem(project_root=project_root)
+    config = config_system.load_config(cli_overrides=cli_overrides)
     return SafetySystemManager(config)
