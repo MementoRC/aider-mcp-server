@@ -9,7 +9,7 @@ class ArtifactManager:
 
     def __init__(self, base_path: Optional[str] = None):
         """Initialize ArtifactManager."""
-        self.base_path = base_path or "/tmp/artifacts"
+        self.base_path = base_path or "/tmp/artifacts"  # noqa: S108
 
     def save_artifact(self, artifact_name: str, content: str) -> str:
         """Save artifact to storage (mock implementation)."""
