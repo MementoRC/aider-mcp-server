@@ -140,7 +140,9 @@ class TestAiderToolPublicAPI:
 
         # Execute command
         result = await mock_components.execute_command(
-            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt",
+            relative_editable_files=["file1.py"],
+            working_dir="/tmp/test",
         )
 
         # Verify error handling
@@ -167,7 +169,9 @@ class TestAiderToolPublicAPI:
 
         # Execute command
         result = await mock_components.execute_command(
-            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt",
+            relative_editable_files=["file1.py"],
+            working_dir="/tmp/test",
         )
 
         # Verify result is returned
@@ -185,7 +189,9 @@ class TestAiderToolPublicAPI:
 
         # Execute command
         result = await mock_components.execute_command(
-            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt",
+            relative_editable_files=["file1.py"],
+            working_dir="/tmp/test",
         )
 
         # Verify error handling
@@ -205,7 +211,9 @@ class TestAiderToolPublicAPI:
 
         # Use legacy method name
         result = await mock_components.aider_ai_code(
-            ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"]
+            ai_coding_prompt="Test prompt",
+            relative_editable_files=["file1.py"],
+            working_dir="/tmp/test",
         )
 
         assert result == formatted_result
@@ -324,6 +332,7 @@ class TestIntegrationScenarios:
                     ai_coding_prompt="Add a print statement to the file",
                     relative_editable_files=["test.py"],
                     model="gpt-4",
+                    working_dir=temp_dir,
                 )
 
                 await tool.shutdown()

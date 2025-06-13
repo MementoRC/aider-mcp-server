@@ -156,7 +156,7 @@ class TestCreateCheckpoint:
                 return ""
             elif args == ["rev-parse", "HEAD"]:
                 return "abc123"
-        
+
         mock_run_git.side_effect = side_effect
         commit_hash = manager.create_checkpoint(
             operation_id="op1",
