@@ -28,14 +28,17 @@ jobs:
       - name: Install pre-commit hooks
         run: hatch -e dev run pre-commit install --install-hooks
 
-      - name: Run pre-commit
+      - name: Run linters
         run: |
-          hatch -e dev run pre-commit run --all-files
+          echo "Running formatters and basic linters..."
+          hatch -e dev run pre-commit run --all-files --exclude mypy
           if [ -n "$(git status --porcelain)" ]; then
             echo "::error::Code is not properly formatted. Please run formatters locally before pushing."
             git diff
             exit 1
           fi
+          echo "Running mypy for type checking..."
+          hatch -e dev run mypy
 
   test:
     runs-on: ${{ matrix.os }}
