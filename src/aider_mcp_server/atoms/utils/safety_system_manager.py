@@ -9,11 +9,13 @@ import dataclasses
 import fnmatch
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.atoms.utils.audit_logger import AuditLogger
 from aider_mcp_server.atoms.utils.automatic_rollback import (
     AutomaticRollbackManager,
     RollbackResult,
@@ -108,6 +110,7 @@ class SafetySystemManager:
             self.config = config
 
         self.logger = get_logger(__name__)
+        self.audit_logger = AuditLogger()
 
         # Initialize safety components
         self._git_checkpoint_manager: Optional[GitCheckpointManager] = None
@@ -318,6 +321,14 @@ class SafetySystemManager:
         Returns:
             PreExecutionResult with safety assessment
         """
+        self._current_operation_id = str(uuid.uuid4())
+        operation_context["operation_id"] = self._current_operation_id
+        self.audit_logger.log_operation_start(
+            operation_id=self._current_operation_id,
+            operation_context=operation_context,
+            target_files=target_files,
+        )
+
         try:
             start_time = time.time()
             self._initialize_components(working_directory)
@@ -327,6 +338,7 @@ class SafetySystemManager:
 
             risk_assessment_result = self._run_risk_assessment(target_files, operation_context)
             if isinstance(risk_assessment_result, PreExecutionResult):
+                self.audit_logger.log_pre_execution_check(self._current_operation_id, risk_assessment_result)
                 return risk_assessment_result
             risk_assessment = risk_assessment_result
 
@@ -335,22 +347,27 @@ class SafetySystemManager:
             elapsed = time.time() - start_time
             timeout_result = self._handle_precheck_timeout(elapsed)
             if timeout_result is not None:
+                self.audit_logger.log_pre_execution_check(self._current_operation_id, timeout_result)
                 return timeout_result
 
             self.logger.info(f"Pre-execution safety check completed in {elapsed:.2f}s")
-            return PreExecutionResult(
+            result = PreExecutionResult(
                 is_safe=True,
                 details={"check_duration": elapsed},
                 risk_assessment=risk_assessment,
             )
+            self.audit_logger.log_pre_execution_check(self._current_operation_id, result)
+            return result
 
         except Exception as e:
             self.logger.error(f"Pre-execution safety check failed: {e}")
-            return PreExecutionResult(
+            result = PreExecutionResult(
                 is_safe=False,
                 reason=f"Safety check error: {str(e)}",
                 user_message="Operation blocked due to safety system error",
             )
+            self.audit_logger.log_pre_execution_check(self._current_operation_id, result)
+            return result
 
     def _run_risk_assessment(
         self, target_files: List[str], operation_context: Dict[str, Any]
@@ -476,8 +493,13 @@ class SafetySystemManager:
         Returns:
             CheckpointResult with checkpoint information
         """
+        operation_id = operation_metadata.get("operation_id") if operation_metadata else self._current_operation_id
+
         if not self.config.enable_git_checkpoint:
-            return CheckpointResult(success=True, checkpoint_id="disabled")
+            result = CheckpointResult(success=True, checkpoint_id="disabled")
+            if operation_id:
+                self.audit_logger.log_checkpoint_creation(operation_id, result)
+            return result
 
         try:
             self._initialize_components(repo_path)
@@ -485,9 +507,12 @@ class SafetySystemManager:
             if not self._git_checkpoint_manager:
                 # Git checkpoint unavailable (likely non-git directory), continue gracefully
                 self.logger.warning("Git checkpoint manager not available, skipping checkpoint creation")
-                return CheckpointResult(
+                result = CheckpointResult(
                     success=True, checkpoint_id="unavailable", error_message="Git checkpoint not available"
                 )
+                if operation_id:
+                    self.audit_logger.log_checkpoint_creation(operation_id, result)
+                return result
 
             # Create checkpoint with metadata using correct API
             metadata = operation_metadata or {}
@@ -500,9 +525,9 @@ class SafetySystemManager:
             )
 
             # Use the correct API parameters
-            operation_id = f"aider-safety-{int(time.time())}"
+            op_id = f"aider-safety-{int(time.time())}"
             checkpoint_id = self._git_checkpoint_manager.create_checkpoint(
-                operation_id=operation_id,
+                operation_id=op_id,
                 model=metadata.get("model", "unknown"),
                 target_files=[str(f) for f in files_to_track],
                 operation_params=metadata,
@@ -510,14 +535,20 @@ class SafetySystemManager:
             )
 
             self.logger.info(f"Safety checkpoint created: {checkpoint_id}")
-            return CheckpointResult(success=True, checkpoint_id=checkpoint_id)
+            result = CheckpointResult(success=True, checkpoint_id=checkpoint_id)
+            if operation_id:
+                self.audit_logger.log_checkpoint_creation(operation_id, result)
+            return result
 
         except Exception as e:
             self.logger.error(f"Checkpoint creation failed: {e}")
-            return CheckpointResult(
+            result = CheckpointResult(
                 success=False,
                 error_message=f"Checkpoint creation failed: {str(e)}",
             )
+            if operation_id:
+                self.audit_logger.log_checkpoint_creation(operation_id, result)
+            return result
 
     def detect_failures(
         self,
@@ -565,6 +596,7 @@ class SafetySystemManager:
                 requires_rollback=failures_detected,
                 failure_summary="; ".join(failure_reasons) if failure_reasons else "No failures detected",
                 checkpoint_id=checkpoint_id,
+                details={},
             )
 
             if failure_result.has_failures:
@@ -696,18 +728,23 @@ class SafetySystemManager:
             SafetyOperationResult with complete operation results
         """
         start_time = time.time()
+        operation_id = operation_context.get("operation_id", self._current_operation_id)
 
         try:
             # Detect failures
             failure_detection = None
-            if checkpoint_id and checkpoint_id != "disabled":
+            if checkpoint_id and checkpoint_id not in ["disabled", "unavailable"]:
                 failure_detection = self.detect_failures(repo_path, target_files, checkpoint_id)
+                if operation_id and failure_detection:
+                    self.audit_logger.log_failure_detection(operation_id, failure_detection)
 
             # Handle rollback if needed
             rollback_result = None
             if failure_detection and failure_detection.has_failures and failure_detection.requires_rollback:
                 if checkpoint_id:  # Ensure checkpoint_id is not None
                     rollback_result = self.trigger_rollback(checkpoint_id, failure_detection)
+                    if operation_id and rollback_result:
+                        self.audit_logger.log_rollback(operation_id, rollback_result)
 
             # Generate recovery guidance if needed
             recovery_guidance = None
@@ -715,6 +752,8 @@ class SafetySystemManager:
                 recovery_guidance = self.generate_recovery_guidance(
                     failure_detection, rollback_result, operation_context
                 )
+                if operation_id and recovery_guidance:
+                    self.audit_logger.log_recovery_guidance(operation_id, recovery_guidance)
 
             # Calculate performance metrics
             total_time = time.time() - start_time
@@ -725,7 +764,7 @@ class SafetySystemManager:
 
             success = not (failure_detection and failure_detection.has_failures and failure_detection.requires_rollback)
 
-            return SafetyOperationResult(
+            result = SafetyOperationResult(
                 success=success,
                 checkpoint_id=checkpoint_id,
                 failure_detection=failure_detection,
@@ -733,15 +772,21 @@ class SafetySystemManager:
                 recovery_guidance=recovery_guidance,
                 performance_metrics=performance_metrics,
             )
+            if operation_id:
+                self.audit_logger.log_operation_complete(operation_id, result)
+            return result
 
         except Exception as e:
             self.logger.error(f"Safety operation completion failed: {e}")
-            return SafetyOperationResult(
+            result = SafetyOperationResult(
                 success=False,
                 checkpoint_id=checkpoint_id,
                 error_message=f"Safety operation failed: {str(e)}",
                 performance_metrics={"total_duration": time.time() - start_time},
             )
+            if operation_id:
+                self.audit_logger.log_operation_complete(operation_id, result)
+            return result
 
 
 def create_safety_system_manager(
