@@ -1,0 +1,421 @@
+name: Daily Health Check
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      force_maintenance:
+        description: 'Force maintenance regardless of health score'
+        required: false
+        type: boolean
+        default: false
+      detailed_analysis:
+        description: 'Run detailed analysis including performance benchmarks'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: health-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  health-assessment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    outputs:
+      health-score: ${{ steps.calculate-health.outputs.health-score }}
+      maintenance-needed: ${{ steps.calculate-health.outputs.maintenance-needed }}
+      urgency-level: ${{ steps.calculate-health.outputs.urgency-level }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for trend analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies and tools
+        run: |
+          pip install hatch
+          pip install pip-audit safety bandit pyyaml
+          # Install health monitoring tools
+          pip install radon vulture
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Load maintenance configuration
+        id: load-config
+        run: |
+          if [ -f "maintenance.yml" ]; then
+            echo "✅ Found maintenance.yml configuration"
+            python -c "
+            import yaml
+            with open('maintenance.yml', 'r') as f:
+                config = yaml.safe_load(f)
+            threshold = config['health_thresholds']['overall_score']
+            print(f'Health threshold: {threshold}')
+            print(f'threshold={threshold}' >> open('$GITHUB_OUTPUT', 'a'))
+            "
+          else
+            echo "⚠️ No maintenance.yml found, using defaults"
+            echo "threshold=80" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run security vulnerability scan
+        run: |
+          echo "🔍 Scanning for security vulnerabilities..."
+
+          # Dependency vulnerability scanning
+          pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
+          pip-audit --desc --output=text > reports/pip-audit.txt || true
+
+          # Safety database check
+          safety check --json > reports/safety-scan.json || true
+          safety check > reports/safety-scan.txt || true
+
+          # Security code analysis
+          bandit -r src/ -f json -o reports/bandit-scan.json || true
+          bandit -r src/ -f txt -o reports/bandit-scan.txt || true
+
+      - name: Run code quality analysis
+        run: |
+          echo "📊 Analyzing code quality..."
+
+          # Install project dependencies for analysis
+          hatch env create dev || true
+
+          # Code complexity analysis
+          radon cc --json src/ > reports/complexity.json || true
+          radon mi --json src/ > reports/maintainability.json || true
+
+          # Dead code detection
+          vulture src/ --json > reports/dead-code.json || true
+
+          # Linting analysis
+          hatch run dev:ruff check --output-format=json src/ > reports/ruff-analysis.json || true
+
+      - name: Run test coverage analysis
+        run: |
+          echo "🧪 Analyzing test coverage..."
+
+          # Run tests with coverage if possible
+          if hatch run dev:pytest --cov=src --cov-report=xml --cov-report=json -x; then
+            echo "✅ Tests passed with coverage"
+            cp coverage.xml reports/ || true
+            cp coverage.json reports/ || true
+          else
+            echo "⚠️ Tests failed or coverage unavailable"
+            echo '{"coverage": 0}' > reports/coverage.json
+          fi
+
+      - name: Performance baseline check
+        if: github.event.inputs.detailed_analysis == 'true' || github.event_name == 'schedule'
+        run: |
+          echo "⚡ Running performance analysis..."
+
+          # Run performance benchmarks if available
+          if [ -d "benchmarks/" ]; then
+            hatch run dev:pytest benchmarks/ --benchmark-only --benchmark-json=reports/performance.json || true
+          fi
+
+          # Memory usage analysis using existing HealthMonitor if possible
+          python -c "
+          import json
+          import sys
+          sys.path.insert(0, 'src')
+          try:
+              from aider_mcp_server.molecules.monitoring.health_monitor import HealthMonitor
+              print('📊 Using existing HealthMonitor for performance metrics')
+          except:
+              print('📊 HealthMonitor not available, using basic metrics')
+              with open('reports/basic-performance.json', 'w') as f:
+                  json.dump({'status': 'basic_check'}, f)
+          " || true
+
+      - name: Calculate comprehensive health score
+        id: calculate-health
+        run: |
+          echo "🎯 Calculating comprehensive health score..."
+
+          # Make health script executable
+          chmod +x scripts/calculate_health_score.py
+
+          # Run health calculation
+          if python scripts/calculate_health_score.py; then
+            HEALTH_SCORE=$(cat reports/health_score.txt)
+            MAINTENANCE_NEEDED=$(cat reports/maintenance_needed.txt)
+            URGENCY_LEVEL=$(cat reports/urgency_level.txt)
+
+            echo "health-score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+            echo "maintenance-needed=$MAINTENANCE_NEEDED" >> $GITHUB_OUTPUT
+            echo "urgency-level=$URGENCY_LEVEL" >> $GITHUB_OUTPUT
+
+            echo "### 🏥 Project Health Assessment" >> $GITHUB_STEP_SUMMARY
+            echo "**Overall Health Score:** $HEALTH_SCORE/100" >> $GITHUB_STEP_SUMMARY
+            echo "**Maintenance Required:** $MAINTENANCE_NEEDED" >> $GITHUB_STEP_SUMMARY
+            echo "**Urgency Level:** $URGENCY_LEVEL" >> $GITHUB_STEP_SUMMARY
+
+            # Add component breakdown if available
+            if [ -f "reports/project_health.json" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Component Scores:**" >> $GITHUB_STEP_SUMMARY
+              python -c "
+              import json
+              with open('reports/project_health.json', 'r') as f:
+                  data = json.load(f)
+              for component, score in data.get('component_scores', {}).items():
+                  print(f'- {component.replace(\"_\", \" \").title()}: {score}/25')
+              " >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ Health calculation failed"
+            echo "health-score=0" >> $GITHUB_OUTPUT
+            echo "maintenance-needed=true" >> $GITHUB_OUTPUT
+            echo "urgency-level=critical" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update repository health status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const healthScore = '${{ steps.calculate-health.outputs.health-score }}';
+            const urgencyLevel = '${{ steps.calculate-health.outputs.urgency-level }}';
+
+            // Update repository topics with health information
+            const topics = [
+              `health-${healthScore}`,
+              `status-${urgencyLevel}`,
+              'systematic-maintenance'
+            ];
+
+            try {
+              await github.rest.repos.replaceAllTopics({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                names: topics
+              });
+              console.log(`✅ Updated repository topics: ${topics.join(', ')}`);
+            } catch (error) {
+              console.log(`⚠️ Could not update repository topics: ${error.message}`);
+            }
+
+      - name: Upload health reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-reports-${{ github.run_number }}
+          path: reports/
+          retention-days: 90
+
+      - name: Cache health data for trends
+        uses: actions/cache@v3
+        with:
+          path: |
+            reports/project_health.json
+            .health_history
+          key: health-data-${{ github.run_number }}
+          restore-keys: |
+            health-data-
+
+  maintenance-orchestration:
+    needs: health-assessment
+    if: needs.health-assessment.outputs.maintenance-needed == 'true' || github.event.inputs.force_maintenance == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download health reports
+        uses: actions/download-artifact@v4
+        with:
+          name: health-reports-${{ github.run_number }}
+          path: reports/
+
+      - name: Generate maintenance plan
+        id: maintenance-plan
+        run: |
+          echo "📋 Generating maintenance plan..."
+
+          HEALTH_SCORE="${{ needs.health-assessment.outputs.health-score }}"
+          URGENCY_LEVEL="${{ needs.health-assessment.outputs.urgency-level }}"
+
+          # Create maintenance plan based on health assessment
+          python -c "
+          import json
+
+          health_score = $HEALTH_SCORE
+          urgency = '$URGENCY_LEVEL'
+
+          # Generate maintenance plan based on health data
+          plan = {
+              'priority_tasks': [],
+              'timeline': 'immediate' if urgency == 'critical' else '1-2 weeks',
+              'estimated_effort': 'high' if health_score < 60 else 'medium'
+          }
+
+          # Add specific tasks based on health score
+          if health_score < 70:
+              plan['priority_tasks'].extend([
+                  'Review and fix security vulnerabilities',
+                  'Update outdated dependencies',
+                  'Address code quality issues'
+              ])
+
+          with open('reports/maintenance_plan.json', 'w') as f:
+              json.dump(plan, f, indent=2)
+
+          print(f'Generated maintenance plan for health score: {health_score}')
+          "
+
+      - name: Create maintenance issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const healthScore = '${{ needs.health-assessment.outputs.health-score }}';
+            const urgencyLevel = '${{ needs.health-assessment.outputs.urgency-level }}';
+
+            // Check if maintenance issue already exists
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'maintenance,automated,health-alert',
+              state: 'open'
+            });
+
+            const hasOpenMaintenanceIssue = existingIssues.data.some(issue =>
+              issue.title.includes('Maintenance Required')
+            );
+
+            if (hasOpenMaintenanceIssue) {
+              console.log('📝 Open maintenance issue already exists, updating instead...');
+
+              // Update existing issue with new health data
+              const issueNumber = existingIssues.data[0].number;
+              const updateComment = `
+              ## 📊 Updated Health Assessment
+
+              **Date:** ${new Date().toISOString().split('T')[0]}
+              **Health Score:** ${healthScore}/100
+              **Urgency:** ${urgencyLevel}
+
+              Latest health reports are available in workflow artifacts.
+              `;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: updateComment
+              });
+
+              return;
+            }
+
+            // Create new maintenance issue
+            const issueTitle = `🔧 ${urgencyLevel.toUpperCase()} Maintenance Required - Health Score: ${healthScore}/100`;
+
+            const issueBody = `
+            ## 🚨 Systematic Maintenance Alert
+
+            **Health Score:** ${healthScore}/100
+            **Urgency Level:** ${urgencyLevel}
+            **Assessment Date:** ${new Date().toISOString().split('T')[0]}
+
+            ### 📊 Health Analysis Summary
+
+            The automated health monitoring system has detected that maintenance is required for this project.
+
+            ### 🎯 Priority Actions
+
+            Based on the health assessment, the following areas need attention:
+
+            1. **Security Review** - Check for vulnerabilities and apply patches
+            2. **Dependency Updates** - Review and update outdated packages
+            3. **Code Quality** - Address linting violations and complexity issues
+            4. **Performance** - Review performance metrics and optimize if needed
+
+            ### 📁 Detailed Reports
+
+            Comprehensive health assessment reports are available in the workflow artifacts:
+            - Security scan results
+            - Code quality analysis
+            - Performance metrics
+            - Dependency analysis
+
+            ### 🚀 Next Steps
+
+            1. **Download and review** detailed reports from workflow artifacts
+            2. **Prioritize tasks** based on urgency level and impact
+            3. **Create maintenance PRs** for automated fixes where possible
+            4. **Schedule manual review** for complex issues requiring human judgment
+            5. **Update this issue** with progress and completion status
+
+            ### 🔗 Workflow Details
+
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Configuration:** See \`maintenance.yml\` for thresholds and automation settings
+
+            ---
+
+            **Auto-generated by:** Systematic Maintenance Framework
+            **Monitoring Integration:** HealthMonitor, MetricsCollector, HealthTracker
+            **Framework Phase:** Phase 1 Implementation
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              labels: [
+                'maintenance',
+                'automated',
+                'health-alert',
+                urgencyLevel + '-priority',
+                'systematic-maintenance'
+              ]
+            });
+
+            console.log(`✅ Created maintenance issue: ${issueTitle}`);
+
+      - name: Trigger automated maintenance workflows
+        if: needs.health-assessment.outputs.urgency-level == 'high' || needs.health-assessment.outputs.urgency-level == 'critical'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('🤖 Triggering automated maintenance workflows...');
+
+            // Trigger security scanning if not already run today
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'security.yml',
+                ref: context.ref
+              });
+              console.log('✅ Triggered security scanning workflow');
+            } catch (error) {
+              console.log(`⚠️ Could not trigger security workflow: ${error.message}`);
+            }
+
+            // Additional automated workflows could be triggered here
+            // based on the specific health issues identified

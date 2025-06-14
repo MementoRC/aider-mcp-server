@@ -1,0 +1,167 @@
+name: Security Scanning
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install hatch and security tools
+        run: |
+          pip install hatch pip-audit safety bandit
+
+      - name: Install project dependencies
+        run: |
+          hatch env create dev
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Dependency vulnerability scan
+        run: |
+          echo "Scanning dependencies for vulnerabilities..."
+          pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
+          pip-audit --desc --output=text > reports/pip-audit.txt || true
+
+          # Also scan with safety
+          safety check --json > reports/safety-scan.json || true
+          safety check > reports/safety-scan.txt || true
+
+      - name: Security linting with bandit
+        run: |
+          echo "Running security linting..."
+          bandit -r src/ -f json -o reports/bandit-scan.json || true
+          bandit -r src/ -f txt -o reports/bandit-scan.txt || true
+
+      - name: Process security scan results
+        id: process-results
+        run: |
+          echo "Processing security scan results..."
+
+          # Count vulnerabilities from pip-audit
+          VULN_COUNT=$(jq '.vulnerabilities | length' reports/pip-audit.json 2>/dev/null || echo "0")
+
+          # Count high/critical issues from bandit
+          BANDIT_HIGH=$(jq '[.results[] | select(.issue_severity == "HIGH" or .issue_severity == "CRITICAL")] | length' reports/bandit-scan.json 2>/dev/null || echo "0")
+
+          # Count safety issues
+          SAFETY_COUNT=$(jq 'length' reports/safety-scan.json 2>/dev/null || echo "0")
+
+          echo "vulnerabilities=$VULN_COUNT" >> $GITHUB_OUTPUT
+          echo "bandit_high=$BANDIT_HIGH" >> $GITHUB_OUTPUT
+          echo "safety_issues=$SAFETY_COUNT" >> $GITHUB_OUTPUT
+
+          TOTAL_ISSUES=$((VULN_COUNT + BANDIT_HIGH + SAFETY_COUNT))
+          echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+
+          echo "### Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "**Dependency Vulnerabilities:** $VULN_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "**High/Critical Security Issues:** $BANDIT_HIGH" >> $GITHUB_STEP_SUMMARY
+          echo "**Safety Database Issues:** $SAFETY_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Security Issues:** $TOTAL_ISSUES" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: reports/
+          retention-days: 30
+
+      - name: Create security issue if vulnerabilities found
+        if: steps.process-results.outputs.total_issues > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const vulnCount = '${{ steps.process-results.outputs.vulnerabilities }}';
+            const banditHigh = '${{ steps.process-results.outputs.bandit_high }}';
+            const safetyCount = '${{ steps.process-results.outputs.safety_issues }}';
+            const totalIssues = '${{ steps.process-results.outputs.total_issues }}';
+
+            const issueTitle = `Security Alert: ${totalIssues} Security Issues Found`;
+            const issueBody = `
+            ## Automated Security Scan Alert
+
+            **Scan Date:** ${new Date().toISOString().split('T')[0]}
+            **Total Issues:** ${totalIssues}
+
+            ### Issue Breakdown:
+            - **Dependency Vulnerabilities:** ${vulnCount}
+            - **High/Critical Code Issues:** ${banditHigh}
+            - **Safety Database Issues:** ${safetyCount}
+
+            ### Next Steps:
+            1. **Download detailed reports** from workflow artifacts
+            2. **Review each vulnerability** for impact assessment
+            3. **Update vulnerable dependencies** where possible
+            4. **Apply security patches** or implement mitigations
+            5. **Re-run security scan** to verify fixes
+
+            ### Detailed Reports:
+            Security scan reports are available in workflow artifacts for detailed analysis.
+
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+            **Auto-generated by:** Security Scanning Workflow
+            **Priority:** ${totalIssues >= 5 ? 'HIGH' : totalIssues >= 2 ? 'MEDIUM' : 'LOW'}
+            `;
+
+            // Check if similar issue already exists
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'security,automated',
+              state: 'open'
+            });
+
+            const hasOpenSecurityIssue = existingIssues.data.some(issue =>
+              issue.title.includes('Security Alert')
+            );
+
+            if (!hasOpenSecurityIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['security', 'automated', totalIssues >= 5 ? 'high-priority' : 'medium-priority']
+              });
+            } else {
+              console.log('Open security issue already exists, skipping creation');
+            }
+
+      - name: Fail on critical security issues
+        if: steps.process-results.outputs.bandit_high > 0 || steps.process-results.outputs.vulnerabilities > 5
+        run: |
+          echo "Critical security issues found!"
+          echo "High/Critical bandit issues: ${{ steps.process-results.outputs.bandit_high }}"
+          echo "Vulnerabilities: ${{ steps.process-results.outputs.vulnerabilities }}"
+          exit 1

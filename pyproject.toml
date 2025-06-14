@@ -49,6 +49,13 @@ dev = [
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "types-PyYAML",  # Type stubs for PyYAML
     "pytest-benchmark",
+    # Systematic maintenance framework tools
+    "pip-audit>=2.6.0",  # Dependency vulnerability scanning
+    "safety>=3.0.0",     # Security vulnerability database
+    "bandit>=1.7.0",     # Security linting for Python
+    "radon>=6.0.0",      # Code complexity analysis
+    "vulture>=2.9.0",    # Dead code detection
+    "pyyaml>=6.0.0",     # YAML configuration parsing
 ]
 
 test = [
