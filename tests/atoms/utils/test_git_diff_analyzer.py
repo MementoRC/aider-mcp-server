@@ -13,6 +13,7 @@ Mocks subprocess and filesystem as needed.
 """
 
 import os
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -32,9 +33,12 @@ from aider_mcp_server.atoms.utils.git_diff_analyzer import (
 
 @pytest.fixture
 def fake_repo_path(tmp_path):
-    """Create a fake git repository for testing."""
-    git_dir = tmp_path / ".git"
-    git_dir.mkdir()
+    """Create a proper git repository for testing."""
+    # Initialize a proper git repository
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)  # noqa: S603,S607
+    # Set basic git config to avoid warnings
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)  # noqa: S603,S607
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)  # noqa: S603,S607
     return str(tmp_path)
 
 

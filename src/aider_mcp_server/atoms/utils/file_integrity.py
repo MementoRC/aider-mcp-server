@@ -66,15 +66,18 @@ class FileIntegrityManager:
 
     def is_git_repo(self) -> bool:
         """
-        Check if the current directory is a git repository.
+        Check if the current directory is a git repository (supports worktrees).
 
         Returns:
-            True if .git exists and is a directory, False otherwise.
+            True if the directory is a git repo or worktree, False otherwise.
         """
-        git_dir = os.path.join(self.repo_path, ".git")
-        is_repo = os.path.isdir(git_dir)
-        logger.debug(f"Checking if {self.repo_path} is a git repo: {is_repo}")
-        return is_repo
+        try:
+            subprocess.run(["git", "rev-parse", "--git-dir"], cwd=self.repo_path, capture_output=True, check=True)  # noqa: S603,S607
+            logger.debug(f"Checking if {self.repo_path} is a git repo: True")
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            logger.debug(f"Checking if {self.repo_path} is a git repo: False")
+            return False
 
     def _run_git(self, args: List[str], capture_output: bool = False) -> str:
         """
