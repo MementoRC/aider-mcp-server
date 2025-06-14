@@ -16,21 +16,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: prefix-dev/pixi-action@v0.5.0
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          cache: true
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install hatch
+        run: pip install hatch
 
       - name: Install pre-commit hooks
-        run: pixi run pre-commit install --install-hooks
+        run: hatch run dev:install-hooks
 
-      - name: Run formatters and basic linters
+      - name: Run all pre-commit hooks
         run: |
-          echo "Running formatters and basic linters..."
-          SKIP=mypy pixi run pre-commit run --all-files
+          echo "Running all pre-commit hooks (formatters, linters, and mypy)..."
+          hatch run dev:lint
 
       - name: Check for formatting changes
         run: |
@@ -39,11 +44,6 @@ jobs:
             git diff
             exit 1
           fi
-
-      - name: Run mypy for type checking
-        run: |
-          echo "Running mypy for type checking..."
-          pixi run pre-commit run mypy --all-files
 
   test:
     runs-on: ${{ matrix.os }}
@@ -54,18 +54,23 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - uses: prefix-dev/pixi-action@v0.5.0
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          cache: true
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install hatch
+        run: pip install hatch
 
       - name: Run tests with coverage
         run: |
-          pixi run pytest --cov=src --cov=strategy_sandbox --cov-report=xml
+          hatch run dev:pytest --cov=src --cov=strategy_sandbox --cov-report=xml
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
@@ -78,35 +83,40 @@ jobs:
         aider-version: ['0.83.0', '0.83.1', 'latest']
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: prefix-dev/pixi-action@v0.5.0
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          cache: true
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install hatch
+        run: pip install hatch
 
       - name: Install specific aider version
         run: |
           if [ "${{ matrix.aider-version }}" = "latest" ]; then
-            pixi run pip install aider-chat
+            hatch run dev:pip install aider-chat
           else
-            pixi run pip install aider-chat==${{ matrix.aider-version }}
+            hatch run dev:pip install aider-chat==${{ matrix.aider-version }}
           fi
 
       - name: Run compatibility check script
         run: |
-          pixi run python scripts/inspect_aider_params.py
+          hatch run dev:python scripts/inspect_aider_params.py
 
       - name: Display aider version
         run: |
-          pixi run python -c "import aider; print(f'Testing with aider version: {aider.__version__}')"
+          hatch run dev:python -c "import aider; print(f'Testing with aider version: {aider.__version__}')"
 
       - name: Run compatibility tests
         run: |
-          pixi run pytest tests/compatibility/ -v
+          hatch run dev:pytest tests/compatibility/ -v
 
       - name: Run integration tests
         run: |
-          pixi run pytest tests/ -v -m integration
+          hatch run dev:pytest tests/ -v -m integration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
