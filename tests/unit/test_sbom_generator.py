@@ -3,6 +3,16 @@ import tempfile
 
 import pytest
 
+# Check for optional SBOM dependencies
+try:
+    # Import a representative class from each library to check for installation
+    from cyclonedx.model.bom import Bom  # noqa: F401
+    from spdx.document import Document  # noqa: F401
+
+    sbom_deps_installed = True
+except ImportError:
+    sbom_deps_installed = False
+
 from strategy_sandbox.security.sbom_generator import SBOMGenerator
 
 
@@ -39,6 +49,7 @@ def sbom_generator():
     return SBOMGenerator(analyzer=DummyAnalyzer(), vuln_collector=DummyVulnCollector())
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_generate_cyclonedx_json(sbom_generator):
     sbom = sbom_generator.generate_sbom(source_path=".", output_format="cyclonedx-json")
     assert "foo" in sbom
@@ -46,12 +57,14 @@ def test_generate_cyclonedx_json(sbom_generator):
     assert "MIT" in sbom or "NOASSERTION" in sbom
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_generate_cyclonedx_xml(sbom_generator):
     sbom = sbom_generator.generate_sbom(source_path=".", output_format="cyclonedx-xml")
     assert "<bom" in sbom
     assert "foo" in sbom
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_generate_spdx_json(sbom_generator):
     sbom = sbom_generator.generate_sbom(source_path=".", output_format="spdx-json")
     assert "foo" in sbom
@@ -59,12 +72,14 @@ def test_generate_spdx_json(sbom_generator):
     assert "MIT" in sbom or "NOASSERTION" in sbom
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_generate_spdx_yaml(sbom_generator):
     sbom = sbom_generator.generate_sbom(source_path=".", output_format="spdx-yaml")
     assert "foo" in sbom
     assert "bar" in sbom
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_sbom_file_output(sbom_generator):
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         sbom_generator.generate_sbom(source_path=".", output_format="cyclonedx-json", output_file=tmp.name)
@@ -75,6 +90,7 @@ def test_sbom_file_output(sbom_generator):
         os.unlink(tmp.name)
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_cli_argument_addition():
     import argparse
 
@@ -85,6 +101,7 @@ def test_cli_argument_addition():
     assert hasattr(args, "sbom_output")
 
 
+@pytest.mark.skipif(not sbom_deps_installed, reason="SBOM dependencies (cyclonedx, spdx) not installed")
 def test_run_from_cli(sbom_generator):
     class Args:
         source = "."

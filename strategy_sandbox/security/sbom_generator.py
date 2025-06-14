@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 try:
     from cyclonedx.model.bom import Bom
@@ -128,9 +128,9 @@ class SBOMGenerator:
         logger.debug(f"Detecting license for {component.name}")
         return "NOASSERTION"
 
-    def _build_metadata(self, ci_metadata: Optional[Dict]) -> Dict:
+    def _build_metadata(self, ci_metadata: Optional[Dict]) -> Dict[str, Any]:
         now = datetime.datetime.utcnow().isoformat() + "Z"
-        metadata = {
+        metadata: Dict[str, Any] = {
             "timestamp": now,
             "tool": "SBOMGenerator",
             "version": "1.0.0",
@@ -196,7 +196,8 @@ class SBOMGenerator:
         doc.version = spdx.version.Version(2, 3)
         doc.creation_info = spdx.creationinfo.CreationInfo()
         doc.creation_info.created = metadata.get("timestamp")
-        doc.creation_info.creators.append("Tool: SBOMGenerator/1.0.0")
+        # creators must be a list[str]
+        doc.creation_info.creators = ["Tool: SBOMGenerator/1.0.0"]
 
         # Add packages
         for comp in components:
@@ -211,15 +212,15 @@ class SBOMGenerator:
         # Add vulnerabilities as annotations
         for vuln in vulnerabilities:
             for comp in vuln.affected_components:
-                doc.add_annotation(
-                    spdx.document.Annotation(
-                        annotator="Tool: SBOMGenerator",
-                        annotationDate=metadata.get("timestamp"),
-                        annotationType="OTHER",
-                        subject=comp.name,
-                        comment=f"Vulnerability: {vuln.id} - {vuln.description}",
-                    )
+                annotation = spdx.document.Annotation(
+                    annotator="Tool: SBOMGenerator",
+                    annotationDate=metadata.get("timestamp"),
+                    annotationType="OTHER",
+                    subject=comp.name,
+                    comment=f"Vulnerability: {vuln.id} - {vuln.description}",
                 )
+                # doc.annotations is a list, so we can append
+                doc.add_annotation(annotation)
 
         # Output
         if output_format == "spdx-json":

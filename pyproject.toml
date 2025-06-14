@@ -56,6 +56,8 @@ dev = [
     "radon>=6.0.0",      # Code complexity analysis
     "vulture>=2.9.0",    # Dead code detection
     "pyyaml>=6.0.0",     # YAML configuration parsing
+    "cyclonedx-python-lib>=3.0.0", # For CycloneDX SBOM generation
+    "spdx-tools>=0.8.0", # For SPDX SBOM generation
 ]
 
 test = [
