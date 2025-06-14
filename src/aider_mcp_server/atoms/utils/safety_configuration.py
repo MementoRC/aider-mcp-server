@@ -13,7 +13,7 @@ Provides a comprehensive system for managing safety configurations, including:
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import toml
 import yaml
@@ -47,6 +47,35 @@ class SafetyConfigurationError(Exception):
 
 
 @dataclass
+class ModelSpecificConfiguration:
+    """
+    Configuration specific to a model pattern.
+
+    Attributes:
+        risk_multiplier: Multiplier for the assessed operation risk score.
+        timeout_multiplier: Multiplier for performance timeouts.
+        validation_level_override: Specific validation level for this model.
+        architect_risk_multiplier: Additional risk multiplier for architect mode.
+        fallback_model_suggestion: Suggested fallback model for high-risk operations.
+        monitoring_flags: List of special flags for monitoring systems.
+    """
+
+    risk_multiplier: float = 1.0
+    timeout_multiplier: float = 1.0
+    validation_level_override: Optional[ValidationLevel] = None
+    architect_risk_multiplier: float = 1.0
+    fallback_model_suggestion: Optional[str] = None
+    monitoring_flags: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary, handling enums."""
+        data = asdict(self)
+        if self.validation_level_override:
+            data["validation_level_override"] = self.validation_level_override.value
+        return data
+
+
+@dataclass
 class SafetyConfiguration:
     """
     Represents the safety configuration for Aider operations.
@@ -58,6 +87,7 @@ class SafetyConfiguration:
         validation_level: The strictness of functional validations.
         performance_timeout_seconds: Timeout for safety checks.
         bypass_on_timeout: Whether to bypass checks on timeout.
+        model_specific_configs: Dictionary of model-specific settings.
     """
 
     profile: SafetyProfile = SafetyProfile.BALANCED
@@ -108,11 +138,32 @@ class SafetyConfiguration:
     )
     bypass_on_timeout: bool = field(default=True, metadata={"description": "Bypass safety checks if they time out."})
 
+    # Model-specific settings
+    model_specific_configs: Dict[str, "ModelSpecificConfiguration"] = field(default_factory=dict)
+
     def __post_init__(self) -> None:
         """Apply profile defaults and validate the configuration."""
+        if not self.model_specific_configs:
+            self._apply_default_model_configs()
         if self.profile != SafetyProfile.CUSTOM:
             self.apply_profile(self.profile)
         self.validate()
+
+    def _apply_default_model_configs(self) -> None:
+        """Apply predefined default configurations for known models."""
+        self.model_specific_configs = {
+            "gpt-4*": ModelSpecificConfiguration(
+                risk_multiplier=1.2, architect_risk_multiplier=1.5, monitoring_flags=["high_complexity"]
+            ),
+            "claude-3*": ModelSpecificConfiguration(risk_multiplier=1.1, fallback_model_suggestion="gpt-4-turbo"),
+            "gemini*": ModelSpecificConfiguration(
+                risk_multiplier=1.4,
+                architect_risk_multiplier=1.8,
+                fallback_model_suggestion="claude-3-opus",
+                monitoring_flags=["api_stability", "hallucination_risk"],
+            ),
+            "gpt-3.5*": ModelSpecificConfiguration(risk_multiplier=0.9),
+        }
 
     def apply_profile(self, profile: SafetyProfile) -> None:
         """Apply settings from a predefined profile."""
@@ -158,10 +209,17 @@ class SafetyConfiguration:
         logger.debug("Safety configuration validated successfully.")
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to a dictionary."""
+        """Convert configuration to a dictionary for serialization."""
         data = asdict(self)
         data["profile"] = self.profile.value
         data["validation_level"] = self.validation_level.value
+
+        # Use 'model_specific' as the key for consistency with loading conventions
+        model_specific_data = {pattern: config.to_dict() for pattern, config in self.model_specific_configs.items()}
+        if model_specific_data:
+            data["model_specific"] = model_specific_data
+
+        del data["model_specific_configs"]
         return data
 
 
@@ -186,8 +244,8 @@ class SafetyConfigurationSystem:
 
         The loading process is as follows:
         1. A base profile is determined (from CLI, then file, then default 'balanced').
-        2. A configuration object is created from this base profile.
-        3. Settings from the config file are layered on top.
+        2. A configuration object is created from this base profile, which includes default model settings.
+        3. Settings from the config file are layered on top, including model-specific settings.
         4. Settings from CLI overrides are layered on top of that.
         5. If any customizations are applied, the profile is marked as 'custom'.
 
@@ -197,34 +255,75 @@ class SafetyConfigurationSystem:
         Returns:
             A validated SafetyConfiguration instance.
         """
+        cli_overrides = cli_overrides or {}
         file_config = self._load_from_file()
-        merged_config = {**file_config, **(cli_overrides or {})}
 
-        profile_name = merged_config.get("profile", "balanced")
-        try:
-            profile = SafetyProfile(profile_name.lower())
-        except (ValueError, AttributeError) as e:
-            raise SafetyConfigurationError(f"Invalid profile name: {profile_name}") from e
+        file_model_specific = file_config.pop("model_specific", {})
+        cli_model_specific = cli_overrides.pop("model_specific", {})
 
+        merged_config = {**file_config, **cli_overrides}
+
+        profile = self._determine_profile(merged_config)
         config = SafetyConfiguration(profile=profile)
 
+        self._apply_model_specific_configs(config, file_model_specific, cli_model_specific)
+        self._apply_general_configs(config, merged_config)
+
+        if file_config or cli_overrides or file_model_specific or cli_model_specific:
+            config.profile = SafetyProfile.CUSTOM
+
+        config.validate()
+        logger.info(f"Loaded safety configuration with effective profile: {config.profile.value}")
+        return config
+
+    def _determine_profile(self, merged_config: Dict[str, Any]) -> SafetyProfile:
+        """Determine the safety profile from the merged configuration."""
+        profile_name = merged_config.get("profile", "balanced")
+        try:
+            return SafetyProfile(str(profile_name).lower())
+        except (ValueError, AttributeError) as e:
+            raise SafetyConfigurationError(f"Invalid profile name: '{profile_name}'") from e
+
+    def _apply_model_specific_configs(
+        self, config: SafetyConfiguration, file_configs: Dict[str, Any], cli_configs: Dict[str, Any]
+    ) -> None:
+        """Apply model-specific configurations from file and CLI overrides."""
+        all_overrides = {**file_configs, **cli_configs}
+        for pattern, model_data in all_overrides.items():
+            if not isinstance(model_data, dict):
+                logger.warning(f"Skipping invalid model-specific config for '{pattern}': not a dictionary.")
+                continue
+
+            if "validation_level_override" in model_data and isinstance(model_data["validation_level_override"], str):
+                try:
+                    model_data["validation_level_override"] = ValidationLevel(
+                        model_data["validation_level_override"].lower()
+                    )
+                except ValueError as e:
+                    raise SafetyConfigurationError(
+                        f"Invalid validation_level_override for model '{pattern}': '{model_data['validation_level_override']}'"
+                    ) from e
+
+            if pattern in config.model_specific_configs:
+                for key, value in model_data.items():
+                    if hasattr(config.model_specific_configs[pattern], key):
+                        setattr(config.model_specific_configs[pattern], key, value)
+            else:
+                config.model_specific_configs[pattern] = ModelSpecificConfiguration(**model_data)
+
+    def _apply_general_configs(self, config: SafetyConfiguration, merged_config: Dict[str, Any]) -> None:
+        """Apply general configuration settings from file and CLI overrides."""
         if "validation_level" in merged_config and isinstance(merged_config["validation_level"], str):
             try:
                 merged_config["validation_level"] = ValidationLevel(merged_config["validation_level"].lower())
             except ValueError as e:
-                raise SafetyConfigurationError(f"Invalid validation_level: {merged_config['validation_level']}") from e
+                raise SafetyConfigurationError(
+                    f"Invalid validation_level: '{merged_config['validation_level']}'"
+                ) from e
 
         for key, value in merged_config.items():
             if hasattr(config, key) and key != "profile":
                 setattr(config, key, value)
-
-        if file_config or cli_overrides:
-            config.profile = SafetyProfile.CUSTOM
-
-        config.validate()
-
-        logger.info(f"Loaded safety configuration with effective profile: {config.profile.value}")
-        return config
 
     def _load_from_file(self) -> Dict[str, Any]:
         """Find and parse a configuration file."""
@@ -234,7 +333,21 @@ class SafetyConfigurationSystem:
             return {}
 
         logger.info(f"Loading safety configuration from: {config_file}")
-        return self._parse_config_file(config_file)
+        parsed_config = self._parse_config_file(config_file)
+
+        if config_file.name == "pyproject.toml":
+            safety_config = parsed_config.get("tool", {}).get("aider", {}).get("safety", {})
+            if not isinstance(safety_config, dict):
+                raise SafetyConfigurationError(f"[tool.aider.safety] section in {config_file} is not a table.")
+            return safety_config
+
+        if "safety" in parsed_config:
+            safety_config = parsed_config["safety"]
+            if not isinstance(safety_config, dict):
+                raise SafetyConfigurationError(f"'safety' key in {config_file} does not contain a dictionary.")
+            return safety_config
+
+        return parsed_config
 
     def _find_config_file(self) -> Optional[Path]:
         """Search for a configuration file upwards from the project root."""
@@ -253,11 +366,15 @@ class SafetyConfigurationSystem:
         try:
             with file_path.open("r", encoding="utf-8") as f:
                 if file_path.name.endswith((".yaml", ".yml")):
-                    return yaml.safe_load(f) or {}
+                    data = yaml.safe_load(f) or {}
+                    if not isinstance(data, dict):
+                        raise SafetyConfigurationError(
+                            f"YAML file {file_path} does not contain a dictionary-like structure at the top level."
+                        )
+                    return data
                 elif file_path.name == "pyproject.toml":
-                    data = toml.load(f)
-                    return data.get("tool", {}).get("aider", {}).get("safety", {})  # type: ignore[no-any-return]
-            return {}
+                    return toml.load(f)
+            return {}  # Should be unreachable
         except (yaml.YAMLError, toml.TomlDecodeError, IOError) as e:
             raise SafetyConfigurationError(f"Error parsing configuration file {file_path}: {e}") from e
 
@@ -272,7 +389,8 @@ class SafetyConfigurationSystem:
         path = self.project_root / file_path
         logger.info(f"Saving safety configuration to: {path}")
         try:
+            config_dict = {"safety": config.to_dict()}
             with path.open("w", encoding="utf-8") as f:
-                yaml.dump(config.to_dict(), f, default_flow_style=False, sort_keys=False)
+                yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
         except IOError as e:
             raise SafetyConfigurationError(f"Error saving configuration file {path}: {e}") from e

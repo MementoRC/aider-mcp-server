@@ -6,6 +6,7 @@ integrates with the aider execution flow to provide comprehensive operation safe
 """
 
 import dataclasses
+import fnmatch
 import os
 import time
 from dataclasses import dataclass
@@ -30,13 +31,16 @@ from aider_mcp_server.atoms.utils.model_response_validator import ModelResponseV
 from aider_mcp_server.atoms.utils.operation_risk_assessor import (
     OperationRiskAssessment,
     OperationRiskAssessor,
+    RiskFactor,
     RiskLevel,
 )
 from aider_mcp_server.atoms.utils.post_operation_verifier import PostOperationVerifier
 from aider_mcp_server.atoms.utils.recovery_guidance import RecoveryGuidanceManager
 from aider_mcp_server.atoms.utils.safety_configuration import (
+    ModelSpecificConfiguration,
     SafetyConfiguration,
     SafetyConfigurationSystem,
+    ValidationLevel,
 )
 
 logger = get_logger(__name__)
@@ -121,6 +125,14 @@ class SafetySystemManager:
         # Operation state
         self._current_operation_id: Optional[str] = None
         self._operation_start_time: Optional[float] = None
+
+        # Model-specific settings for the current operation
+        self._risk_multiplier: float = 1.0
+        self._architect_risk_multiplier: float = 1.0
+        self._op_timeout_seconds: Optional[float] = None
+        self._op_validation_level: Optional[ValidationLevel] = None
+        self._fallback_model_suggestion: Optional[str] = None
+        self._monitoring_flags: List[str] = []
 
     def _initialize_components(self, working_dir: Union[str, Path]) -> None:
         """Lazy initialization of safety components."""
@@ -219,6 +231,54 @@ class SafetySystemManager:
                 self.logger.warning(f"Recovery guidance manager initialization failed: {e}")
                 self._recovery_guidance_manager = None
 
+    def _find_best_model_config_match(self, model_name: str) -> Optional[ModelSpecificConfiguration]:
+        """Find the best matching model-specific configuration using wildcard patterns."""
+        best_match = None
+        longest_pattern = -1
+
+        for pattern, model_config in self.config.model_specific_configs.items():
+            if fnmatch.fnmatch(model_name, pattern):
+                if len(pattern) > longest_pattern:
+                    best_match = model_config
+                    longest_pattern = len(pattern)
+
+        return best_match
+
+    def _apply_model_specific_settings(self, model_name: str) -> None:
+        """Apply model-specific configurations based on the given model name for the current operation."""
+        # Reset to global defaults before applying
+        self._risk_multiplier = 1.0
+        self._architect_risk_multiplier = 1.0
+        self._op_timeout_seconds = self.config.performance_timeout_seconds
+        self._op_validation_level = self.config.validation_level
+        self._fallback_model_suggestion = None
+        self._monitoring_flags = []
+
+        model_spec = self._find_best_model_config_match(model_name)
+        if not model_spec:
+            self.logger.debug(f"No model-specific configuration found for '{model_name}'")
+            return
+
+        self.logger.info(f"Applying model-specific settings for '{model_name}'")
+
+        # Store multipliers for later use
+        self._risk_multiplier = model_spec.risk_multiplier
+        self._architect_risk_multiplier = model_spec.architect_risk_multiplier
+
+        # Apply timeout multiplier
+        if self._op_timeout_seconds:
+            self._op_timeout_seconds *= model_spec.timeout_multiplier
+        self.logger.debug(f"Timeout adjusted to {self._op_timeout_seconds}s")
+
+        # Override validation level
+        if model_spec.validation_level_override:
+            self._op_validation_level = model_spec.validation_level_override
+            self.logger.debug(f"Validation level set to '{self._op_validation_level.value}'")
+
+        # Store other info for potential use
+        self._fallback_model_suggestion = model_spec.fallback_model_suggestion
+        self._monitoring_flags = model_spec.monitoring_flags
+
     def should_bypass_safety(self, operation_params: Dict[str, Any]) -> bool:
         """Check if safety system should be bypassed."""
         # Check explicit bypass parameter
@@ -262,9 +322,13 @@ class SafetySystemManager:
             start_time = time.time()
             self._initialize_components(working_directory)
 
-            risk_assessment = self._run_risk_assessment(target_files, operation_context)
-            if isinstance(risk_assessment, PreExecutionResult):
-                return risk_assessment
+            model_name = operation_context.get("model", "unknown")
+            self._apply_model_specific_settings(model_name)
+
+            risk_assessment_result = self._run_risk_assessment(target_files, operation_context)
+            if isinstance(risk_assessment_result, PreExecutionResult):
+                return risk_assessment_result
+            risk_assessment = risk_assessment_result
 
             self._run_file_integrity_precheck(working_directory, target_files)
 
@@ -290,66 +354,77 @@ class SafetySystemManager:
 
     def _run_risk_assessment(
         self, target_files: List[str], operation_context: Dict[str, Any]
-    ) -> Optional[PreExecutionResult]:
+    ) -> Union[PreExecutionResult, Optional[OperationRiskAssessment]]:
         """Run risk assessment and return PreExecutionResult if blocked, else risk_assessment object."""
-        risk_assessment = None
-        if self.config.enable_risk_assessment and self._risk_assessor:
-            try:
-                file_count = len(target_files)
-                prompt_length = len(operation_context.get("prompt", ""))
-                model = operation_context.get("model", "unknown")
+        if not self.config.enable_risk_assessment or not self._risk_assessor:
+            return None
 
-                risk_score = 0
-                if file_count > 10:
-                    risk_score += 2
-                if prompt_length > 1000:
-                    risk_score += 2
-                if "gpt-4" in model.lower():
-                    risk_score += 1
+        try:
+            model_name = operation_context.get("model", "unknown")
+            is_architect_mode = operation_context.get("architect_mode", False)
+            operation_type = "architect" if is_architect_mode else operation_context.get("operation_type", "refactor")
 
-                risk_assessment = type(
-                    "RiskAssessment",
-                    (),
-                    {
-                        "risk_level": RiskLevel.CRITICAL
-                        if risk_score >= 4
-                        else RiskLevel.MEDIUM
-                        if risk_score >= 2
-                        else RiskLevel.LOW,
-                        "total_score": risk_score,
-                        "factors": [f"file_count={file_count}", f"prompt_length={prompt_length}"],
-                    },
-                )()
+            risk_assessment = self._risk_assessor.assess_operation_risk(
+                model=model_name,
+                operation_type=operation_type,
+                file_count=len(target_files),
+                operation_params=operation_context,
+            )
 
-                # A strict profile is one that does not bypass on timeout.
-                # This is a proxy for a "maximum" safety setting.
-                is_strict_profile = not self.config.bypass_on_timeout
-                if is_strict_profile and risk_assessment.risk_level == RiskLevel.CRITICAL:
-                    return PreExecutionResult(
-                        is_safe=False,
-                        reason=f"Critical risk level detected: {risk_assessment.total_score}",
+            # Apply model-specific multipliers
+            original_score = risk_assessment.total_score
+            final_multiplier = self._risk_multiplier * (self._architect_risk_multiplier if is_architect_mode else 1.0)
+
+            if final_multiplier != 1.0:
+                risk_assessment.total_score = round(risk_assessment.total_score * final_multiplier)
+                risk_assessment.factors.append(
+                    RiskFactor(
+                        name="model_specific_multiplier",
+                        score=risk_assessment.total_score - original_score,
+                        description=f"Applied model-specific multiplier(s) (total: x{final_multiplier:.2f})",
                         details={
-                            "risk_assessment": {
-                                "score": risk_assessment.total_score,
-                                "factors": risk_assessment.factors,
-                            }
+                            "base_multiplier": self._risk_multiplier,
+                            "architect_multiplier": self._architect_risk_multiplier if is_architect_mode else None,
                         },
-                        user_message=(
-                            f"Operation blocked due to critical risk level ({risk_assessment.total_score}). "
-                            f"Risk factors: {', '.join(risk_assessment.factors)}"
-                        ),
-                        risk_assessment=risk_assessment,
                     )
-            except Exception as e:
-                self.logger.warning(f"Risk assessment failed: {e}")
-                is_strict_profile = not self.config.bypass_on_timeout
-                if is_strict_profile:
-                    return PreExecutionResult(
-                        is_safe=False,
-                        reason="Risk assessment failed in a strict safety profile",
-                        user_message="Operation blocked due to risk assessment failure",
-                    )
-        return risk_assessment
+                )
+                # Recalculate risk level
+                if risk_assessment.total_score <= 3:
+                    risk_assessment.risk_level = RiskLevel.LOW
+                elif risk_assessment.total_score <= 7:
+                    risk_assessment.risk_level = RiskLevel.MEDIUM
+                elif risk_assessment.total_score <= 10:
+                    risk_assessment.risk_level = RiskLevel.HIGH
+                else:
+                    risk_assessment.risk_level = RiskLevel.CRITICAL
+
+            # A strict profile is one that does not bypass on timeout.
+            is_strict_profile = not self.config.bypass_on_timeout
+            if is_strict_profile and risk_assessment.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+                user_message = f"Operation blocked due to {risk_assessment.risk_level.value} risk level ({risk_assessment.total_score})."
+                if self._fallback_model_suggestion:
+                    user_message += f" Consider using a different model like '{self._fallback_model_suggestion}'."
+
+                return PreExecutionResult(
+                    is_safe=False,
+                    reason=f"{risk_assessment.risk_level.value} risk level detected: {risk_assessment.total_score}",
+                    details={"risk_assessment": dataclasses.asdict(risk_assessment)},
+                    user_message=user_message,
+                    risk_assessment=risk_assessment,
+                )
+
+            return risk_assessment
+
+        except Exception as e:
+            self.logger.warning(f"Risk assessment failed: {e}")
+            is_strict_profile = not self.config.bypass_on_timeout
+            if is_strict_profile:
+                return PreExecutionResult(
+                    is_safe=False,
+                    reason="Risk assessment failed in a strict safety profile",
+                    user_message="Operation blocked due to risk assessment failure",
+                )
+            return None
 
     def _run_file_integrity_precheck(self, working_directory: Union[str, Path], target_files: List[str]) -> None:
         """Run file integrity pre-check."""
@@ -368,7 +443,7 @@ class SafetySystemManager:
 
     def _handle_precheck_timeout(self, elapsed: float) -> Optional[PreExecutionResult]:
         """Handle timeout logic for pre-execution check."""
-        if elapsed > self.config.performance_timeout_seconds:
+        if self._op_timeout_seconds and elapsed > self._op_timeout_seconds:
             self.logger.warning(f"Pre-execution check timeout ({elapsed:.2f}s)")
             if self.config.bypass_on_timeout:
                 return PreExecutionResult(

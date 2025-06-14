@@ -14,7 +14,12 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
+from aider_mcp_server.atoms.utils.operation_risk_assessor import (
+    OperationRiskAssessment,
+    RiskLevel,
+)
 from aider_mcp_server.atoms.utils.safety_configuration import (
+    ModelSpecificConfiguration,
     SafetyConfiguration,
     SafetyProfile,
     ValidationLevel,
@@ -116,8 +121,14 @@ class TestSafetySystemManager:
         assert result.is_safe is True
         assert result.reason is None
 
-    def test_pre_execution_check_with_risk_assessment(self, temp_git_repo):
+    @patch("aider_mcp_server.atoms.utils.safety_system_manager.OperationRiskAssessor")
+    def test_pre_execution_check_with_risk_assessment(self, mock_assessor, temp_git_repo):
         """Test pre-execution check with risk assessment."""
+        # Mock the assessor to return a base risk
+        mock_assessor.return_value.assess_operation_risk.return_value = OperationRiskAssessment(
+            total_score=2, risk_level=RiskLevel.LOW, factors=[], summary=""
+        )
+
         config = SafetyConfiguration(profile=SafetyProfile.BALANCED)
         manager = SafetySystemManager(config)
 
@@ -125,14 +136,16 @@ class TestSafetySystemManager:
             working_directory=temp_git_repo,
             target_files=["test.py"],
             operation_context={
-                "model": "high-risk-model",
-                "prompt": "Complex operation" * 100,  # High complexity
+                "model": "gpt-4-turbo",  # Matches default "gpt-4*" pattern
+                "prompt": "Complex operation",
             },
         )
 
-        # Should still be safe for balanced mode
         assert result.is_safe is True
         assert result.risk_assessment is not None
+        # Base score 2 * gpt-4 multiplier 1.2 = 2.4, rounded to 2
+        assert result.risk_assessment.total_score == 2
+        mock_assessor.return_value.assess_operation_risk.assert_called_once()
 
     def test_create_checkpoint_success(self, temp_git_repo):
         """Test successful checkpoint creation."""
@@ -307,8 +320,12 @@ class TestIntegrationScenarios:
         manager = create_safety_system_manager(cli_overrides=overrides)
         assert manager.should_bypass_safety({})
 
-    def test_maximum_safety_workflow_with_timeout(self, temp_git_repo):
+    @patch("aider_mcp_server.atoms.utils.safety_system_manager.OperationRiskAssessor")
+    def test_maximum_safety_workflow_with_timeout(self, mock_assessor, temp_git_repo):
         """Test maximum safety level with performance considerations."""
+        mock_assessor.return_value.assess_operation_risk.return_value = OperationRiskAssessment(
+            total_score=1, risk_level=RiskLevel.LOW, factors=[], summary=""
+        )
         config = SafetyConfiguration(profile=SafetyProfile.MAXIMUM)
         config.performance_timeout_seconds = 0.001  # Very short timeout
         manager = SafetySystemManager(config)
@@ -326,3 +343,24 @@ class TestIntegrationScenarios:
         # With bypass_on_timeout=False in maximum mode, should fail on timeout
         assert pre_result.is_safe is False
         assert "timeout" in pre_result.reason.lower()
+
+    @patch("aider_mcp_server.atoms.utils.safety_system_manager.OperationRiskAssessor")
+    def test_model_specific_risk_blocks_operation(self, mock_assessor, temp_git_repo):
+        """Test that a high-risk model can block an operation in a strict profile."""
+        mock_assessor.return_value.assess_operation_risk.return_value = OperationRiskAssessment(
+            total_score=8, risk_level=RiskLevel.HIGH, factors=[], summary=""
+        )
+        config = SafetyConfiguration(profile=SafetyProfile.MAXIMUM)  # Strict profile
+        config.model_specific_configs["gemini-pro"] = ModelSpecificConfiguration(risk_multiplier=1.5)
+        manager = SafetySystemManager(config)
+
+        result = manager.pre_execution_check(
+            working_directory=temp_git_repo,
+            target_files=["test.py"],
+            operation_context={"model": "gemini-pro"},
+        )
+
+        assert result.is_safe is False
+        assert result.risk_assessment.risk_level == RiskLevel.CRITICAL
+        assert result.risk_assessment.total_score == 12  # 8 * 1.5
+        assert "blocked due to critical risk" in result.user_message.lower()
