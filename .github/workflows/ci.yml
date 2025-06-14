@@ -108,7 +108,7 @@ jobs:
 
       - name: Display aider version
         run: |
-          hatch run dev:python -c "import aider; print(f'Testing with aider version: {aider.__version__}')"
+          hatch run dev:python -c "import aider; print('Testing with aider version: ' + aider.__version__)"
 
       - name: Run compatibility tests
         run: |
