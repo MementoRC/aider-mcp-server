@@ -101,6 +101,23 @@ def temp_git_repo() -> Generator[str, None, None]:
             text=True,
             check=True,
         )
+
+        # Configure git user for the test repository
+        subprocess.run(  # noqa: S603
+            [git_executable, "config", "user.name", "Test User"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        subprocess.run(  # noqa: S603
+            [git_executable, "config", "user.email", "test@example.com"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
         # Create a README.md file
         with open(os.path.join(tmp_dir, "README.md"), "w") as f:
             f.write("# Test Repository\n\nThis is a test repository.\n")

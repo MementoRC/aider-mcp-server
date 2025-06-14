@@ -30,7 +30,7 @@ repos:
           "--no-error-summary"
         ]
         files: "^src/aider_mcp_server/"  # Only check source files, not tests
-        additional_dependencies: ["pydantic>=2.11.2"]
+        additional_dependencies: ["pydantic>=2.11.2", "types-PyYAML", "types-toml"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

@@ -21,6 +21,10 @@ import os
 from typing import Any, Dict, List, Optional
 
 from aider_mcp_server.atoms.logging.logger import get_logger
+from aider_mcp_server.atoms.utils.safety_system_manager import (
+    SafetySystemManager,
+    create_safety_system_manager,
+)
 
 # Import all refactored components
 from .api_validation import APIValidator
@@ -67,6 +71,9 @@ class AiderTool:
         self.response_formatter = ResponseFormatter()
         self.session_coordinator = SessionCoordinator()
 
+        # Initialize safety system manager (lazy)
+        self._safety_manager: Optional[SafetySystemManager] = None
+
         # Track initialization state
         self._initialized = False
 
@@ -100,6 +107,14 @@ class AiderTool:
             logger.error(f"Error during AiderTool shutdown: {e}")
             raise
 
+    def _get_safety_manager(self, working_dir: str, **kwargs: Any) -> Optional[SafetySystemManager]:
+        """Get or create safety system manager with lazy initialization."""
+        if self._safety_manager is None:
+            # Create safety manager
+            self._safety_manager = create_safety_system_manager()
+
+        return self._safety_manager
+
     async def execute_command(
         self,
         ai_coding_prompt: str,
@@ -111,13 +126,16 @@ class AiderTool:
         Execute an Aider command with the given parameters.
 
         This is the main entry point that orchestrates all components
-        to execute an aider coding session.
+        to execute an aider coding session with integrated safety system.
 
         Args:
             ai_coding_prompt: The coding prompt for aider
             relative_editable_files: List of files that can be edited
             relative_readonly_files: List of files for context only
-            **kwargs: Additional parameters
+            **kwargs: Additional parameters including:
+                - bypass_safety: Skip safety system (default: False)
+                - safety_level: Safety level string (default: "balanced")
+                - safety_config: Custom safety configuration
 
         Returns:
             ResponseDict containing the execution results
@@ -125,6 +143,69 @@ class AiderTool:
         if not self._initialized:
             await self.initialize()
 
+        # Extract common parameters
+        working_dir = kwargs.get("working_dir", os.getcwd())
+
+        # Check if safety should be bypassed
+        bypass_safety = kwargs.get("bypass_safety", False)
+        if bypass_safety:
+            logger.info("Safety system bypassed via parameter")
+            return await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+        # Check environment variable bypass
+        if os.environ.get("AIDER_BYPASS_SAFETY", "").lower() in ("1", "true", "yes"):
+            logger.info("Safety system bypassed via environment variable")
+            return await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+        # Get safety manager
+        safety_manager = self._get_safety_manager(
+            working_dir, **{k: v for k, v in kwargs.items() if k != "working_dir"}
+        )
+
+        # Check if safety should be bypassed (includes disabled level check)
+        operation_params = {
+            "prompt": ai_coding_prompt,
+            "files": relative_editable_files,
+            "model": kwargs.get("model", "gpt-4"),
+            "working_dir": working_dir,
+            **kwargs,
+        }
+
+        if safety_manager and safety_manager.should_bypass_safety(operation_params):
+            logger.info("Safety system bypassed")
+            return await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+        # Check if working directory is a git repository
+        import subprocess
+
+        try:
+            subprocess.run(["git", "status"], cwd=working_dir, check=True, capture_output=True)  # noqa: S603,S607
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Not a git repository or git not available, bypass safety system
+            logger.info("Safety system bypassed - not a git repository")
+            return await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+        # Execute with safety system
+        return await self._execute_with_safety(
+            ai_coding_prompt, relative_editable_files, relative_readonly_files, safety_manager, **kwargs
+        )
+
+    async def _execute_without_safety(
+        self,
+        ai_coding_prompt: str,
+        relative_editable_files: List[str],
+        relative_readonly_files: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> ResponseDict:
+        """Execute aider without safety system (original behavior)."""
         try:
             # Extract common parameters
             working_dir = kwargs.get("working_dir", os.getcwd())
@@ -237,6 +318,128 @@ class AiderTool:
                 await self.session_coordinator.handle_session_error(e)
 
             return error_response
+
+    async def _execute_with_safety(
+        self,
+        ai_coding_prompt: str,
+        relative_editable_files: List[str],
+        relative_readonly_files: Optional[List[str]] = None,
+        safety_manager: Optional[SafetySystemManager] = None,
+        **kwargs: Any,
+    ) -> ResponseDict:
+        """Execute aider with safety system protection."""
+        if not safety_manager:
+            logger.warning("Safety manager not available, falling back to standard execution")
+            return await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+        working_dir = kwargs.get("working_dir", os.getcwd())
+
+        try:
+            # Phase 1: Pre-execution safety check
+            operation_context = {
+                "prompt": ai_coding_prompt,
+                "model": kwargs.get("model", "gpt-4"),
+                "architect_mode": kwargs.get("architect_mode", False),
+                "working_dir": working_dir,
+            }
+
+            pre_check = safety_manager.pre_execution_check(
+                working_directory=working_dir,
+                target_files=relative_editable_files,
+                operation_context=operation_context,
+            )
+
+            if not pre_check.is_safe:
+                logger.warning(f"Pre-execution safety check failed: {pre_check.reason}")
+                return {
+                    "success": False,
+                    "error": "Safety check failed",
+                    "safety_details": {
+                        "reason": pre_check.reason,
+                        "user_message": pre_check.user_message,
+                        "details": pre_check.details,
+                    },
+                    "changes_summary": {},
+                    "file_status": {},
+                    "warnings": [pre_check.user_message or "Operation blocked by safety system"],
+                }
+
+            # Phase 2: Create safety checkpoint
+            checkpoint_result = safety_manager.create_checkpoint(
+                repo_path=working_dir,
+                files_to_track=relative_editable_files,
+                operation_metadata=operation_context,
+            )
+
+            if not checkpoint_result.success:
+                logger.warning(f"Checkpoint creation failed: {checkpoint_result.error_message}")
+                # Continue without checkpoint but log the issue
+
+            # Phase 3: Execute aider operation (original logic)
+            result = await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+            # Phase 4: Post-execution safety validation
+            if checkpoint_result.checkpoint_id:
+                safety_result = safety_manager.complete_safety_operation(
+                    repo_path=working_dir,
+                    target_files=relative_editable_files,
+                    checkpoint_id=checkpoint_result.checkpoint_id,
+                    operation_context=operation_context,
+                )
+
+                # Add safety information to result
+                result["safety_status"] = {
+                    "enabled": True,
+                    "level": safety_manager.config.profile.value,
+                    "checkpoint_id": checkpoint_result.checkpoint_id,
+                    "safety_success": safety_result.success,
+                    "performance_metrics": safety_result.performance_metrics,
+                }
+
+                # Handle rollback if failures detected
+                if not safety_result.success and safety_result.rollback_result:
+                    logger.warning("Safety system triggered rollback")
+                    result["success"] = False
+                    result["error"] = "Safety system triggered rollback due to failures"
+                    result["safety_details"] = {
+                        "failure_detection": safety_result.failure_detection,
+                        "rollback_result": safety_result.rollback_result,
+                        "recovery_guidance": safety_result.recovery_guidance,
+                    }
+
+                    # Add recovery guidance to warnings
+                    if safety_result.recovery_guidance:
+                        guidance_message = (
+                            f"Recovery guidance available: "
+                            f"{safety_result.recovery_guidance.total_recommendations} recommendations"
+                        )
+                        result.setdefault("warnings", []).append(guidance_message)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Safety system execution failed: {e}")
+            # Fall back to standard execution on safety system failure
+            logger.info("Falling back to standard execution due to safety system error")
+            fallback_result = await self._execute_without_safety(
+                ai_coding_prompt, relative_editable_files, relative_readonly_files, **kwargs
+            )
+
+            # Add warning about safety system failure
+            fallback_result.setdefault("warnings", []).append(
+                f"Safety system failed ({str(e)}), executed without safety protection"
+            )
+            fallback_result["safety_status"] = {
+                "enabled": False,
+                "error": str(e),
+                "fallback_execution": True,
+            }
+
+            return fallback_result
 
     # Backward compatibility methods
     async def aider_ai_code(
