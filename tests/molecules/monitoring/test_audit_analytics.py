@@ -22,19 +22,63 @@ def mock_audit_log_file(temp_log_dir):
 
     log_data = [
         # Operation 1: gpt-4, success
-        {"timestamp": "2023-01-01T10:00:00Z", "event_type": "operation_start", "data": {"operation_id": "op1", "context": {"model": "gpt-4"}}},
-        {"timestamp": "2023-01-01T10:00:01Z", "event_type": "pre_execution_check", "data": {"operation_id": "op1", "is_safe": True, "risk_assessment": {"total_score": 5}}},
-        {"timestamp": "2023-01-01T10:00:05Z", "event_type": "failure_detection", "data": {"operation_id": "op1", "has_failures": False}},
-        {"timestamp": "2023-01-01T10:00:06Z", "event_type": "operation_complete", "data": {"operation_id": "op1", "success": True, "performance_metrics": {"total_duration": 6.0}}},
+        {
+            "timestamp": "2023-01-01T10:00:00Z",
+            "event_type": "operation_start",
+            "data": {"operation_id": "op1", "context": {"model": "gpt-4"}},
+        },
+        {
+            "timestamp": "2023-01-01T10:00:01Z",
+            "event_type": "pre_execution_check",
+            "data": {"operation_id": "op1", "is_safe": True, "risk_assessment": {"total_score": 5}},
+        },
+        {
+            "timestamp": "2023-01-01T10:00:05Z",
+            "event_type": "failure_detection",
+            "data": {"operation_id": "op1", "has_failures": False},
+        },
+        {
+            "timestamp": "2023-01-01T10:00:06Z",
+            "event_type": "operation_complete",
+            "data": {"operation_id": "op1", "success": True, "performance_metrics": {"total_duration": 6.0}},
+        },
         # Operation 2: gpt-3.5, failure
-        {"timestamp": "2023-01-01T11:00:00Z", "event_type": "operation_start", "data": {"operation_id": "op2", "context": {"model": "gpt-3.5-turbo"}}},
-        {"timestamp": "2023-01-01T11:00:01Z", "event_type": "pre_execution_check", "data": {"operation_id": "op2", "is_safe": True, "risk_assessment": {"total_score": 3}}},
-        {"timestamp": "2023-01-01T11:00:05Z", "event_type": "failure_detection", "data": {"operation_id": "op2", "has_failures": True, "failure_summary": "File missing; Test failed"}},
-        {"timestamp": "2023-01-01T11:00:06Z", "event_type": "operation_complete", "data": {"operation_id": "op2", "success": False, "performance_metrics": {"total_duration": 6.0}}},
+        {
+            "timestamp": "2023-01-01T11:00:00Z",
+            "event_type": "operation_start",
+            "data": {"operation_id": "op2", "context": {"model": "gpt-3.5-turbo"}},
+        },
+        {
+            "timestamp": "2023-01-01T11:00:01Z",
+            "event_type": "pre_execution_check",
+            "data": {"operation_id": "op2", "is_safe": True, "risk_assessment": {"total_score": 3}},
+        },
+        {
+            "timestamp": "2023-01-01T11:00:05Z",
+            "event_type": "failure_detection",
+            "data": {"operation_id": "op2", "has_failures": True, "failure_summary": "File missing; Test failed"},
+        },
+        {
+            "timestamp": "2023-01-01T11:00:06Z",
+            "event_type": "operation_complete",
+            "data": {"operation_id": "op2", "success": False, "performance_metrics": {"total_duration": 6.0}},
+        },
         # Operation 3: gpt-4, another success
-        {"timestamp": "2023-01-01T12:00:00Z", "event_type": "operation_start", "data": {"operation_id": "op3", "context": {"model": "gpt-4"}}},
-        {"timestamp": "2023-01-01T12:00:01Z", "event_type": "pre_execution_check", "data": {"operation_id": "op3", "is_safe": True, "risk_assessment": {"total_score": 6}}},
-        {"timestamp": "2023-01-01T12:00:08Z", "event_type": "operation_complete", "data": {"operation_id": "op3", "success": True, "performance_metrics": {"total_duration": 8.0}}},
+        {
+            "timestamp": "2023-01-01T12:00:00Z",
+            "event_type": "operation_start",
+            "data": {"operation_id": "op3", "context": {"model": "gpt-4"}},
+        },
+        {
+            "timestamp": "2023-01-01T12:00:01Z",
+            "event_type": "pre_execution_check",
+            "data": {"operation_id": "op3", "is_safe": True, "risk_assessment": {"total_score": 6}},
+        },
+        {
+            "timestamp": "2023-01-01T12:00:08Z",
+            "event_type": "operation_complete",
+            "data": {"operation_id": "op3", "success": True, "performance_metrics": {"total_duration": 8.0}},
+        },
     ]
 
     with open(log_file, "w") as f:
@@ -101,18 +145,18 @@ def test_generate_report(mock_audit_log_file):
     analytics = AuditAnalytics(log_dir=mock_audit_log_file.parent)
 
     # Test dict format
-    dict_report = analytics.generate_report(format="dict")
+    dict_report = analytics.generate_report(output_format="dict")
     assert isinstance(dict_report, dict)
     assert "summary" in dict_report
     assert "failure_patterns" in dict_report
 
     # Test json format
-    json_report = analytics.generate_report(format="json")
+    json_report = analytics.generate_report(output_format="json")
     assert isinstance(json_report, str)
     assert json.loads(json_report)["summary"]["total_log_entries"] == 11
 
     # Test text format
-    text_report = analytics.generate_report(format="text")
+    text_report = analytics.generate_report(output_format="text")
     assert isinstance(text_report, str)
     assert "Safety Audit Analytics Report" in text_report
     assert "Model: gpt-4" in text_report
@@ -129,9 +173,7 @@ async def test_publish_metrics(mock_audit_log_file):
 
     assert mock_collector.record_metric.call_count > 0
     # Check one of the calls
-    mock_collector.record_metric.assert_any_call(
-        name="safety.failures.total", value=1, metric_type=MetricType.GAUGE
-    )
+    mock_collector.record_metric.assert_any_call(name="safety.failures.total", value=1, metric_type=MetricType.GAUGE)
     mock_collector.record_metric.assert_any_call(
         name="safety.model.failure_rate",
         value=1.0,
