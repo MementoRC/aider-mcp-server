@@ -95,18 +95,18 @@ jobs:
           path: reports/
           retention-days: 30
 
-      - name: Create security issue if vulnerabilities found
-        if: github.repository.has_issues && steps.process-results.outputs.total_issues > 0
+      - name: Report security issues
+        if: steps.process-results.outputs.total_issues > 0
         uses: actions/github-script@v7
         with:
           script: |
-            const vulnCount = '${{ steps.process-results.outputs.vulnerabilities }}';
-            const banditHigh = '${{ steps.process-results.outputs.bandit_high }}';
-            const safetyCount = '${{ steps.process-results.outputs.safety_issues }}';
-            const totalIssues = '${{ steps.process-results.outputs.total_issues }}';
+            const vulnCount = parseInt('${{ steps.process-results.outputs.vulnerabilities }}');
+            const banditHigh = parseInt('${{ steps.process-results.outputs.bandit_high }}');
+            const safetyCount = parseInt('${{ steps.process-results.outputs.safety_issues }}');
+            const totalIssues = parseInt('${{ steps.process-results.outputs.total_issues }}');
 
             const issueTitle = `Security Alert: ${totalIssues} Security Issues Found`;
-            const issueBody = `
+            const body = `
             ## Automated Security Scan Alert
 
             **Scan Date:** ${new Date().toISOString().split('T')[0]}
@@ -134,28 +134,59 @@ jobs:
             **Priority:** ${totalIssues >= 5 ? 'HIGH' : totalIssues >= 2 ? 'MEDIUM' : 'LOW'}
             `;
 
-            // Check if similar issue already exists
-            const existingIssues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: 'security,automated',
-              state: 'open'
-            });
+            if (context.payload.repository.has_issues) {
+              console.log('Repository has issues enabled. Creating a new security issue.');
 
-            const hasOpenSecurityIssue = existingIssues.data.some(issue =>
-              issue.title.includes('Security Alert')
-            );
-
-            if (!hasOpenSecurityIssue) {
-              await github.rest.issues.create({
+              const existingIssues = await github.rest.issues.listForRepo({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: issueTitle,
-                body: issueBody,
-                labels: ['security', 'automated', totalIssues >= 5 ? 'high-priority' : 'medium-priority']
+                labels: 'security,automated',
+                state: 'open'
               });
+
+              const hasOpenSecurityIssue = existingIssues.data.some(issue =>
+                issue.title.includes('Security Alert')
+              );
+
+              if (!hasOpenSecurityIssue) {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueTitle,
+                  body: body,
+                  labels: ['security', 'automated', totalIssues >= 5 ? 'high-priority' : 'medium-priority']
+                });
+                console.log('✅ Successfully created security issue.');
+              } else {
+                console.log('An open security issue already exists. Skipping creation.');
+              }
+            } else if (context.eventName === 'pull_request') {
+              console.log('Repository issues are disabled. Commenting on the pull request instead.');
+              const prNumber = context.payload.pull_request.number;
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+
+              const hasSecurityComment = comments.some(comment =>
+                comment.body.includes('Automated Security Scan Alert') && comment.user.login === 'github-actions[bot]'
+              );
+
+              if (!hasSecurityComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: body
+                });
+                console.log(`✅ Successfully commented on PR #${prNumber}.`);
+              } else {
+                console.log(`A security alert comment already exists on PR #${prNumber}. Skipping.`);
+              }
             } else {
-              console.log('Open security issue already exists, skipping creation');
+              console.log('Repository issues are disabled and this is not a pull request event. No notification sent.');
             }
 
       - name: Fail on critical security issues
