@@ -11,6 +11,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -388,47 +389,11 @@ class SafetySystemManager:
                 operation_params=operation_context,
             )
 
-            # Apply model-specific multipliers
-            original_score = risk_assessment.total_score
-            final_multiplier = self._risk_multiplier * (self._architect_risk_multiplier if is_architect_mode else 1.0)
+            risk_assessment = self._apply_model_specific_multipliers(risk_assessment, is_architect_mode)
 
-            if final_multiplier != 1.0:
-                risk_assessment.total_score = round(risk_assessment.total_score * final_multiplier)
-                risk_assessment.factors.append(
-                    RiskFactor(
-                        name="model_specific_multiplier",
-                        score=risk_assessment.total_score - original_score,
-                        description=f"Applied model-specific multiplier(s) (total: x{final_multiplier:.2f})",
-                        details={
-                            "base_multiplier": self._risk_multiplier,
-                            "architect_multiplier": self._architect_risk_multiplier if is_architect_mode else None,
-                        },
-                    )
-                )
-                # Recalculate risk level
-                if risk_assessment.total_score <= 3:
-                    risk_assessment.risk_level = RiskLevel.LOW
-                elif risk_assessment.total_score <= 7:
-                    risk_assessment.risk_level = RiskLevel.MEDIUM
-                elif risk_assessment.total_score <= 10:
-                    risk_assessment.risk_level = RiskLevel.HIGH
-                else:
-                    risk_assessment.risk_level = RiskLevel.CRITICAL
-
-            # A strict profile is one that does not bypass on timeout.
-            is_strict_profile = not self.config.bypass_on_timeout
-            if is_strict_profile and risk_assessment.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
-                user_message = f"Operation blocked due to {risk_assessment.risk_level.value} risk level ({risk_assessment.total_score})."
-                if self._fallback_model_suggestion:
-                    user_message += f" Consider using a different model like '{self._fallback_model_suggestion}'."
-
-                return PreExecutionResult(
-                    is_safe=False,
-                    reason=f"{risk_assessment.risk_level.value} risk level detected: {risk_assessment.total_score}",
-                    details={"risk_assessment": dataclasses.asdict(risk_assessment)},
-                    user_message=user_message,
-                    risk_assessment=risk_assessment,
-                )
+            pre_exec_result = self._maybe_block_on_risk(risk_assessment)
+            if pre_exec_result is not None:
+                return pre_exec_result
 
             return risk_assessment
 
@@ -442,6 +407,72 @@ class SafetySystemManager:
                     user_message="Operation blocked due to risk assessment failure",
                 )
             return None
+
+    def _apply_model_specific_multipliers(
+        self, risk_assessment: OperationRiskAssessment, is_architect_mode: bool
+    ) -> OperationRiskAssessment:
+        """Apply model-specific multipliers and recalculate risk level."""
+        original_score = risk_assessment.total_score
+        final_multiplier = self._risk_multiplier * (self._architect_risk_multiplier if is_architect_mode else 1.0)
+
+        if final_multiplier != 1.0:
+            risk_assessment.total_score = round(risk_assessment.total_score * final_multiplier)
+            risk_assessment.factors.append(
+                RiskFactor(
+                    name="model_specific_multiplier",
+                    score=risk_assessment.total_score - original_score,
+                    description=f"Applied model-specific multiplier(s) (total: x{final_multiplier:.2f})",
+                    details={
+                        "base_multiplier": self._risk_multiplier,
+                        "architect_multiplier": self._architect_risk_multiplier if is_architect_mode else None,
+                    },
+                )
+            )
+            # Recalculate risk level
+            if risk_assessment.total_score <= 3:
+                risk_assessment.risk_level = RiskLevel.LOW
+            elif risk_assessment.total_score <= 7:
+                risk_assessment.risk_level = RiskLevel.MEDIUM
+            elif risk_assessment.total_score <= 10:
+                risk_assessment.risk_level = RiskLevel.HIGH
+            else:
+                risk_assessment.risk_level = RiskLevel.CRITICAL
+        return risk_assessment
+
+    def _maybe_block_on_risk(self, risk_assessment: OperationRiskAssessment) -> Optional[PreExecutionResult]:
+        """Block operation if risk is too high in strict profile, else return None."""
+        is_strict_profile = not self.config.bypass_on_timeout
+        if is_strict_profile and risk_assessment.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+            user_message = f"Operation blocked due to {risk_assessment.risk_level.value} risk level ({risk_assessment.total_score})."
+            if self._fallback_model_suggestion:
+                user_message += f" Consider using a different model like '{self._fallback_model_suggestion}'."
+
+            # Convert any Enum fields to their values for JSON serialization
+            from typing import Any as _Any
+
+            def _enum_to_value(obj: _Any) -> _Any:
+                if isinstance(obj, dict):
+                    return {k: _enum_to_value(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [_enum_to_value(v) for v in obj]
+                elif isinstance(obj, tuple):
+                    return tuple(_enum_to_value(v) for v in obj)
+                elif hasattr(obj, "value") and isinstance(obj, Enum):
+                    return obj.value
+                else:
+                    return obj
+
+            risk_assessment_dict = dataclasses.asdict(risk_assessment)
+            risk_assessment_dict = _enum_to_value(risk_assessment_dict)
+
+            return PreExecutionResult(
+                is_safe=False,
+                reason=f"{risk_assessment.risk_level.value} risk level detected: {risk_assessment.total_score}",
+                details={"risk_assessment": risk_assessment_dict},
+                user_message=user_message,
+                risk_assessment=risk_assessment,
+            )
+        return None
 
     def _run_file_integrity_precheck(self, working_directory: Union[str, Path], target_files: List[str]) -> None:
         """Run file integrity pre-check."""
@@ -731,29 +762,9 @@ class SafetySystemManager:
         operation_id = operation_context.get("operation_id", self._current_operation_id)
 
         try:
-            # Detect failures
-            failure_detection = None
-            if checkpoint_id and checkpoint_id not in ["disabled", "unavailable"]:
-                failure_detection = self.detect_failures(repo_path, target_files, checkpoint_id)
-                if operation_id and failure_detection:
-                    self.audit_logger.log_failure_detection(operation_id, failure_detection)
-
-            # Handle rollback if needed
-            rollback_result = None
-            if failure_detection and failure_detection.has_failures and failure_detection.requires_rollback:
-                if checkpoint_id:  # Ensure checkpoint_id is not None
-                    rollback_result = self.trigger_rollback(checkpoint_id, failure_detection)
-                    if operation_id and rollback_result:
-                        self.audit_logger.log_rollback(operation_id, rollback_result)
-
-            # Generate recovery guidance if needed
-            recovery_guidance = None
-            if failure_detection and failure_detection.has_failures:
-                recovery_guidance = self.generate_recovery_guidance(
-                    failure_detection, rollback_result, operation_context
-                )
-                if operation_id and recovery_guidance:
-                    self.audit_logger.log_recovery_guidance(operation_id, recovery_guidance)
+            failure_detection, rollback_result, recovery_guidance = self._run_safety_post_checks(
+                repo_path, target_files, checkpoint_id, operation_id, operation_context
+            )
 
             # Calculate performance metrics
             total_time = time.time() - start_time
@@ -787,6 +798,40 @@ class SafetySystemManager:
             if operation_id:
                 self.audit_logger.log_operation_complete(operation_id, result)
             return result
+
+    def _run_safety_post_checks(
+        self,
+        repo_path: Union[str, Path],
+        target_files: List[str],
+        checkpoint_id: Optional[str],
+        operation_id: Optional[str],
+        operation_context: Dict[str, Any],
+    ) -> tuple[Optional[Any], Optional[Any], Optional[Any]]:
+        """Helper to run post-operation safety checks, rollback, and guidance."""
+        failure_detection = None
+        rollback_result = None
+        recovery_guidance = None
+
+        # Detect failures
+        if checkpoint_id and checkpoint_id not in ["disabled", "unavailable"]:
+            failure_detection = self.detect_failures(repo_path, target_files, checkpoint_id)
+            if operation_id and failure_detection:
+                self.audit_logger.log_failure_detection(operation_id, failure_detection)
+
+        # Handle rollback if needed
+        if failure_detection and failure_detection.has_failures and failure_detection.requires_rollback:
+            if checkpoint_id:  # Ensure checkpoint_id is not None
+                rollback_result = self.trigger_rollback(checkpoint_id, failure_detection)
+                if operation_id and rollback_result:
+                    self.audit_logger.log_rollback(operation_id, rollback_result)
+
+        # Generate recovery guidance if needed
+        if failure_detection and failure_detection.has_failures:
+            recovery_guidance = self.generate_recovery_guidance(failure_detection, rollback_result, operation_context)
+            if operation_id and recovery_guidance:
+                self.audit_logger.log_recovery_guidance(operation_id, recovery_guidance)
+
+        return failure_detection, rollback_result, recovery_guidance
 
 
 def create_safety_system_manager(

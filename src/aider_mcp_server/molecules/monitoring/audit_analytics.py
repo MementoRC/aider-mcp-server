@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from aider_mcp_server.atoms.logging.logger import get_logger
 from aider_mcp_server.molecules.monitoring.metrics_collector import (
-    MetricType,
     MetricsCollector,
+    MetricType,
 )
 
 logger = get_logger(__name__)
@@ -44,6 +44,16 @@ class AuditAnalytics:
             self.audit_data = []
             return False
 
+    def _extract_failure_reasons(self, failures: List[Dict[str, Any]]) -> Dict[str, int]:
+        failure_reasons: Dict[str, int] = defaultdict(int)
+        for failure_data in failures:
+            summary = failure_data.get("failure_summary")
+            if summary:
+                reasons = [r.strip() for r in summary.split(";") if r.strip()]
+                for reason in reasons:
+                    failure_reasons[reason] += 1
+        return dict(failure_reasons)
+
     def analyze_failure_patterns(self) -> Dict[str, Any]:
         """Analyzes failure patterns from the audit data."""
         if not self.audit_data:
@@ -51,53 +61,29 @@ class AuditAnalytics:
         if not self.audit_data:
             return {"total_failures": 0, "failure_reasons": {}}
 
-        failures = [
+        failures: List[Dict[str, Any]] = [
             e["data"]
             for e in self.audit_data
             if e.get("event_type") == "failure_detection" and e.get("data", {}).get("has_failures")
         ]
 
-        total_failures = len(failures)
-        failure_reasons = defaultdict(int)
-
-        for failure_data in failures:
-            summary = failure_data.get("failure_summary")
-            if summary:
-                reasons = [r.strip() for r in summary.split(";") if r.strip()]
-                for reason in reasons:
-                    failure_reasons[reason] += 1
+        total_failures: int = len(failures)
+        failure_reasons: Dict[str, int] = self._extract_failure_reasons(failures)
 
         return {
             "total_failures": total_failures,
-            "failure_reasons": dict(failure_reasons),
+            "failure_reasons": failure_reasons,
         }
 
-    def analyze_model_safety(self) -> Dict[str, Any]:
-        """Compares safety metrics across different models."""
-        if not self.audit_data:
-            self.load_audit_data()
-        if not self.audit_data:
-            return {}
-
-        ops = {
-            e["data"]["operation_id"]: e["data"]
-            for e in self.audit_data
-            if e.get("event_type") == "operation_start" and "operation_id" in e.get("data", {})
-        }
-        failures = {
-            e["data"]["operation_id"]
-            for e in self.audit_data
-            if e.get("event_type") == "failure_detection"
-            and e.get("data", {}).get("has_failures")
-            and "operation_id" in e.get("data", {})
-        }
-        risks = {
-            e["data"]["operation_id"]: e["data"]
-            for e in self.audit_data
-            if e.get("event_type") == "pre_execution_check" and "operation_id" in e.get("data", {})
-        }
-
-        model_safety = defaultdict(lambda: {"operations": 0, "failures": 0, "risk_scores": []})
+    def _collect_model_safety_data(
+        self,
+        ops: Dict[str, Dict[str, Any]],
+        failures: set[str],
+        risks: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        model_safety: Dict[str, Dict[str, Any]] = defaultdict(
+            lambda: {"operations": 0, "failures": 0, "risk_scores": []}
+        )
 
         for op_id, op_data in ops.items():
             model = op_data.get("context", {}).get("model", "unknown")
@@ -113,19 +99,53 @@ class AuditAnalytics:
                     risk_score = risk_assessment.get("total_score")
                     if risk_score is not None:
                         model_safety[model]["risk_scores"].append(risk_score)
+        return model_safety
 
-        report = {}
+    def analyze_model_safety(self) -> Dict[str, Any]:
+        """Compares safety metrics across different models."""
+        if not self.audit_data:
+            self.load_audit_data()
+        if not self.audit_data:
+            return {}
+
+        ops: Dict[str, Dict[str, Any]] = {
+            e["data"]["operation_id"]: e["data"]
+            for e in self.audit_data
+            if e.get("event_type") == "operation_start" and "operation_id" in e.get("data", {})
+        }
+        failures: set[str] = {
+            e["data"]["operation_id"]
+            for e in self.audit_data
+            if e.get("event_type") == "failure_detection"
+            and e.get("data", {}).get("has_failures")
+            and "operation_id" in e.get("data", {})
+        }
+        risks: Dict[str, Dict[str, Any]] = {
+            e["data"]["operation_id"]: e["data"]
+            for e in self.audit_data
+            if e.get("event_type") == "pre_execution_check" and "operation_id" in e.get("data", {})
+        }
+
+        model_safety = self._collect_model_safety_data(ops, failures, risks)
+
+        report: Dict[str, Any] = {}
         for model, data in model_safety.items():
             report[model] = {
                 "total_operations": data["operations"],
                 "total_failures": data["failures"],
                 "failure_rate": (data["failures"] / data["operations"]) if data["operations"] > 0 else 0,
-                "average_risk_score": (
-                    statistics.mean(data["risk_scores"]) if data["risk_scores"] else None
-                ),
+                "average_risk_score": (statistics.mean(data["risk_scores"]) if data["risk_scores"] else None),
             }
 
         return report
+
+    def _extract_durations(self, perf_events: List[Dict[str, Any]]) -> List[float]:
+        durations: List[float] = [
+            float(p["performance_metrics"]["total_duration"])
+            for p in perf_events
+            if p.get("performance_metrics") and "total_duration" in p.get("performance_metrics", {})
+        ]
+        return durations
 
     def analyze_performance(self) -> Dict[str, Any]:
         """Analyzes performance metrics from operation completion logs."""
@@ -134,18 +154,13 @@ class AuditAnalytics:
         if not self.audit_data:
             return {}
 
-        perf_events = [
+        perf_events: List[Dict[str, Any]] = [
             e["data"]
             for e in self.audit_data
-            if e.get("event_type") == "operation_complete"
-            and "performance_metrics" in e.get("data", {})
+            if e.get("event_type") == "operation_complete" and "performance_metrics" in e.get("data", {})
         ]
 
-        durations = [
-            p["performance_metrics"]["total_duration"]
-            for p in perf_events
-            if p.get("performance_metrics") and "total_duration" in p.get("performance_metrics", {})
-        ]
+        durations: List[float] = self._extract_durations(perf_events)
 
         if not durations:
             return {}
@@ -158,7 +173,7 @@ class AuditAnalytics:
             "total_operations": len(durations),
         }
 
-    async def publish_metrics(self):
+    async def publish_metrics(self) -> None:
         """Publishes key analytics to the MetricsCollector."""
         if not self.metrics_collector:
             logger.warning("MetricsCollector not configured, skipping metric publication.")
@@ -204,11 +219,11 @@ class AuditAnalytics:
 
         logger.info("Published audit analytics to MetricsCollector.")
 
-    def generate_report(self, format: str = "dict") -> Union[str, Dict[str, Any]]:
+    def generate_report(self, output_format: str = "dict") -> Union[str, Dict[str, Any]]:
         """Generates a comprehensive analytics report."""
         self.load_audit_data()
 
-        report_data = {
+        report_data: Dict[str, Any] = {
             "summary": {
                 "total_log_entries": len(self.audit_data),
                 "log_file": str(self.log_file_path),
@@ -218,9 +233,9 @@ class AuditAnalytics:
             "performance_analytics": self.analyze_performance(),
         }
 
-        if format == "json":
+        if output_format == "json":
             return json.dumps(report_data, indent=2)
-        elif format == "text":
+        elif output_format == "text":
             text_report = "Safety Audit Analytics Report\n"
             text_report += "=============================\n\n"
             text_report += f"Log Entries: {report_data['summary']['total_log_entries']}\n"
