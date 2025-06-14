@@ -207,9 +207,7 @@ def test_log_operation_complete(mock_write_log, temp_log_dir):
     """Test logging of operation_complete event."""
     logger = AuditLogger(log_dir=temp_log_dir)
     op_id = "op-1"
-    result = SafetyOperationResult(
-        success=True, checkpoint_id="chk-123", performance_metrics={"duration": 1.23}
-    )
+    result = SafetyOperationResult(success=True, checkpoint_id="chk-123", performance_metrics={"duration": 1.23})
     logger.log_operation_complete(op_id, result)
     mock_write_log.assert_called_once()
     args, _ = mock_write_log.call_args
