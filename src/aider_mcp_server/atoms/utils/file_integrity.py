@@ -135,7 +135,8 @@ class FileIntegrityManager:
 
         data = content.encode("utf-8")
         if algorithm == "md5":
-            checksum = hashlib.md5(data).hexdigest()  # noqa: S324
+            # MD5 is used for non-security purposes (file checksums only)
+            checksum = hashlib.md5(data, usedforsecurity=False).hexdigest()  # noqa: S324
         else:
             checksum = hashlib.sha256(data).hexdigest()
         logger.debug(f"Calculated {algorithm} checksum: {checksum}")
