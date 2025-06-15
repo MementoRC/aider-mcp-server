@@ -51,18 +51,18 @@ jobs:
       - name: Dependency vulnerability scan
         run: |
           echo "Scanning dependencies for vulnerabilities..."
-          .venv/bin/pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
-          .venv/bin/pip-audit --desc --output=text > reports/pip-audit.txt || true
+          uv run pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
+          uv run pip-audit --desc --output=text > reports/pip-audit.txt || true
 
           # Also scan with safety
-          .venv/bin/safety check --json > reports/safety-scan.json || true
-          .venv/bin/safety check > reports/safety-scan.txt || true
+          uv run safety check --json > reports/safety-scan.json || true
+          uv run safety check > reports/safety-scan.txt || true
 
       - name: Security linting with bandit
         run: |
           echo "Running security linting..."
-          .venv/bin/bandit -r src/ -f json -o reports/bandit-scan.json || true
-          .venv/bin/bandit -r src/ -f txt -o reports/bandit-scan.txt || true
+          uv run bandit -r src/ -f json -o reports/bandit-scan.json || true
+          uv run bandit -r src/ -f txt -o reports/bandit-scan.txt || true
 
       - name: Process security scan results
         id: process-results
