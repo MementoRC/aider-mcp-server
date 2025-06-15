@@ -31,15 +31,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
+          cache: 'uv'
 
-      - name: Install hatch and security tools
+      - name: Install uv and sync dependencies
         run: |
-          pip install hatch pip-audit safety bandit
-
-      - name: Install project dependencies
-        run: |
-          hatch env create dev
+          pip install uv
+          uv sync --dev
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -47,18 +44,18 @@ jobs:
       - name: Dependency vulnerability scan
         run: |
           echo "Scanning dependencies for vulnerabilities..."
-          pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
-          pip-audit --desc --output=text > reports/pip-audit.txt || true
+          .venv/bin/pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
+          .venv/bin/pip-audit --desc --output=text > reports/pip-audit.txt || true
 
           # Also scan with safety
-          safety check --json > reports/safety-scan.json || true
-          safety check > reports/safety-scan.txt || true
+          .venv/bin/safety check --json > reports/safety-scan.json || true
+          .venv/bin/safety check > reports/safety-scan.txt || true
 
       - name: Security linting with bandit
         run: |
           echo "Running security linting..."
-          bandit -r src/ -f json -o reports/bandit-scan.json || true
-          bandit -r src/ -f txt -o reports/bandit-scan.txt || true
+          .venv/bin/bandit -r src/ -f json -o reports/bandit-scan.json || true
+          .venv/bin/bandit -r src/ -f txt -o reports/bandit-scan.txt || true
 
       - name: Process security scan results
         id: process-results
