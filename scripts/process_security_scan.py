@@ -72,7 +72,7 @@ class SecurityScanProcessor:
             return {}
 
         try:
-            with open(file_path, "r") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
                 if not content:
                     print(f"Warning: Report file {file_path} is empty")

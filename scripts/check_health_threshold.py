@@ -26,7 +26,7 @@ class HealthThresholdChecker:
     def load_config(self) -> Dict[str, Any]:
         """Load maintenance configuration."""
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             print(f"✅ Loaded configuration from {self.config_path}")
             return config
@@ -60,7 +60,7 @@ class HealthThresholdChecker:
     def check_health_report(self, report_path: Path) -> Dict[str, Any]:
         """Check health report against thresholds."""
         try:
-            with open(report_path, "r") as f:
+            with open(report_path, "r", encoding="utf-8") as f:
                 health_data = json.load(f)
             print(f"✅ Loaded health report from {report_path}")
         except FileNotFoundError:
@@ -185,7 +185,7 @@ class HealthThresholdChecker:
         github_output = os.environ.get("GITHUB_OUTPUT")
         if github_output:
             try:
-                with open(github_output, "a") as f:
+                with open(github_output, "a", encoding="utf-8") as f:
                     for key, value in outputs.items():
                         f.write(f"{key}={value}\n")
                 print("✅ Set GitHub Actions outputs")

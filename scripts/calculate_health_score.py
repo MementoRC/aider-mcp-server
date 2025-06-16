@@ -73,7 +73,7 @@ class HealthScoreCalculator:
         """Load maintenance configuration."""
         config_path = self.project_root / "maintenance.yml"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f)
         return self.get_default_config()
 
@@ -296,22 +296,22 @@ class HealthScoreCalculator:
 
         # Save detailed JSON report
         report_file = self.reports_dir / "project_health.json"
-        with open(report_file, "w") as f:
+        with open(report_file, "w", encoding="utf-8") as f:
             json.dump(health_report, f, indent=2)
 
         # Save simple score for CI/CD
         score_file = self.reports_dir / "health_score.txt"
-        with open(score_file, "w") as f:
+        with open(score_file, "w", encoding="utf-8") as f:
             f.write(str(int(health_report["overall_score"])))
 
         # Save maintenance needed flag
         maintenance_file = self.reports_dir / "maintenance_needed.txt"
-        with open(maintenance_file, "w") as f:
+        with open(maintenance_file, "w", encoding="utf-8") as f:
             f.write("true" if health_report["maintenance_needed"] else "false")
 
         # Save urgency level
         urgency_file = self.reports_dir / "urgency_level.txt"
-        with open(urgency_file, "w") as f:
+        with open(urgency_file, "w", encoding="utf-8") as f:
             f.write(health_report["urgency_level"])
 
     # Helper methods for specific checks
@@ -323,7 +323,7 @@ class HealthScoreCalculator:
         pip_audit_file = self.reports_dir / "pip-audit.json"
         if pip_audit_file.exists():
             try:
-                with open(pip_audit_file, "r") as f:
+                with open(pip_audit_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     vulnerabilities.extend(data.get("vulnerabilities", []))
             except Exception as e:

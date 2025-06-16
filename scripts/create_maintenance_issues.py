@@ -33,7 +33,7 @@ class MaintenanceIssueCreator:
     def load_config(self) -> Dict[str, Any]:
         """Load maintenance configuration."""
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             return config
         except FileNotFoundError:
@@ -69,7 +69,13 @@ class MaintenanceIssueCreator:
             import subprocess
             from urllib.parse import urlparse
 
-            result = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True)  # noqa: S603,S607
+            result = subprocess.run(  # noqa: S603
+                ["git", "remote", "get-url", "origin"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                check=True,
+                encoding="utf-8",
+            )
             remote_url = result.stdout.strip()
 
             path = ""
@@ -94,7 +100,7 @@ class MaintenanceIssueCreator:
     def create_maintenance_issues(self, report_path: Path) -> List[Dict[str, Any]]:
         """Create maintenance issues based on health assessment report."""
         try:
-            with open(report_path, "r") as f:
+            with open(report_path, "r", encoding="utf-8") as f:
                 health_data = json.load(f)
             print(f"✅ Loaded health report from {report_path}")
         except Exception as e:
