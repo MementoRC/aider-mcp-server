@@ -25,6 +25,15 @@ from aider_mcp_server.molecules.monitoring.metrics_collector import (
     MetricType,
     MetricValue,
 )
+from aider_mcp_server.molecules.monitoring.performance_benchmarking import (
+    BenchmarkMetrics,
+    BenchmarkResult,
+    BenchmarkType,
+    PerformanceBaseline,
+    PerformanceBenchmarking,
+    RegressionReport,
+    RegressionSeverity,
+)
 from aider_mcp_server.molecules.monitoring.request_monitor import RequestMonitor
 
 __all__ = [
@@ -48,4 +57,12 @@ __all__ = [
     "MetricsQuery",
     "MetricsResult",
     "MetricsSource",
+    # Performance benchmarking
+    "PerformanceBenchmarking",
+    "BenchmarkType",
+    "BenchmarkResult",
+    "PerformanceBaseline",
+    "RegressionReport",
+    "RegressionSeverity",
+    "BenchmarkMetrics",
 ]
