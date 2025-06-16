@@ -66,21 +66,25 @@ class MaintenanceIssueCreator:
         # Try to parse from git remote
         try:
             import subprocess
+            from urllib.parse import urlparse
 
             result = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=True)  # noqa: S603,S607
             remote_url = result.stdout.strip()
 
-            # Parse GitHub URL
-            if "github.com" in remote_url:
-                if remote_url.startswith("git@"):
-                    # SSH format: git@github.com:owner/repo.git
-                    path = remote_url.split(":")[-1].replace(".git", "")
-                else:
-                    # HTTPS format: https://github.com/owner/repo.git
-                    path = remote_url.split("github.com/")[-1].replace(".git", "")
+            path = ""
+            # Handle HTTPS URLs securely
+            if remote_url.startswith("https://"):
+                parsed_url = urlparse(remote_url)
+                if parsed_url.hostname == "github.com":
+                    path = parsed_url.path.strip("/")
+            # Handle SSH URLs securely by checking for a specific prefix
+            elif remote_url.startswith("git@github.com:"):
+                path = remote_url.split(":")[-1]
 
-                owner, repo = path.split("/")
-                return {"owner": owner, "repo": repo}
+            if path:
+                path = path.replace(".git", "")
+                owner, repo_name = path.split("/")
+                return {"owner": owner, "repo": repo_name}
         except Exception:  # noqa: S110
             pass
 
