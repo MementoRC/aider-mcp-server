@@ -1,0 +1,107 @@
+name: Advanced CI
+
+on:
+  pull_request:
+    branches: [main, development]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: .uv
+          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+        continue-on-error: true
+
+      - name: Install uv and sync dependencies
+        run: |
+          pip install uv
+          uv sync --dev
+
+      - name: Create reports directory
+        run: mkdir -p reports/quality
+
+      - name: Run complexity analysis with radon
+        run: |
+          echo "Running complexity analysis with radon..."
+          uv run radon mi src/ -j > reports/quality/radon-mi.txt
+          uv run radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
+          uv run radon cc src/ -a -s > reports/quality/radon-cc.txt || true
+
+      - name: Run dead code detection with vulture
+        run: |
+          echo "Running dead code detection with vulture..."
+          uv run vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
+
+      - name: Upload quality reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports-${{ github.run_number }}
+          path: reports/quality/
+          retention-days: 30
+
+  sbom-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: .uv
+          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+        continue-on-error: true
+
+      - name: Install uv and sync dependencies
+        run: |
+          pip install uv
+          uv sync --dev
+
+      - name: Create reports directory
+        run: mkdir -p reports/sbom
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          echo "Generating CycloneDX SBOM..."
+          uv run cyclonedx-py --project-name aider-mcp-server --project-version $(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])") -i pyproject.toml -o reports/sbom/bom.cyclonedx.json
+
+      - name: Generate SPDX SBOM
+        run: |
+          echo "Generating SPDX SBOM..."
+          uv pip freeze > requirements.txt
+          uv run spdx-tools-python -p . -f JSON -o reports/sbom/bom.spdx.json
+          rm requirements.txt
+
+      - name: Upload SBOM reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports-${{ github.run_number }}
+          path: reports/sbom/
+          retention-days: 30
