@@ -79,10 +79,10 @@ jobs:
             uv-${{ runner.os }}-
         continue-on-error: true
 
-      - name: Install uv and sync dependencies
+      - name: Install uv and sync production dependencies
         run: |
           pip install uv
-          uv sync --dev
+          uv sync
 
       - name: Create reports directory
         run: mkdir -p reports/sbom
@@ -90,15 +90,15 @@ jobs:
       - name: Generate CycloneDX SBOM
         run: |
           echo "Generating CycloneDX SBOM..."
-          uv run cyclonedx-py -i pyproject.toml --format json -o reports/sbom/bom.cyclonedx.json
+          uv pip freeze | uv run cyclonedx-py --format json -o reports/sbom/bom.cyclonedx.json
 
       - name: Generate SPDX SBOM
         run: |
           echo "Generating SPDX SBOM..."
           # Generate requirements for production dependencies only
-          uv pip list --no-dev --format freeze > requirements.txt
+          uv pip freeze > requirements.txt
           # spdx-tools-python uses the requirements file and project metadata
-          uv run spdx-tools-python -p . -r requirements.txt -f JSON -o reports/sbom/bom.spdx.json
+          uv run spdx-tools-python -p . -r requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
           rm requirements.txt
 
       - name: Upload SBOM reports
