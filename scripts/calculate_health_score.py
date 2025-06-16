@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 # Add src to path for importing existing monitoring systems
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 try:
     from aider_mcp_server.molecules.monitoring.audit_analytics import AuditAnalytics

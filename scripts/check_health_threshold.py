@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any, Dict
 
 import yaml
@@ -18,7 +19,7 @@ import yaml
 class HealthThresholdChecker:
     """Checks health assessment results against configured thresholds."""
 
-    def __init__(self, config_path: str = "maintenance.yml"):
+    def __init__(self, config_path: Path = Path("maintenance.yml")):
         self.config_path = config_path
         self.config = self.load_config()
 
@@ -56,7 +57,7 @@ class HealthThresholdChecker:
             },
         }
 
-    def check_health_report(self, report_path: str) -> Dict[str, Any]:
+    def check_health_report(self, report_path: Path) -> Dict[str, Any]:
         """Check health report against thresholds."""
         try:
             with open(report_path, "r") as f:
@@ -204,8 +205,10 @@ class HealthThresholdChecker:
 def main():
     """Main entry point for threshold checking."""
     parser = argparse.ArgumentParser(description="Check health assessment results against configured thresholds")
-    parser.add_argument("--report", required=True, help="Path to health assessment report JSON file")
-    parser.add_argument("--config", default="maintenance.yml", help="Path to maintenance configuration file")
+    parser.add_argument("--report", required=True, type=Path, help="Path to health assessment report JSON file")
+    parser.add_argument(
+        "--config", default=Path("maintenance.yml"), type=Path, help="Path to maintenance configuration file"
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
     args = parser.parse_args()

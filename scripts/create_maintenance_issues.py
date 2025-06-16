@@ -11,6 +11,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -20,7 +21,7 @@ import yaml
 class MaintenanceIssueCreator:
     """Creates and manages maintenance issues based on health assessment results."""
 
-    def __init__(self, github_token: Optional[str] = None, config_path: str = "maintenance.yml"):
+    def __init__(self, github_token: Optional[str] = None, config_path: Path = Path("maintenance.yml")):
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.config_path = config_path
         self.config = self.load_config()
@@ -90,7 +91,7 @@ class MaintenanceIssueCreator:
 
         raise ValueError("Could not determine repository information. Set GITHUB_REPOSITORY environment variable.")
 
-    def create_maintenance_issues(self, report_path: str) -> List[Dict[str, Any]]:
+    def create_maintenance_issues(self, report_path: Path) -> List[Dict[str, Any]]:
         """Create maintenance issues based on health assessment report."""
         try:
             with open(report_path, "r") as f:
@@ -295,8 +296,10 @@ Based on the health assessment, the following areas need immediate attention:
 def main():
     """Main entry point for issue creation."""
     parser = argparse.ArgumentParser(description="Create maintenance issues based on health assessment results")
-    parser.add_argument("--report", required=True, help="Path to health assessment report JSON file")
-    parser.add_argument("--config", default="maintenance.yml", help="Path to maintenance configuration file")
+    parser.add_argument("--report", required=True, type=Path, help="Path to health assessment report JSON file")
+    parser.add_argument(
+        "--config", default=Path("maintenance.yml"), type=Path, help="Path to maintenance configuration file"
+    )
     parser.add_argument(
         "--dry-run", action="store_true", help="Show what issues would be created without actually creating them"
     )
