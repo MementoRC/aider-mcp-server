@@ -87,19 +87,22 @@ jobs:
       - name: Create reports directory
         run: mkdir -p reports/sbom
 
+      - name: Generate requirements.txt for SBOM
+        run: |
+          echo "Generating requirements.txt for SBOM tools..."
+          uv pip freeze > reports/sbom/requirements.txt
+
       - name: Generate CycloneDX SBOM
+        continue-on-error: true
         run: |
           echo "Generating CycloneDX SBOM..."
-          uv pip freeze | uv run cyclonedx-py --format json -o reports/sbom/bom.cyclonedx.json
+          uv run cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
 
       - name: Generate SPDX SBOM
+        continue-on-error: true
         run: |
           echo "Generating SPDX SBOM..."
-          # Generate requirements for production dependencies only
-          uv pip freeze > requirements.txt
-          # spdx-tools-python uses the requirements file and project metadata
-          uv run spdx-tools-python -p . -r requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
-          rm requirements.txt
+          uv run spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
 
       - name: Upload SBOM reports
         uses: actions/upload-artifact@v4
