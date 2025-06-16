@@ -25,7 +25,7 @@ from tests.atoms.tools.test_mock_api_keys import (
 def _windows_safe_rmtree(path: str, max_retries: int = 3, delay: float = 1.0):
     """
     A wrapper for shutil.rmtree that handles read-only files and locking
-    issues on Windows, with retries.
+    issues on Windows, with retries and proper error handling.
     """
     if os.name != "nt":
         shutil.rmtree(path)
