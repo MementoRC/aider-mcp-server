@@ -1,8 +1,10 @@
 import json
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
+import time
 from typing import Generator
 from unittest.mock import patch
 
@@ -20,6 +22,36 @@ from tests.atoms.tools.test_mock_api_keys import (
 )
 
 
+def _windows_safe_rmtree(path: str, max_retries: int = 3, delay: float = 1.0):
+    """
+    A wrapper for shutil.rmtree that handles read-only files and locking
+    issues on Windows, with retries.
+    """
+    if os.name != "nt":
+        shutil.rmtree(path)
+        return
+
+    def on_rm_error(func, path, exc_info):
+        """
+        Error handler for shutil.rmtree.
+        If the error is due to a read-only file, it changes the permissions and retries.
+        """
+        # The error is likely a PermissionError on a read-only file.
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    for i in range(max_retries):
+        try:
+            shutil.rmtree(path, onerror=on_rm_error)
+            return
+        except (PermissionError, OSError) as e:
+            if i < max_retries - 1:
+                time.sleep(delay)
+            else:
+                # Re-raise the exception if all retries fail
+                raise PermissionError(f"Failed to clean up temp dir {path} after {max_retries} retries: {e}") from e
+
+
 def api_keys_missing() -> bool:
     """
     Check if required API keys are missing after loading .env files.
@@ -34,7 +66,8 @@ def api_keys_missing() -> bool:
 @pytest.fixture
 def git_repo_with_files() -> Generator[str, None, None]:
     """Create a temporary git repository with some files for testing."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
+    tmp_dir = tempfile.mkdtemp()
+    try:
         # Get the full path to git executable
         git_executable = shutil.which("git")
         if not git_executable:
@@ -85,66 +118,68 @@ def git_repo_with_files() -> Generator[str, None, None]:
         )
 
         yield tmp_dir
+    finally:
+        _windows_safe_rmtree(tmp_dir)
 
 
 @pytest.fixture
 def temp_dir() -> Generator[str, None, None]:
     """Create a temporary directory with an initialized Git repository for testing."""
     tmp_dir = tempfile.mkdtemp()
+    try:
+        # Get the full path to git executable
+        git_executable = shutil.which("git")
+        if not git_executable or git_executable is None:
+            pytest.skip("Git executable not found")
 
-    # Get the full path to git executable
-    git_executable = shutil.which("git")
-    if not git_executable or git_executable is None:
-        pytest.skip("Git executable not found")
+        # Initialize git repository in the temp directory
+        subprocess.run(  # noqa: S603
+            [git_executable, "init"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
-    # Initialize git repository in the temp directory
-    subprocess.run(  # noqa: S603
-        [git_executable, "init"],
-        cwd=tmp_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+        # Configure git user for the repository
+        subprocess.run(  # noqa: S603
+            [git_executable, "config", "user.name", "Test User"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        subprocess.run(  # noqa: S603
+            [git_executable, "config", "user.email", "test@example.com"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
-    # Configure git user for the repository
-    subprocess.run(  # noqa: S603
-        [git_executable, "config", "user.name", "Test User"],
-        cwd=tmp_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    subprocess.run(  # noqa: S603
-        [git_executable, "config", "user.email", "test@example.com"],
-        cwd=tmp_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+        # Create and commit an initial file to have a valid git history
+        with open(os.path.join(tmp_dir, "README.md"), "w") as f:
+            f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
 
-    # Create and commit an initial file to have a valid git history
-    with open(os.path.join(tmp_dir, "README.md"), "w") as f:
-        f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
+        subprocess.run(  # noqa: S603
+            [git_executable, "add", "README.md"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        subprocess.run(  # noqa: S603
+            [git_executable, "commit", "-m", "Initial commit"],
+            cwd=tmp_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
-    subprocess.run(  # noqa: S603
-        [git_executable, "add", "README.md"],
-        cwd=tmp_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    subprocess.run(  # noqa: S603
-        [git_executable, "commit", "-m", "Initial commit"],
-        cwd=tmp_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    yield tmp_dir
-
-    # Clean up
-    shutil.rmtree(tmp_dir)
+        yield tmp_dir
+    finally:
+        # Clean up
+        _windows_safe_rmtree(tmp_dir)
 
 
 def test_addition(temp_dir: str) -> None:  # noqa: C901
