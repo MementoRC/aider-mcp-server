@@ -135,7 +135,7 @@ class PerformanceBenchmarking:
         """
         self._logger: LoggerProtocol = get_logger(__name__)
         self._application_coordinator = application_coordinator
-        self._baseline_path = Path(baseline_path)
+        self._baseline_path = Path(baseline_path).resolve()
         self._history_retention_hours = history_retention_hours
 
         # Performance data storage
@@ -561,10 +561,10 @@ class PerformanceBenchmarking:
                 test_data = f"Benchmark data for iteration {i} " * 100
 
                 # Write operation
-                test_file.write_text(test_data)
+                test_file.write_text(test_data, encoding="utf-8")
 
                 # Read operation
-                _ = test_file.read_text()
+                _ = test_file.read_text(encoding="utf-8")
 
                 # Cleanup
                 test_file.unlink()
@@ -676,7 +676,7 @@ class PerformanceBenchmarking:
         """Load performance baselines from storage."""
         try:
             if self._baseline_path.exists():
-                with open(self._baseline_path, "r") as f:
+                with open(self._baseline_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
                 for operation_name, baseline_data in data.items():
@@ -727,7 +727,7 @@ class PerformanceBenchmarking:
                     "version": baseline.version,
                 }
 
-            with open(self._baseline_path, "w") as f:
+            with open(self._baseline_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
             self._logger.info(f"Saved {len(self._baselines)} performance baselines")
