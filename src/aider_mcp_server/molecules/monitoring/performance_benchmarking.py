@@ -7,6 +7,8 @@ track performance metrics over time, and detect regressions in critical system o
 
 import asyncio
 import json
+import os
+import platform
 import tempfile
 import time
 from collections import defaultdict, deque
@@ -549,9 +551,11 @@ class PerformanceBenchmarking:
 
         start_time = time.time()
 
-        # Create temporary directory for benchmarking
+        # Create temporary directory for benchmarking, handle Windows paths
         with tempfile.TemporaryDirectory() as temp_dir_str:
-            temp_dir = Path(temp_dir_str)
+            temp_dir = Path(temp_dir_str).resolve()
+            if platform.system() == "Windows":
+                temp_dir = Path(os.path.normpath(str(temp_dir)))
 
             for i in range(iterations):
                 iteration_start = time.perf_counter()
@@ -560,14 +564,20 @@ class PerformanceBenchmarking:
                 test_file = temp_dir / f"test_{i}.txt"
                 test_data = f"Benchmark data for iteration {i} " * 100
 
-                # Write operation
-                test_file.write_text(test_data, encoding="utf-8")
+                try:
+                    # Write operation
+                    test_file.write_text(test_data, encoding="utf-8")
 
-                # Read operation
-                _ = test_file.read_text(encoding="utf-8")
+                    # Read operation
+                    _ = test_file.read_text(encoding="utf-8")
 
-                # Cleanup
-                test_file.unlink()
+                finally:
+                    # Cleanup
+                    try:
+                        test_file.unlink()
+                    except Exception as e:
+                        # Handle potential file locking issues on Windows
+                        self._logger.debug(f"Failed to cleanup test file {test_file}: {e}")
 
                 iteration_end = time.perf_counter()
                 times.append(iteration_end - iteration_start)

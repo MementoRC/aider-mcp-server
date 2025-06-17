@@ -17,56 +17,13 @@ from typing import Any, Dict, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from aider_mcp_server.molecules.monitoring.health_monitor import HealthMonitor
-    from aider_mcp_server.molecules.monitoring.health_scoring import HealthScoring
-    from aider_mcp_server.molecules.monitoring.metrics_collector import MetricsCollector
+    # Import the existing health score calculator
+    sys.path.append(str(Path(__file__).parent))
+    from calculate_health_score import HealthScoreCalculator
 except ImportError as e:
-    print(f"Warning: Could not import monitoring components: {e}")
-    print("Running in standalone mode with mock components")
-
-
-class MockHealthMonitor:
-    """Mock health monitor for standalone operation."""
-
-    def __init__(self):
-        self._metrics_summary = {
-            "performance_regression": 0.05,
-            "requests_per_minute": 100,
-            "success_rate": 0.98,
-        }
-
-    async def get_metrics_summary(self, minutes_back=30):
-        return self._metrics_summary
-
-    async def get_health_status(self):
-        class MockStatus:
-            status = "healthy"
-            error_rate = 0.02
-
-            class MockSys:
-                cpu_percent = 50
-                memory_percent = 40
-
-            system_metrics = MockSys()
-
-        return MockStatus()
-
-
-class MockMetricsCollector:
-    """Mock metrics collector for standalone operation."""
-
-    def __init__(self):
-        self._summary = {
-            "dependency_staleness_days": 30,
-            "code_coverage": 85,
-            "max_cyclomatic_complexity": 8,
-            "technical_debt_ratio": 0.05,
-            "security_vulnerabilities": 0,
-            "security_patches_applied": True,
-        }
-
-    async def get_metrics_summary(self):
-        return self._summary
+    print(f"Warning: Could not import health score calculator: {e}")
+    print("Health assessment cannot run without HealthScoreCalculator")
+    sys.exit(1)
 
 
 class HealthAssessmentRunner:
@@ -74,43 +31,15 @@ class HealthAssessmentRunner:
 
     def __init__(self, config_path: str = "maintenance.yml"):
         self.config_path = config_path
-        self.health_monitor: Optional[Any] = None
-        self.metrics_collector: Optional[Any] = None
-        self.health_scoring: Optional[HealthScoring] = None
+        self.health_score_calculator: Optional[HealthScoreCalculator] = None
 
     async def initialize_components(self) -> None:
         """Initialize health monitoring components."""
         try:
-            # Try to use real components first
-            try:
-                self.health_monitor = HealthMonitor(
-                    coordinator=None,  # For assessment purposes, we don't need full coordinator
-                    metrics_retention_minutes=60,
-                    health_check_interval=30.0,
-                )
-                print("✅ Initialized HealthMonitor")
-            except Exception:
-                self.health_monitor = MockHealthMonitor()
-                print("⚠️ Using MockHealthMonitor")
-
-            try:
-                self.metrics_collector = MetricsCollector(
-                    application_coordinator=None,  # For assessment purposes
-                    retention_hours=24,
-                    collection_interval=30.0,
-                )
-                print("✅ Initialized MetricsCollector")
-            except Exception:
-                self.metrics_collector = MockMetricsCollector()
-                print("⚠️ Using MockMetricsCollector")
-
-            # Initialize health scoring system
-            self.health_scoring = HealthScoring(
-                health_monitor=self.health_monitor,
-                metrics_collector=self.metrics_collector,
-                config_path=self.config_path,
-            )
-            print("✅ Initialized HealthScoring system")
+            # Initialize the comprehensive health score calculator
+            project_root = Path(__file__).parent.parent  # Go up from scripts/ to project root
+            self.health_score_calculator = HealthScoreCalculator(str(project_root))
+            print("✅ Initialized HealthScoreCalculator system")
 
         except Exception as e:
             print(f"❌ Error initializing components: {e}")
@@ -118,35 +47,28 @@ class HealthAssessmentRunner:
 
     async def run_assessment(self) -> Dict[str, Any]:
         """Run comprehensive health assessment."""
-        if not self.health_scoring:
-            raise RuntimeError("Health scoring system not initialized")
+        if not self.health_score_calculator:
+            raise RuntimeError("Health score calculator not initialized")
 
         print("🔍 Running comprehensive health assessment...")
 
         try:
-            # Calculate health scores
-            health_result = await self.health_scoring.calculate_health_score()
-            print(f"✅ Health assessment completed - Score: {health_result['composite_score']}")
+            # Calculate comprehensive health scores
+            health_result = await self.health_score_calculator.calculate_comprehensive_health_score()
+            print(f"✅ Health assessment completed - Score: {health_result['overall_score']}")
 
-            # Add metadata
+            # Transform the result to match expected format
             assessment_result = {
-                "timestamp": health_result.get("timestamp") or "N/A",
-                "composite_score": health_result["composite_score"],
-                "component_scores": {
-                    "dependency_health": health_result["dependency_score"],
-                    "code_quality": health_result["code_quality_score"],
-                    "security": health_result["security_score"],
-                    "performance": health_result["performance_score"],
-                    "system_health": health_result["system_score"],
-                },
-                "recommendations": health_result["recommendations"],
+                "timestamp": health_result.get("calculated_at", "N/A"),
+                "overall_score": health_result["overall_score"],
+                "status": "healthy" if health_result["overall_score"] >= 80 else "needs_maintenance",
+                "component_scores": health_result["component_scores"],
+                "recommendations": health_result.get("recommendations", []),
                 "assessment_metadata": {
                     "config_path": self.config_path,
-                    "components_used": {
-                        "health_monitor": type(self.health_monitor).__name__,
-                        "metrics_collector": type(self.metrics_collector).__name__,
-                        "health_scoring": "HealthScoring",
-                    },
+                    "urgency_level": health_result.get("urgency_level", "unknown"),
+                    "maintenance_needed": health_result.get("maintenance_needed", False),
+                    "monitoring_context": health_result.get("monitoring_context", {}),
                 },
             }
 
@@ -173,30 +95,22 @@ class HealthAssessmentRunner:
 
             # Health score for easy reading
             with open(reports_dir / "health_score.txt", "w") as f:
-                f.write(str(int(assessment_result["composite_score"] * 100)))
+                f.write(str(int(assessment_result["overall_score"])))
 
             # Maintenance needed flag
-            needs_maintenance = assessment_result["composite_score"] < 0.8
+            needs_maintenance = assessment_result["assessment_metadata"]["maintenance_needed"]
             with open(reports_dir / "maintenance_needed.txt", "w") as f:
                 f.write("true" if needs_maintenance else "false")
 
             # Urgency level
-            score = assessment_result["composite_score"]
-            if score < 0.5:
-                urgency = "critical"
-            elif score < 0.7:
-                urgency = "high"
-            elif score < 0.8:
-                urgency = "medium"
-            else:
-                urgency = "low"
-
+            urgency = assessment_result["assessment_metadata"]["urgency_level"]
             with open(reports_dir / "urgency_level.txt", "w") as f:
                 f.write(urgency)
 
             # Project health JSON for detailed analysis
             project_health = {
-                "overall_score": assessment_result["composite_score"],
+                "overall_score": assessment_result["overall_score"],
+                "status": assessment_result["status"],
                 "component_scores": assessment_result["component_scores"],
                 "recommendations": assessment_result["recommendations"],
                 "assessment_date": assessment_result["timestamp"],
@@ -242,16 +156,17 @@ async def main():
         await runner.save_reports(result, args.output)
 
         # Print summary
-        score = result["composite_score"]
+        score = result["overall_score"]
         print("\n🎯 Health Assessment Summary:")
-        print(f"   Overall Score: {score:.2f}")
+        print(f"   Overall Score: {score:.1f}/100")
+        print(f"   Status: {result['status']}")
         print(f"   Recommendations: {len(result['recommendations'])} items")
 
         # Exit with appropriate code
-        if score < 0.5:
+        if score < 50:
             print("❌ Critical health issues detected")
             sys.exit(2)
-        elif score < 0.8:
+        elif score < 80:
             print("⚠️ Maintenance recommended")
             sys.exit(1)
         else:
