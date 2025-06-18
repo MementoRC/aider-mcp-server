@@ -207,7 +207,8 @@ class TestSafetyConfigurationSystem:
 
         system = SafetyConfigurationSystem(project_root=sub_dir)
         found_file = system._find_config_file()
-        assert found_file == config_file
+        assert found_file is not None
+        assert found_file.resolve() == config_file.resolve()
 
     def test_save_and_load_config(self, temp_project_dir):
         """Test saving a configuration and then loading it back."""

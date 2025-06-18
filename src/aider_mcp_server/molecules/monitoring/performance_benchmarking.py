@@ -61,6 +61,7 @@ class BenchmarkResult:
     std_dev: float
     throughput: float  # operations per second
     metadata: Dict[str, Any] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
 
     def _replace(self, **changes: Any) -> "BenchmarkResult":
         """Provide compatibility with namedtuple's _replace method."""
@@ -392,7 +393,7 @@ class PerformanceBenchmarking:
 
         last_benchmark_time = None
         if self._benchmark_history:
-            last_benchmark_time = self._benchmark_history[-1].end_time
+            last_benchmark_time = self._benchmark_history[-1].timestamp
 
         return BenchmarkMetrics(
             total_benchmarks=total_benchmarks,
@@ -428,7 +429,7 @@ class PerformanceBenchmarking:
         operation_name = "api_request_processing"
         times = []
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         for _ in range(iterations):
             iteration_start = time.perf_counter()
@@ -442,7 +443,7 @@ class PerformanceBenchmarking:
             iteration_end = time.perf_counter()
             times.append(iteration_end - iteration_start)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return self._create_benchmark_result(
             BenchmarkType.API_REQUEST, operation_name, iterations, start_time, end_time, times
@@ -453,7 +454,7 @@ class PerformanceBenchmarking:
         operation_name = "database_query"
         times = []
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         for _ in range(iterations):
             iteration_start = time.perf_counter()
@@ -467,7 +468,7 @@ class PerformanceBenchmarking:
             iteration_end = time.perf_counter()
             times.append(iteration_end - iteration_start)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return self._create_benchmark_result(
             BenchmarkType.DATABASE_QUERY, operation_name, iterations, start_time, end_time, times
@@ -478,7 +479,7 @@ class PerformanceBenchmarking:
         operation_name = "model_inference"
         times = []
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         for _ in range(iterations):
             iteration_start = time.perf_counter()
@@ -492,7 +493,7 @@ class PerformanceBenchmarking:
             iteration_end = time.perf_counter()
             times.append(iteration_end - iteration_start)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return self._create_benchmark_result(
             BenchmarkType.MODEL_INFERENCE, operation_name, iterations, start_time, end_time, times
@@ -503,7 +504,7 @@ class PerformanceBenchmarking:
         operation_name = "memory_usage"
         times = []
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         for _ in range(iterations):
             iteration_start = time.perf_counter()
@@ -519,7 +520,7 @@ class PerformanceBenchmarking:
             iteration_end = time.perf_counter()
             times.append(iteration_end - iteration_start)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return self._create_benchmark_result(
             BenchmarkType.MEMORY_USAGE, operation_name, iterations, start_time, end_time, times
@@ -530,7 +531,7 @@ class PerformanceBenchmarking:
         operation_name = "thread_pool_performance"
         times = []
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         for _ in range(iterations):
             iteration_start = time.perf_counter()
@@ -546,7 +547,7 @@ class PerformanceBenchmarking:
             iteration_end = time.perf_counter()
             times.append(iteration_end - iteration_start)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return self._create_benchmark_result(
             BenchmarkType.THREAD_POOL, operation_name, iterations, start_time, end_time, times
@@ -557,7 +558,7 @@ class PerformanceBenchmarking:
         operation_name = "file_io_operations"
         times = []
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Create temporary directory for benchmarking, handle Windows paths
         with tempfile.TemporaryDirectory() as temp_dir_str:
@@ -590,7 +591,7 @@ class PerformanceBenchmarking:
                 iteration_end = time.perf_counter()
                 times.append(iteration_end - iteration_start)
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         return self._create_benchmark_result(
             BenchmarkType.FILE_IO, operation_name, iterations, start_time, end_time, times
@@ -791,7 +792,7 @@ class PerformanceBenchmarking:
 
         for result in self._benchmark_history:
             lines.append(
-                f"{result.end_time},{result.benchmark_type.value},{result.operation_name},"
+                f"{result.timestamp},{result.benchmark_type.value},{result.operation_name},"
                 f"{result.mean_time},{result.throughput},{result.iterations},{result.p95_time}"
             )
 
@@ -837,7 +838,7 @@ class PerformanceBenchmarking:
 
         # Clean up old benchmark results
         original_count = len(self._benchmark_history)
-        filtered_results = [result for result in self._benchmark_history if result.end_time >= cutoff_time]
+        filtered_results = [result for result in self._benchmark_history if result.timestamp >= cutoff_time]
 
         # Update the deque
         self._benchmark_history.clear()

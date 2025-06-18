@@ -358,6 +358,7 @@ class TestPerformanceBenchmarking:
             p99_time=0.0028,
             std_dev=0.0005,
             throughput=100.0,
+            timestamp=old_time,
         )
 
         recent_result = BenchmarkResult(
@@ -374,6 +375,7 @@ class TestPerformanceBenchmarking:
             p99_time=0.0028,
             std_dev=0.0005,
             throughput=100.0,
+            timestamp=recent_time,
         )
 
         performance_benchmarking._benchmark_history.extend([old_result, recent_result])
