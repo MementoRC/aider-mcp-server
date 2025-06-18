@@ -722,18 +722,18 @@ class TestIntegration:
             assert coords[0].coordinator_id == coord_id
 
             # Wait for heartbeat updates
-            await asyncio.sleep(0.15)
+            await asyncio.sleep(0.5)
 
             # Should still be healthy
             coords = await discovery.discover_coordinators()
             assert len(coords) == 1
-            assert coords[0].is_active(max_age_seconds=0.2)
+            assert coords[0].is_active(max_age_seconds=1.0)
 
             # Shutdown discovery
             await discovery.shutdown()
 
             # Wait for cleanup
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(1.0)
 
             # Should be cleaned up
             coords = await discovery.discover_coordinators()

@@ -41,8 +41,8 @@ async def test_parallel_server_starts(free_port, server_process):
         env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
     )
 
-    # Wait briefly
-    await asyncio.sleep(1)
+    # Wait briefly to allow server to start, especially on slower CI
+    await asyncio.sleep(3)
 
     # Check if started
     assert process.poll() is None, "Server should still be running"
@@ -83,8 +83,8 @@ async def test_another_parallel_server(free_port, server_process):
         env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
     )
 
-    # Wait briefly
-    await asyncio.sleep(1)
+    # Wait briefly to allow server to start, especially on slower CI
+    await asyncio.sleep(3)
 
     # Check if started
     assert process.poll() is None, "Server should still be running"

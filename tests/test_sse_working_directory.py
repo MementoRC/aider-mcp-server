@@ -1,5 +1,6 @@
 """Comprehensive tests for SSE working directory validation and configuration."""
 
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -99,8 +100,6 @@ class TestSSEWorkingDirectory:
 
         finally:
             # Cleanup - ensure we clean up even if test fails
-            import shutil
-
             if test_dir.exists():
                 shutil.rmtree(test_dir, ignore_errors=True)
 
@@ -165,7 +164,8 @@ class TestSSEWorkingDirectory:
                 except subprocess.TimeoutExpired:
                     process.kill()
             # Cleanup
-            subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
+            if test_dir.exists():
+                shutil.rmtree(test_dir, ignore_errors=True)
 
     def test_sse_accepts_git_directory(self, free_port):
         """Test that SSE server accepts a valid git directory."""
@@ -236,7 +236,8 @@ class TestSSEWorkingDirectory:
                 except subprocess.TimeoutExpired:
                     process.kill()
             # Cleanup
-            subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
+            if test_dir.exists():
+                shutil.rmtree(test_dir, ignore_errors=True)
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -293,7 +294,8 @@ class TestSSEWorkingDirectory:
 
         finally:
             # Cleanup
-            subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
+            if test_dir.exists():
+                shutil.rmtree(test_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
