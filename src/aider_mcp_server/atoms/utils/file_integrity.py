@@ -18,6 +18,7 @@ Author: Aider MCP Server Team
 import hashlib
 import os
 import subprocess
+import tempfile
 from typing import Any, Dict, List
 
 from aider_mcp_server.atoms.logging.logger import get_logger
@@ -83,13 +84,13 @@ class FileIntegrityManager:
             # Use --is-inside-work-tree or --is-inside-git-dir for a more robust check
             # This command exits with 0 if inside a git repo/worktree, 1 otherwise.
             # We already checked if the directory exists in __init__
-            subprocess.run(
-                ["git", "rev-parse", "--is-inside-work-tree"],
+            subprocess.run(  # noqa: S603,S607
+                ["git", "rev-parse", "--is-inside-work-tree"],  # noqa: S607
                 cwd=self.repo_path,
                 capture_output=True,
                 check=True,  # check=True raises CalledProcessError if exit code is non-zero
                 text=True,
-            )  # noqa: S603,S607
+            )
             logger.debug(f"Checking if {self.repo_path} is a git repo: True")
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
@@ -119,7 +120,7 @@ class FileIntegrityManager:
         cmd = ["git"] + args
         try:
             logger.debug(f"Running git command: {' '.join(cmd)}")
-            result = subprocess.run(  # noqa: S603
+            result = subprocess.run(  # noqa: S603, S607
                 cmd,
                 cwd=self.repo_path,
                 check=True,
@@ -193,6 +194,63 @@ class FileIntegrityManager:
         logger.debug(f"Counted {line_count} lines")
         return line_count
 
+    def _validate_python_syntax(self, file_path: str, content: str) -> bool:
+        """Validate Python file syntax."""
+        try:
+            compile(content, file_path, "exec")
+            logger.debug("Python syntax valid")
+            return True
+        except SyntaxError as e:
+            logger.error(f"Python syntax error in {file_path}: {e}")
+            raise SyntaxValidationError(f"Python syntax error in {file_path}: {e}") from e
+        except Exception as e:
+            # Catch other potential errors during compile
+            logger.error(f"Unexpected error during Python syntax check for {file_path}: {e}")
+            raise SyntaxValidationError(f"Unexpected error during Python syntax check for {file_path}: {e}") from e
+
+    def _validate_js_ts_syntax(self, file_path: str, content: str, ext: str) -> bool:
+        """Validate JavaScript or TypeScript file syntax."""
+        temp_filename = None
+        try:
+            # Create a temporary file with the correct extension
+            with tempfile.NamedTemporaryFile("w", suffix=ext, delete=False, encoding="utf-8") as tmp:
+                tmp.write(content)
+                temp_filename = tmp.name
+            if ext == ".js":
+                # Use 'node --check' for JS syntax validation
+                cmd = ["node", "--check", temp_filename]
+            else:  # ext == ".ts"
+                # Use 'tsc --noEmit' for TS syntax validation
+                cmd = ["tsc", "--noEmit", temp_filename]
+
+            logger.debug(f"Running syntax check: {' '.join(cmd)}")
+            # Use shell=True on Windows might help find node/tsc, but generally discouraged.
+            # Let's stick to shell=False and rely on PATH.
+            result = subprocess.run(  # noqa: S603, S607
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
+            )
+            if result.returncode != 0:
+                error_output = result.stderr.strip() or result.stdout.strip()
+                logger.error(f"Syntax error in {file_path}: {error_output}")
+                raise SyntaxValidationError(f"Syntax error in {file_path}: {error_output}")
+            logger.debug(f"Syntax valid for {file_path}")
+            return True
+        except FileNotFoundError:
+            # node or tsc command not found
+            logger.warning(f"Syntax check skipped for {file_path}: 'node' or 'tsc' command not found.")
+            # Treat as valid if the tool isn't available
+            return True
+        except Exception as e:
+            # Catch any other errors during subprocess execution
+            logger.error(f"Unexpected error during JS/TS syntax check for {file_path}: {e}")
+            raise SyntaxValidationError(f"Unexpected error during JS/TS syntax check for {file_path}: {e}") from e
+        finally:
+            if temp_filename and os.path.exists(temp_filename):
+                try:
+                    os.remove(temp_filename)
+                except OSError as e:
+                    logger.warning(f"Could not remove temporary file {temp_filename}: {e}")
+
     def validate_syntax(self, file_path: str, content: str) -> bool:
         """
         Validate the syntax of the file based on its extension.
@@ -210,59 +268,9 @@ class FileIntegrityManager:
         ext = os.path.splitext(file_path)[1].lower()
         logger.debug(f"Validating syntax for {file_path} (ext: {ext})")
         if ext == ".py":
-            try:
-                compile(content, file_path, "exec")
-                logger.debug("Python syntax valid")
-                return True
-            except SyntaxError as e:
-                logger.error(f"Python syntax error in {file_path}: {e}")
-                raise SyntaxValidationError(f"Python syntax error in {file_path}: {e}") from e
-            except Exception as e:
-                # Catch other potential errors during compile
-                logger.error(f"Unexpected error during Python syntax check for {file_path}: {e}")
-                raise SyntaxValidationError(f"Unexpected error during Python syntax check for {file_path}: {e}") from e
+            return self._validate_python_syntax(file_path, content)
         elif ext in (".js", ".ts"):
-            # Use node or tsc for JS/TS syntax check
-            temp_filename = None
-            import tempfile
-
-            try:
-                # Create a temporary file with the correct extension
-                with tempfile.NamedTemporaryFile("w", suffix=ext, delete=False, encoding="utf-8") as tmp:
-                    tmp.write(content)
-                    temp_filename = tmp.name
-                if ext == ".js":
-                    # Use 'node --check' for JS syntax validation
-                    cmd = ["node", "--check", temp_filename]
-                else:  # ext == ".ts"
-                    # Use 'tsc --noEmit' for TS syntax validation
-                    cmd = ["tsc", "--noEmit", temp_filename]
-
-                logger.debug(f"Running syntax check: {' '.join(cmd)}")
-                # Use shell=True on Windows might help find node/tsc, but generally discouraged.
-                # Let's stick to shell=False and rely on PATH.
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")  # noqa: S603
-                if result.returncode != 0:
-                    error_output = result.stderr.strip() or result.stdout.strip()
-                    logger.error(f"Syntax error in {file_path}: {error_output}")
-                    raise SyntaxValidationError(f"Syntax error in {file_path}: {error_output}")
-                logger.debug(f"Syntax valid for {file_path}")
-                return True
-            except FileNotFoundError:
-                # node or tsc command not found
-                logger.warning(f"Syntax check skipped for {file_path}: 'node' or 'tsc' command not found.")
-                # Treat as valid if the tool isn't available
-                return True
-            except Exception as e:
-                # Catch any other errors during subprocess execution
-                logger.error(f"Unexpected error during JS/TS syntax check for {file_path}: {e}")
-                raise SyntaxValidationError(f"Unexpected error during JS/TS syntax check for {file_path}: {e}") from e
-            finally:
-                if temp_filename and os.path.exists(temp_filename):
-                    try:
-                        os.remove(temp_filename)
-                    except OSError as e:
-                        logger.warning(f"Could not remove temporary file {temp_filename}: {e}")
+            return self._validate_js_ts_syntax(file_path, content, ext)
         else:
             logger.warning(f"Unsupported file extension for syntax validation: {file_path}")
             # Consider unsupported files as valid for now

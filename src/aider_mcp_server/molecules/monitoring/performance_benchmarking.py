@@ -13,6 +13,7 @@ import tempfile
 import time
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass, field
+from dataclasses import replace as dataclass_replace
 from enum import Enum
 from pathlib import Path
 from statistics import mean, median, stdev
@@ -60,6 +61,10 @@ class BenchmarkResult:
     std_dev: float
     throughput: float  # operations per second
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def _replace(self, **changes: Any) -> "BenchmarkResult":
+        """Provide compatibility with namedtuple's _replace method."""
+        return dataclass_replace(self, **changes)
 
     @property
     def duration(self) -> float:
@@ -227,19 +232,23 @@ class PerformanceBenchmarking:
 
         try:
             if benchmark_type == BenchmarkType.API_REQUEST:
-                return await self._benchmark_api_request_processing(iterations)
+                result = await self._benchmark_api_request_processing(iterations)
             elif benchmark_type == BenchmarkType.DATABASE_QUERY:
-                return await self._benchmark_database_query(iterations)
+                result = await self._benchmark_database_query(iterations)
             elif benchmark_type == BenchmarkType.MODEL_INFERENCE:
-                return await self._benchmark_model_inference(iterations)
+                result = await self._benchmark_model_inference(iterations)
             elif benchmark_type == BenchmarkType.MEMORY_USAGE:
-                return await self._benchmark_memory_usage(iterations)
+                result = await self._benchmark_memory_usage(iterations)
             elif benchmark_type == BenchmarkType.THREAD_POOL:
-                return await self._benchmark_thread_pool_performance(iterations)
+                result = await self._benchmark_thread_pool_performance(iterations)
             elif benchmark_type == BenchmarkType.FILE_IO:
-                return await self._benchmark_file_io_operations(iterations)
+                result = await self._benchmark_file_io_operations(iterations)
             else:
                 raise ValueError(f"Unknown benchmark type: {benchmark_type}")
+
+            # Add result to history
+            self._benchmark_history.append(result)
+            return result
 
         except Exception as e:
             self._logger.error(f"Error running benchmark {benchmark_type.value}: {str(e)}")
@@ -258,7 +267,6 @@ class PerformanceBenchmarking:
             try:
                 result = await self.run_benchmark(benchmark_type)
                 results[benchmark_type] = result
-                self._benchmark_history.append(result)
 
                 self._logger.debug(
                     f"Completed benchmark {benchmark_type.value}: "

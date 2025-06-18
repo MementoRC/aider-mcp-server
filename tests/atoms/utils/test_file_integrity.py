@@ -203,7 +203,7 @@ class TestGitStatus:
     def test_git_status_modified(self, mock_run_git, manager, make_file):
         rel, abs_path = make_file("baz.py", "c=3")
         mock_run_git.return_value = " M baz.py"
-        assert manager.get_git_status(abs_path) == "M baz.py"
+        assert manager.get_git_status(abs_path) == "modified"
 
 
 class TestCaptureFileIntegrityBaseline:
