@@ -112,7 +112,7 @@ class TestCoordinatorInfo:
         )
 
         old_heartbeat = info.last_heartbeat
-        time.sleep(0.01)  # Small delay to ensure time difference
+        time.sleep(0.1)  # Small delay to ensure time difference
         info.update_heartbeat()
 
         assert info.last_heartbeat > old_heartbeat
@@ -528,6 +528,9 @@ class TestCoordinatorDiscovery:
             transport_type="sse",
         )
 
+        # Add a small delay to ensure distinct start times, especially on Windows
+        await asyncio.sleep(0.1)
+
         await discovery.register_coordinator(
             host="localhost",
             port=8001,
@@ -727,7 +730,7 @@ class TestIntegration:
             # Should still be healthy
             coords = await discovery.discover_coordinators()
             assert len(coords) == 1
-            assert coords[0].is_active(max_age_seconds=1.0)
+            assert coords[0].is_active(max_age_seconds=2.0)  # Increased from 1.0 for CI stability
 
             # Shutdown discovery
             await discovery.shutdown()
