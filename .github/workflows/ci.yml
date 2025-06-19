@@ -87,10 +87,18 @@ jobs:
           pip install hatch
           hatch env create dev
 
+      - name: Show hatch environment
+        shell: bash
+        run: |
+          echo ">>> Hatch environment details"
+          hatch env show dev
+          echo ">>> Installed packages in hatch environment"
+          hatch run dev:pip list
+
       - name: Run tests with coverage
         shell: bash
         run: |
-          hatch run dev:pytest --cov=src --cov=strategy_sandbox --cov-report=xml
+          hatch run dev:test --cov=src --cov=strategy_sandbox --cov-report=xml
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
@@ -137,6 +145,14 @@ jobs:
             hatch run dev:pip install aider-chat==${{ matrix.aider-version }}
           fi
 
+      - name: Show hatch environment
+        shell: bash
+        run: |
+          echo ">>> Hatch environment details"
+          hatch env show dev
+          echo ">>> Installed packages in hatch environment"
+          hatch run dev:pip list
+
       - name: Run compatibility check script
         run: |
           hatch run dev:python scripts/inspect_aider_params.py
@@ -147,11 +163,11 @@ jobs:
 
       - name: Run compatibility tests
         run: |
-          hatch run dev:pytest tests/compatibility/ -v
+          hatch run dev:test tests/compatibility/ -v
 
       - name: Run integration tests
         run: |
-          hatch run dev:pytest tests/ -v -m integration
+          hatch run dev:test tests/ -v -m integration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
