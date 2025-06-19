@@ -95,7 +95,8 @@ jobs:
           echo ">>> Installed packages in hatch environment"
           hatch run dev:pip list
 
-      - name: Check system resources
+      - name: Check system resources (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           echo "::group::System resources on ${{ runner.os }}"
@@ -107,11 +108,33 @@ jobs:
           lscpu
           echo "::endgroup::"
 
-      - name: Debug environment variables
+      - name: Check system resources (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "::group::System resources on ${{ runner.os }}"
+          echo ">>> Disk space"
+          Get-PSDrive -PSProvider FileSystem
+          echo ">>> Memory usage"
+          Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory
+          echo ">>> CPU info"
+          Get-CimInstance -ClassName Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
+          echo "::endgroup::"
+
+      - name: Debug environment variables (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           echo "::group::Environment variables"
           env | sort
+          echo "::endgroup::"
+
+      - name: Debug environment variables (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "::group::Environment variables"
+          Get-ChildItem Env: | Sort-Object Name
           echo "::endgroup::"
 
       - name: Run tests
