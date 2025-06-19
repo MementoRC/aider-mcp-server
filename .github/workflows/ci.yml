@@ -98,7 +98,7 @@ jobs:
       - name: Run tests with coverage
         shell: bash
         run: |
-          hatch run dev:test --cov=src --cov=strategy_sandbox --cov-report=xml
+          hatch run dev:test --cov=src --cov-report=xml
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4

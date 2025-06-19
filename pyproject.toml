@@ -73,7 +73,7 @@ test = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-pythonpath = ["src", "strategy_sandbox"]
+pythonpath = ["src"]
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "api: marks tests that require API keys",
