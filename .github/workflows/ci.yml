@@ -14,6 +14,8 @@ jobs:
   lint_and_types:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      HATCH_ENV_ROOT: .hatch
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,25 +26,25 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache uv dependencies
+      - name: Cache hatch environment
         uses: actions/cache@v4
         with:
-          path: .uv
-          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            uv-${{ runner.os }}-
+            hatch-${{ runner.os }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
 
-      - name: Install uv and sync dependencies
+      - name: Install hatch and dependencies
         run: |
-          pip install uv
-          uv sync --dev
+          pip install hatch
+          hatch env create dev
 
       - name: Run all pre-commit hooks
         run: |
           echo "Running all pre-commit hooks (formatters, linters, and mypy)..."
-          uv run pre-commit install
-          uv run pre-commit run --all-files
+          hatch run dev:pre-commit install
+          hatch run dev:pre-commit run --all-files
 
       - name: Check for formatting changes
         run: |
@@ -59,6 +61,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+    env:
+      HATCH_ENV_ROOT: .hatch
 
     steps:
       - name: Checkout repository
@@ -69,24 +73,24 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache uv dependencies
+      - name: Cache hatch environment
         uses: actions/cache@v4
         with:
-          path: .uv
-          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            uv-${{ runner.os }}-
+            hatch-${{ runner.os }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
 
-      - name: Install uv and sync dependencies
+      - name: Install hatch and dependencies
         run: |
-          pip install uv
-          uv sync --dev
+          pip install hatch
+          hatch env create dev
 
       - name: Run tests with coverage
         shell: bash
         run: |
-          uv run pytest --cov=src --cov=strategy_sandbox --cov-report=xml
+          hatch run dev:pytest --cov=src --cov=strategy_sandbox --cov-report=xml
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
@@ -100,6 +104,8 @@ jobs:
     strategy:
       matrix:
         aider-version: ['0.83.0', '0.83.1', 'latest']
+    env:
+      HATCH_ENV_ROOT: .hatch
 
     steps:
       - uses: actions/checkout@v4
@@ -109,43 +115,43 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache uv dependencies
+      - name: Cache hatch environment
         uses: actions/cache@v4
         with:
-          path: .uv
-          key: uv-${{ runner.os }}-${{ matrix.aider-version }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ matrix.aider-version }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.aider-version }}-
+            hatch-${{ runner.os }}-${{ matrix.aider-version }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
 
-      - name: Install uv and sync dependencies
+      - name: Install hatch and dependencies
         run: |
-          pip install uv
-          uv sync --dev
+          pip install hatch
+          hatch env create dev
 
       - name: Install specific aider version
         run: |
           if [ "${{ matrix.aider-version }}" = "latest" ]; then
-            uv pip install aider-chat
+            hatch run dev:pip install aider-chat
           else
-            uv pip install aider-chat==${{ matrix.aider-version }}
+            hatch run dev:pip install aider-chat==${{ matrix.aider-version }}
           fi
 
       - name: Run compatibility check script
         run: |
-          uv run python scripts/inspect_aider_params.py
+          hatch run dev:python scripts/inspect_aider_params.py
 
       - name: Display aider version
         run: |
-          uv run python -c "import aider; print('Testing with aider version: ' + aider.__version__)"
+          hatch run dev:python -c "import aider; print('Testing with aider version: ' + aider.__version__)"
 
       - name: Run compatibility tests
         run: |
-          uv run pytest tests/compatibility/ -v
+          hatch run dev:pytest tests/compatibility/ -v
 
       - name: Run integration tests
         run: |
-          uv run pytest tests/ -v -m integration
+          hatch run dev:pytest tests/ -v -m integration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

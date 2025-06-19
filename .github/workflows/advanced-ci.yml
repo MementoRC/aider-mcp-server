@@ -13,6 +13,8 @@ jobs:
   code-quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HATCH_ENV_ROOT: .hatch
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,19 +24,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache uv dependencies
+      - name: Cache hatch environment
         uses: actions/cache@v4
         with:
-          path: .uv
-          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            uv-${{ runner.os }}-
+            hatch-${{ runner.os }}-
         continue-on-error: true
 
-      - name: Install uv and sync dependencies
+      - name: Install hatch and dependencies
         run: |
-          pip install uv
-          uv sync --dev
+          pip install hatch
+          hatch env create dev
 
       - name: Create reports directory
         run: mkdir -p reports/quality
@@ -42,14 +44,14 @@ jobs:
       - name: Run complexity analysis with radon
         run: |
           echo "Running complexity analysis with radon..."
-          uv run radon mi src/ -j > reports/quality/radon-mi.txt
-          uv run radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
-          uv run radon cc src/ -a -s > reports/quality/radon-cc.txt || true
+          hatch run dev:radon mi src/ -j > reports/quality/radon-mi.txt
+          hatch run dev:radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
+          hatch run dev:radon cc src/ -a -s > reports/quality/radon-cc.txt || true
 
       - name: Run dead code detection with vulture
         run: |
           echo "Running dead code detection with vulture..."
-          uv run vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
+          hatch run dev:vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
 
       - name: Upload quality reports
         uses: actions/upload-artifact@v4
@@ -61,6 +63,8 @@ jobs:
   sbom-generation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HATCH_ENV_ROOT: .hatch
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -70,19 +74,20 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache uv dependencies
+      - name: Cache hatch environments
         uses: actions/cache@v4
         with:
-          path: .uv
-          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            uv-${{ runner.os }}-
+            hatch-${{ runner.os }}-
         continue-on-error: true
 
-      - name: Install uv and sync production dependencies
+      - name: Install hatch and dependencies
         run: |
-          pip install uv
-          uv sync
+          pip install hatch
+          hatch env create
+          hatch env create dev
 
       - name: Create reports directory
         run: mkdir -p reports/sbom
@@ -90,19 +95,19 @@ jobs:
       - name: Generate requirements.txt for SBOM
         run: |
           echo "Generating requirements.txt for SBOM tools..."
-          uv pip freeze > reports/sbom/requirements.txt
+          hatch run default:pip freeze > reports/sbom/requirements.txt
 
       - name: Generate CycloneDX SBOM
         continue-on-error: true
         run: |
           echo "Generating CycloneDX SBOM..."
-          uv run cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
+          hatch run dev:cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
 
       - name: Generate SPDX SBOM
         continue-on-error: true
         run: |
           echo "Generating SPDX SBOM..."
-          uv run spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
+          hatch run dev:spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
 
       - name: Upload SBOM reports
         uses: actions/upload-artifact@v4
