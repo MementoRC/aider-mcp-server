@@ -30,9 +30,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .hatch
-          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          key: hatch-dev-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            hatch-${{ runner.os }}-
+            hatch-dev-${{ runner.os }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
 
       - name: Install hatch and dependencies
@@ -77,23 +77,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .hatch
-          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          key: hatch-test-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            hatch-${{ runner.os }}-
+            hatch-test-${{ runner.os }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
 
       - name: Install hatch and dependencies
         run: |
           pip install hatch
-          hatch env create dev
+          hatch env create test
 
       - name: Show hatch environment
         shell: bash
         run: |
           echo ">>> Hatch environment details"
-          hatch env show dev
+          hatch env show test
           echo ">>> Installed packages in hatch environment"
-          hatch run dev:pip list
+          hatch run test:pip list
 
       - name: Check system resources (Linux)
         if: runner.os == 'Linux'
@@ -138,35 +138,12 @@ jobs:
           echo "::endgroup::"
 
       - name: Run tests
-        id: run_tests
         shell: bash
         run: |
-          echo "::group::Attempting to run tests with coverage"
-          set +e
-          hatch run dev:test -vv -m "not integration" --durations=10 --cov=src --cov-report=xml
-          exit_code=$?
-          set -e
-          echo "::endgroup::"
-          if [ $exit_code -ne 0 ]; then
-            echo "::warning::Tests with coverage failed with exit code $exit_code. Retrying without coverage."
-            echo "coverage_failed=true" >> $GITHUB_OUTPUT
-            echo "::group::Attempting to run tests without coverage"
-            hatch run dev:test -vv -m "not integration" --durations=10
-            exit_code_no_cov=$?
-            echo "::endgroup::"
-            if [ $exit_code_no_cov -ne 0 ]; then
-              echo "::error::Tests failed even without coverage."
-              exit $exit_code_no_cov
-            else
-              echo "Tests passed without coverage. Coverage report will be missing."
-            fi
-          else
-            echo "Tests with coverage passed."
-            echo "coverage_failed=false" >> $GITHUB_OUTPUT
-          fi
+          hatch run test:test -vv -m "not integration" --durations=10 --cov=src --cov-report=xml
 
       - name: Upload coverage report
-        if: steps.run_tests.outputs.coverage_failed == 'false' && matrix.os == 'ubuntu-latest'
+        if: success() && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -193,47 +170,47 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .hatch
-          key: hatch-${{ runner.os }}-${{ matrix.aider-version }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          key: hatch-test-${{ runner.os }}-${{ matrix.aider-version }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
           restore-keys: |
-            hatch-${{ runner.os }}-${{ matrix.aider-version }}-
+            hatch-test-${{ runner.os }}-${{ matrix.aider-version }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
 
       - name: Install hatch and dependencies
         run: |
           pip install hatch
-          hatch env create dev
+          hatch env create test
 
       - name: Install specific aider version
         run: |
           if [ "${{ matrix.aider-version }}" = "latest" ]; then
-            hatch run dev:pip install aider-chat
+            hatch run test:pip install aider-chat
           else
-            hatch run dev:pip install aider-chat==${{ matrix.aider-version }}
+            hatch run test:pip install aider-chat==${{ matrix.aider-version }}
           fi
 
       - name: Show hatch environment
         shell: bash
         run: |
           echo ">>> Hatch environment details"
-          hatch env show dev
+          hatch env show test
           echo ">>> Installed packages in hatch environment"
-          hatch run dev:pip list
+          hatch run test:pip list
 
       - name: Run compatibility check script
         run: |
-          hatch run dev:python scripts/inspect_aider_params.py
+          hatch run test:python scripts/inspect_aider_params.py
 
       - name: Display aider version
         run: |
-          hatch run dev:python -c "import aider; print('Testing with aider version: ' + aider.__version__)"
+          hatch run test:python -c "import aider; print('Testing with aider version: ' + aider.__version__)"
 
       - name: Run compatibility tests
         run: |
-          hatch run dev:test tests/compatibility/ -v
+          hatch run test:test tests/compatibility/ -v
 
       - name: Run integration tests
         run: |
-          hatch run dev:test tests/ -v -m integration
+          hatch run test:test tests/ -v -m integration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
