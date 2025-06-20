@@ -63,6 +63,11 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     env:
       HATCH_ENV_ROOT: .hatch
+      # Provide mock API keys to allow integration tests to run without real secrets
+      OPENAI_API_KEY: "sk-mock-openai-key"
+      ANTHROPIC_API_KEY: "sk-mock-anthropic-key"
+      GOOGLE_API_KEY: "mock-google-key"
+      GEMINI_API_KEY: "mock-gemini-key"
 
     steps:
       - name: Checkout repository
@@ -140,7 +145,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          hatch run test:test -vv -m "not integration" --durations=10 --cov=src --cov-report=xml
+          hatch run test:test -vv --durations=10 --cov=src --cov-report=xml
 
       - name: Upload coverage report
         if: success() && matrix.os == 'ubuntu-latest'
