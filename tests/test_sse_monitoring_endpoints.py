@@ -300,11 +300,19 @@ class TestSSEEndpointIntegration:
     """Integration tests for SSE endpoint behavior."""
 
     # Re-enabled after fixing method name issues
-    @pytest.mark.skip(reason="Test hangs indefinitely, needs investigation")
     @pytest.mark.asyncio
+    @patch("aider_mcp_server.pages.application.app._generate_sse_events")
     @patch("sse_starlette.sse.EventSourceResponse")  # Patch the EventSourceResponse class
-    async def test_sse_endpoint_headers(self, MockEventSourceResponse, test_app):
+    async def test_sse_endpoint_headers(self, MockEventSourceResponse, mock_generate_sse_events, test_app):
         """Test that SSE endpoints return correct headers without full streaming."""
+
+        # Mock the generator to prevent it from running, which resolves an asyncio
+        # event loop binding issue. The test is for headers, not the event stream content.
+        async def dummy_generator(*args, **kwargs):
+            if False:
+                yield
+
+        mock_generate_sse_events.return_value = dummy_generator()
 
         # Define a mock instance that simulates the ASGI response interface
         class MockEventSourceResponseInstance:
