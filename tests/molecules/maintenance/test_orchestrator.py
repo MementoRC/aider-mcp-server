@@ -6,7 +6,7 @@ covering configuration loading, health assessment, maintenance plan generation,
 and task execution workflows.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import yaml
@@ -274,7 +274,7 @@ class TestMaintenanceOrchestrator:
         low_datetime = datetime.fromisoformat(low_date.replace("Z", "+00:00"))
 
         # High priority should be scheduled immediately (within 1 hour)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         assert abs((high_datetime - now).total_seconds()) < 3600
 
         # Medium priority should be scheduled later than high priority
@@ -332,7 +332,7 @@ class TestMaintenanceOrchestrator:
 
         # Verify next scheduled check is in the future
         next_check = datetime.fromisoformat(status["next_scheduled_check"].replace("Z", "+00:00"))
-        assert next_check > datetime.utcnow()
+        assert next_check > datetime.now(timezone.utc)
 
     def test_task_prioritization(self):
         """Test task prioritization logic."""
@@ -423,7 +423,7 @@ class TestMaintenanceOrchestrator:
         # Mock performance results with regressions
         with patch.object(orchestrator, "check_performance") as mock_perf:
             mock_perf.return_value = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "overall_performance_score": 75.0,
                 "benchmarks": {},
                 "regressions": [{"operation": "api_processing", "regression_pct": 0.25}],

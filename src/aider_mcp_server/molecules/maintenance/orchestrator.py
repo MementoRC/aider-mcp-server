@@ -6,7 +6,7 @@ all maintenance activities based on health assessments, integrating health scori
 security scanning, performance monitoring, and automated maintenance execution.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -129,7 +129,7 @@ class MaintenanceOrchestrator:
         # Simulate health assessment (in real implementation, this would integrate
         # with actual health monitoring systems)
         assessment = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_score": 87,  # Example score
             "component_scores": {
                 "security": 95,
@@ -164,7 +164,7 @@ class MaintenanceOrchestrator:
             },
         }
 
-        self._last_assessment_time = datetime.utcnow().timestamp()
+        self._last_assessment_time = datetime.now(timezone.utc).timestamp()
         return assessment
 
     def check_performance(self) -> Dict[str, Any]:
@@ -178,7 +178,7 @@ class MaintenanceOrchestrator:
 
         # Simulate performance check results
         performance_results = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_performance_score": 85.2,
             "benchmarks": {
                 "api_request_processing": {"mean_time": 0.045, "p95_time": 0.089, "throughput": 125.3},
@@ -217,7 +217,7 @@ class MaintenanceOrchestrator:
             "needs_maintenance": needs_maintenance,
             "overall_health_score": health["overall_score"],
             "threshold": threshold,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "assessment_summary": {
                 "health_state": health["health_state"],
                 "trend_direction": health["trend_direction"],
@@ -252,7 +252,7 @@ class MaintenanceOrchestrator:
                 "priority": "high" if reg.get("regression_pct", 0) > 0.5 else "medium",
                 "component": "performance",
                 "automation": "manual",
-                "scheduled_for": datetime.utcnow().isoformat(),
+                "scheduled_for": datetime.now(timezone.utc).isoformat(),
                 "source": "performance_monitoring",
                 "estimated_effort": "2-4 hours",
             }
@@ -284,8 +284,8 @@ class MaintenanceOrchestrator:
         self._logger.info(f"Executing maintenance plan with {len(plan.get('tasks', []))} tasks")
 
         results: Dict[str, Any] = {
-            "execution_id": f"exec_{int(datetime.utcnow().timestamp())}",
-            "executed_at": datetime.utcnow().isoformat(),
+            "execution_id": f"exec_{int(datetime.now(timezone.utc).timestamp())}",
+            "executed_at": datetime.now(timezone.utc).isoformat(),
             "plan_id": plan.get("generated_at"),
             "tasks_executed": 0,
             "tasks_pending": 0,
@@ -310,7 +310,9 @@ class MaintenanceOrchestrator:
                     results["tasks_failed"] += 1
 
         # Update maintenance history
-        self._maintenance_history.append({"plan": plan, "results": results, "timestamp": datetime.utcnow().timestamp()})
+        self._maintenance_history.append(
+            {"plan": plan, "results": results, "timestamp": datetime.now(timezone.utc).timestamp()}
+        )
 
         # Clean up completed tasks from active tasks
         self._update_active_tasks(results)
@@ -376,7 +378,7 @@ class MaintenanceOrchestrator:
     def _get_scheduled_date(self, recommendation: Dict[str, Any]) -> str:
         """Determine the scheduled date for a maintenance task."""
         priority = recommendation.get("priority", "medium")
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Schedule based on priority
         if priority == "high":
@@ -415,7 +417,7 @@ class MaintenanceOrchestrator:
         scheduled_tasks = []
 
         # Example: Add weekly dependency check task
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         next_week = now + timedelta(days=7)
 
         scheduled_tasks.append(
@@ -483,7 +485,7 @@ class MaintenanceOrchestrator:
             return {
                 "task_id": task_id,
                 "status": "completed",
-                "executed_at": datetime.utcnow().isoformat(),
+                "executed_at": datetime.now(timezone.utc).isoformat(),
                 "method": "automated",
                 "result": "Task completed automatically",
                 "details": {"automation_level": automation, "execution_time": "2-5 minutes"},
@@ -493,7 +495,7 @@ class MaintenanceOrchestrator:
             return {
                 "task_id": task_id,
                 "status": "pending",
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "method": "issue_created" if automation == "manual" else "pr_created",
                 "result": f"GitHub {'issue' if automation == 'manual' else 'PR'} created for manual review",
                 "details": {"automation_level": automation, "requires_human_review": True},
@@ -519,7 +521,7 @@ class MaintenanceOrchestrator:
     def _get_next_scheduled_check(self) -> str:
         """Get the next scheduled health check time."""
         frequency = self.get_maintenance_schedule().get("health_check_frequency", "daily")
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if frequency == "daily":
             next_check = now + timedelta(days=1)
