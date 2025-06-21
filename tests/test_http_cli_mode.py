@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import List, Tuple
 from unittest import mock
 
 import pytest
@@ -40,24 +40,9 @@ def run_main_http(
     mock_is_git_repo = mock.MagicMock(return_value=(True, None))  # Default to True, no error
     mock_exit = mock.MagicMock(side_effect=SystemExit)
 
-    # Mock asyncio.run to execute the coroutine or check calls
-    mock_asyncio_run = mock.MagicMock()
-
-    def simplified_run_wrapper(coro_to_run: Any, *args_run: Any, **kwargs_run: Any) -> Any:
-        """
-        Simplified mock for asyncio.run.
-        If mock_serve_http (the factory for coro_to_run) has an Exception side_effect,
-        this wrapper will raise it. Otherwise, simulates successful completion.
-        """
-        if mock_serve_http.side_effect:  # Check the factory mock (mock_serve_http)
-            if isinstance(mock_serve_http.side_effect, Exception):
-                raise mock_serve_http.side_effect
-        # If no exception side_effect on the factory, or if coro_to_run is not from mock_serve_http,
-        # this simplified mock doesn't deeply inspect/run other coroutines.
-        # It assumes the test is focused on mock_serve_http's call or its immediate error.
-        return None  # Simulate successful run if no exception side_effect from mock_serve_http
-
-    mock_asyncio_run.side_effect = simplified_run_wrapper
+    # Mock asyncio.run to execute the coroutine. This is critical to avoid
+    # "coroutine was never awaited" RuntimeWarning.
+    mock_asyncio_run = mock.MagicMock(side_effect=asyncio.run)
 
     # Patch the functions and classes used within cli_module.main's scope
     monkeypatch.setattr(cli_module, "serve_http", mock_serve_http)
@@ -96,13 +81,13 @@ def run_main_http(
         pass  # Capture SystemExit raised by mock_exit or argparse error
     except Exception as e:
         # If mock_serve_http was supposed to raise an error (via its side_effect),
-        # and simplified_run_wrapper raised it, and it's the expected one:
+        # and asyncio.run propagated it, we check if it's the expected one.
         if (
             mock_serve_http.side_effect
             and isinstance(mock_serve_http.side_effect, Exception)
             and e is mock_serve_http.side_effect
         ):
-            pass  # Expected exception, propagated by simplified_run_wrapper
+            pass  # Expected exception, propagated by asyncio.run
         else:
             # print(f"run_main_http caught unexpected error: {e}") # For debugging
             raise  # Re-raise unexpected exceptions
@@ -299,7 +284,7 @@ def test_http_mode_working_dir_not_git_repo(monkeypatch: pytest.MonkeyPatch, tmp
     mock_path_is_dir_local = mock.MagicMock(return_value=True)
     mock_is_git_repo_local = mock.MagicMock(return_value=(False, git_error_msg))  # Specific mock for this test
     mock_exit_local = mock.MagicMock(side_effect=SystemExit)
-    mock_asyncio_run_local = mock.MagicMock()
+    mock_asyncio_run_local = mock.MagicMock(side_effect=asyncio.run)
 
     monkeypatch.setattr(cli_module, "serve_http", mock_serve_http_local)
     monkeypatch.setattr(cli_module, "get_logger", mock_get_logger_local)
@@ -353,45 +338,6 @@ def test_http_mode_port_conflict(monkeypatch: pytest.MonkeyPatch):
 
     args = ["--server-mode", "http", "--http-port", str(conflict_port), "--current-working-dir", "."]
 
-    # We need serve_http to raise a ValueError that _run_server_by_mode catches
-    # The run_main_http helper sets up mock_serve_http. We configure its side_effect.
-    (mock_serve_http, _, mock_logger_instance, _, _, mock_exit, mock_asyncio_run, _, _) = run_main_http(
-        monkeypatch, args
-    )
-
-    # Configure the mock_serve_http (which is cli_module.serve_http) to raise the error
-    # This needs to be done *before* asyncio.run(mock_serve_http(...)) is effectively called by cli_module.main()
-    # The helper calls cli_module.main(), which calls asyncio.run(serve_http(...))
-    # So, the side_effect must be on the mock_serve_http *instance* that asyncio.run will call.
-
-    # Re-do this part more carefully:
-    # The mock_asyncio_run in run_main_http needs to correctly propagate the side_effect of mock_serve_http.
-    # Let's assume run_main_http's mock_asyncio_run is set up to do this.
-    # We set the side_effect on the mock_serve_http *before* run_main_http calls cli_module.main().
-    # This is tricky because run_main_http creates the mock.
-    # A better way: the test itself should set the side_effect on the mock *returned* by run_main_http,
-    # but this is too late.
-    # So, we must rely on run_main_http's asyncio.run mock to correctly handle the side_effect
-    # of the `serve_http` coroutine it's given.
-
-    # Let's refine run_main_http's asyncio.run mock or test this by directly patching serve_http
-    # to raise the error.
-    # The current run_main_http patches cli_module.serve_http = mock_serve_http.
-    # So, when cli_module.main calls asyncio.run(serve_http(...)), it's asyncio.run(mock_serve_http(...)).
-    # We need mock_serve_http (when called) to raise the error.
-    # This is typically done by setting mock_serve_http.side_effect.
-
-    # The run_main_http function already sets up mock_serve_http as an AsyncMock.
-    # We need to make this mock_serve_http raise an error when it's awaited.
-    # This is done by setting its side_effect.
-
-    # Let's try again, ensuring the side_effect is set on the correct mock at the correct time.
-    # The helper `run_main_http` creates `mock_serve_http` and patches `cli_module.serve_http` with it.
-    # Then it calls `cli_module.main()`. Inside `main`, `asyncio.run(serve_http(...))` is called.
-    # This `serve_http` is our `mock_serve_http`.
-    # So, we need to set `mock_serve_http.side_effect` *before* `cli_module.main()` is called.
-    # This means the helper needs to allow this, or we do it manually.
-
     # Manual setup for this specific test:
     mock_serve_http_local = mock.AsyncMock(side_effect=ValueError(error_message))  # Raise error when awaited
     mock_logger_instance_local = mock.MagicMock(spec=Logger)
@@ -400,15 +346,8 @@ def test_http_mode_port_conflict(monkeypatch: pytest.MonkeyPatch):
     mock_is_git_repo_local = mock.MagicMock(return_value=(True, None))
     mock_exit_local = mock.MagicMock(side_effect=SystemExit)
 
-    # Simplified asyncio.run mock logic for this test:
-    # It needs to raise the ValueError set as side_effect on mock_serve_http_local
-    def simplified_run_wrapper_for_conflict(coro_to_run: Any, *args_run: Any, **kwargs_run: Any) -> Any:
-        if mock_serve_http_local.side_effect:  # This is ValueError(error_message)
-            if isinstance(mock_serve_http_local.side_effect, Exception):
-                raise mock_serve_http_local.side_effect
-        return None
-
-    mock_asyncio_run_local = mock.MagicMock(side_effect=simplified_run_wrapper_for_conflict)
+    # Mock asyncio.run to actually run the coroutine, which will raise the side_effect.
+    mock_asyncio_run_local = mock.MagicMock(side_effect=asyncio.run)
 
     monkeypatch.setattr(cli_module, "serve_http", mock_serve_http_local)  # Patched to our mock with side_effect
     monkeypatch.setattr(cli_module, "get_logger", mock_get_logger_local)

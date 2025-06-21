@@ -147,6 +147,10 @@ class TestInitializationSequence(unittest.IsolatedAsyncioTestCase):
             await self.init_seq.initialize(timeout=0.1)
 
         # initialize() is called to produce the coroutine passed to wait_for.
+        # We must close the un-awaited coroutine to avoid a RuntimeWarning.
+        coro = self.mock_wait_for.call_args[0][0]
+        coro.close()
+
         self.mock_coordinator_instance.initialize.assert_called_once()
         # We check that wait_for was called with the correct timeout.
         self.mock_wait_for.assert_called_once()

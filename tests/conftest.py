@@ -6,8 +6,12 @@ import subprocess
 import sys
 import tempfile
 from typing import Generator
+from unittest.mock import AsyncMock
 
 import pytest
+import pytest_asyncio
+
+from aider_mcp_server.molecules.monitoring.health_monitor import HealthMonitor
 
 # Add the src directory to the path for importing modules during tests
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
@@ -170,3 +174,13 @@ def server_process():
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+
+
+@pytest_asyncio.fixture
+async def health_monitor():
+    """Fixture for HealthMonitor to ensure proper startup and shutdown."""
+    mock_coordinator = AsyncMock()
+    monitor = HealthMonitor(coordinator=mock_coordinator)
+    await monitor.start_monitoring()
+    yield monitor
+    await monitor.stop_monitoring()
