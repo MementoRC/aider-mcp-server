@@ -99,11 +99,6 @@ class TestMonitoringControl:
 
 
 class TestFileSizeTracking:
-    # Skipping this test on Windows due to potential flakiness with file system events/timing
-    @pytest.mark.skipif(
-        sys.platform == "win32" or os.getenv("CI"),
-        reason="Timing-sensitive test is flaky on Windows and in CI environments",
-    )
     def test_detect_size_change(self, monitor, test_file):
         monitor.start_monitoring([test_file])
 
@@ -122,10 +117,6 @@ class TestFileSizeTracking:
 
         monitor.stop_monitoring()
 
-    @pytest.mark.skipif(
-        sys.platform == "win32" or os.getenv("CI"),
-        reason="Timing-sensitive test is flaky on Windows and in CI environments",
-    )
     def test_detect_file_truncation(self, monitor, test_file):
         monitor.start_monitoring([test_file])
 
@@ -289,11 +280,6 @@ class TestErrorHandling:
 
 
 class TestPerformance:
-    # Skipping this test on Windows due to potential flakiness with file system timing
-    @pytest.mark.skipif(
-        sys.platform == "win32" or os.getenv("CI"),
-        reason="Timing-sensitive test is flaky on Windows and in CI environments",
-    )
     def test_minimal_overhead(self, monitor, test_file):
         # Measure baseline file operation time
         start_time = time.time()
