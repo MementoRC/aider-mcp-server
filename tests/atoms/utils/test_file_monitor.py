@@ -194,6 +194,12 @@ class TestWritePatternAnalysis:
         abs_path = os.path.join(monitor.repo_path, test_file)
         stats = os.stat(abs_path)
 
+        # Explicitly initialize last_write_time to a float. This is crucial for
+        # preventing a TypeError in the test loop, where metrics.last_write_time
+        # might otherwise be a MagicMock on the first access, failing the
+        # arithmetic comparison.
+        metrics.last_write_time = 0.0
+
         # Simulate multiple rapid writes by directly calling the processing method
         # This bypasses the actual file system timing and forces the condition
         try:
