@@ -293,26 +293,36 @@ class TestPerformance:
     @pytest.mark.skipif(sys.platform == "win32", reason="Performance tests are flaky on Windows CI")
     def test_minimal_overhead(self, monitor, test_file):
         # Measure baseline file operation time
-        start_time = time.time()
+        # Use perf_counter for higher precision and add fsync for realistic I/O
+        abs_path = os.path.join(monitor.repo_path, test_file)
+        start_time = time.perf_counter()
         for _ in range(10):
-            abs_path = os.path.join(monitor.repo_path, test_file)
             with open(abs_path, "w", encoding="utf-8") as f:
                 f.write("def test():\n    return True\n")
-        baseline_time = time.time() - start_time
+                f.flush()
+                os.fsync(f.fileno())
+        baseline_time = time.perf_counter() - start_time
 
         # Measure time with monitoring
         monitor.start_monitoring([test_file])
-        start_time = time.time()
+        start_time = time.perf_counter()
         for _ in range(10):
             with open(abs_path, "w", encoding="utf-8") as f:
                 f.write("def test():\n    return True\n")
-        monitored_time = time.time() - start_time
-
-        # Overhead should be reasonable
-        # Increased tolerance significantly for CI/slower environments
-        assert monitored_time < baseline_time * 10.0
-
+                f.flush()
+                os.fsync(f.fileno())
+        monitored_time = time.perf_counter() - start_time
         monitor.stop_monitoring()
+
+        # Overhead should be reasonable. If baseline_time is very small,
+        # we assert a small absolute time for monitored overhead.
+        if baseline_time == 0.0:
+            # If baseline is zero, monitored time should be very small.
+            # This avoids division by zero or multiplying by zero.
+            assert monitored_time < 0.5, "Monitored time should be small even if baseline is zero"
+        else:
+            # Increased tolerance significantly for CI/slower environments
+            assert monitored_time < baseline_time * 10.0
 
     def test_thread_safety(self, monitor, test_file):
         monitor.start_monitoring([test_file])

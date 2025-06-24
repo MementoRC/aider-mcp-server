@@ -193,10 +193,11 @@ def test_http_mode_custom_editor_model(monkeypatch: pytest.MonkeyPatch):
     mock_exit.assert_not_called()
 
 
-def test_http_mode_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
+def test_http_mode_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Test HTTP mode when specified working directory does not exist."""
-    non_existent_dir = "/path/to/absolutely/non_existent_dir"
-    args = ["--server-mode", "http", "--current-working-dir", non_existent_dir]
+    non_existent_dir = tmp_path / "non_existent_dir"
+    non_existent_dir_str = str(non_existent_dir)
+    args = ["--server-mode", "http", "--current-working-dir", non_existent_dir_str]
 
     # Configure mocks for this specific scenario
     mock_serve_http = mock.AsyncMock()
@@ -206,7 +207,7 @@ def test_http_mode_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
 
     # Path.resolve(strict=True) will raise FileNotFoundError
     def specific_resolve(self: Path, strict: bool = False) -> Path:
-        if str(self) == non_existent_dir and strict:
+        if str(self) == non_existent_dir_str and strict:
             raise FileNotFoundError(f"Mock FileNotFoundError for {self}")
         # Fallback for other paths if any (though not expected in this test flow)
         return Path(os.path.abspath(str(self)))
@@ -223,10 +224,10 @@ def test_http_mode_working_dir_not_exists(monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(SystemExit):
         cli_module.main()
 
-    mock_path_resolve_method.assert_called_with(Path(non_existent_dir), strict=True)
+    mock_path_resolve_method.assert_called_with(Path(non_existent_dir_str), strict=True)
     mock_logger_instance.critical.assert_called_once()
     assert (
-        f"Error: Specified working directory does not exist: {non_existent_dir}"
+        f"Error: Specified working directory does not exist: {non_existent_dir_str}"
         in mock_logger_instance.critical.call_args[0][0]
     )
     mock_exit.assert_called_once_with(1)
