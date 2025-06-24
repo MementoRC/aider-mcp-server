@@ -150,6 +150,9 @@ ai_docs/
 prompts/responses
 focus_output/
 
+# Claude Code Knowledge Framework - DO NOT DELETE
+claude-code-knowledge-framework/
+
 # -----------------------------------------------------------------------------
 # Project Management and Session Files
 # -----------------------------------------------------------------------------
