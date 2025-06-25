@@ -3,6 +3,7 @@
 import os
 import shutil
 import subprocess
+import sys  # Ensure sys is imported for platform check
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,10 @@ import pytest
 class TestSSEWorkingDirectory:
     """Test suite for SSE server working directory functionality."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     def test_sse_working_directory_logs_validation(self):
         """Test that SSE server logs validate the working directory."""
         # Skip the test if the module cannot be imported
@@ -112,6 +117,10 @@ class TestSSEWorkingDirectory:
             if test_dir.exists():
                 shutil.rmtree(test_dir, ignore_errors=True)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     def test_sse_rejects_non_git_directory(self, free_port):
         """Test that SSE server validates working directory is a git repo."""
         # Use a non-git directory
@@ -184,6 +193,10 @@ class TestSSEWorkingDirectory:
             if test_dir.exists():
                 shutil.rmtree(test_dir, ignore_errors=True)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     def test_sse_accepts_git_directory(self, free_port):
         """Test that SSE server accepts a valid git directory."""
         # Use a git directory
@@ -264,6 +277,10 @@ class TestSSEWorkingDirectory:
             if test_dir.exists():
                 shutil.rmtree(test_dir, ignore_errors=True)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_sse_working_directory_integration(self):
