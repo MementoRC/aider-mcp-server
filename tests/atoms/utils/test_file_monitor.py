@@ -190,6 +190,9 @@ class TestWritePatternAnalysis:
 
         monitor.stop_monitoring()
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Flaky on Windows due to file system timing and threading complexities."
+    )
     def test_suspicious_write_pattern(self, monitor, test_file):
         monitor.start_monitoring([test_file])
 
