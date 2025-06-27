@@ -63,54 +63,53 @@ def _create_shutdown_task_wrapper(
     sig: int,
     async_handler: Callable[..., Coroutine[Any, Any, None]],
     event: Optional[asyncio.Event] = None,
-) -> Callable[[], None]:
+) -> Callable[..., None]:
     """
     Create a synchronous wrapper for an async signal handler.
 
     Args:
-        sig: Signal number
-        async_handler: Async function to call
-        event: Event to pass to the handler
+        sig: Signal number (the one this wrapper is created for)
+        async_handler: Async function to call (e.g., handle_shutdown_signal or _test_handle_shutdown_signal)
+        event: Event to pass to the async handler (e.g., shutdown_event). If None, it's likely for test mode.
 
     Returns:
-        Synchronous function that can be registered as a signal handler
+        Synchronous function that can be registered as a signal handler.
+        This function will accept optional signum and frame arguments, as provided by signal.signal.
+        loop.add_signal_handler calls it without arguments.
     """
 
-    def sync_wrapper() -> None:
-        # For event loop signal handlers, we don't get signum and frame
-        # so we use the sig value passed in during wrapper creation
-        signum = sig
-        frame = None
-        logger.debug(f"Sync wrapper called for signal {sig}. Scheduling async handler.")
+    def sync_wrapper(signum_from_os: Optional[int] = None, frame_from_os: Optional[FrameType] = None) -> None:
+        # Determine the actual signal number and frame to pass to the async handler.
+        # For signal.signal (Windows), signum_from_os and frame_from_os will be provided.
+        # For loop.add_signal_handler (Unix), these will be None, so we use the 'sig' from closure.
+        actual_signum = signum_from_os if signum_from_os is not None else sig
+        actual_frame = frame_from_os  # Pass whatever frame was given, could be None
 
-        if event is not None:
-            try:
-                loop = asyncio.get_running_loop()
-                if loop.is_running() and not loop.is_closed():
-                    logger.debug(f"Scheduling async handler for signal {sig} with event.")
-                    loop.create_task(async_handler(sig, event, signum, frame))
-                else:
-                    logger.warning(
-                        f"Event loop not running or closed when handling signal {sig}. Cannot schedule async handler."
+        logger.debug(f"Sync wrapper called for signal {actual_signum}. Scheduling async handler.")
+
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running() and not loop.is_closed():
+                logger.debug(f"Scheduling async handler for signal {actual_signum} with event.")
+                if event is not None:
+                    # For main server shutdown, pass event
+                    loop.call_soon_threadsafe(
+                        lambda: loop.create_task(async_handler(sig, event, actual_signum, actual_frame))
                     )
-            except RuntimeError as e:
-                logger.error(f"Error getting running loop for signal {sig}: {e}")
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error scheduling async handler for signal {sig} with event: {e}",
-                    exc_info=True,
+                else:
+                    # For test mode, no event is passed to async_handler
+                    loop.call_soon_threadsafe(lambda: loop.create_task(async_handler(sig, actual_signum, actual_frame)))
+            else:
+                logger.warning(
+                    f"Event loop not running or closed when handling signal {actual_signum}. Cannot schedule async handler."
                 )
-        else:
-            logger.debug(f"Scheduling async handler for signal {sig} without event (test mode?).")
-            try:
-                asyncio.create_task(async_handler(sig, signum, frame))
-            except RuntimeError as e:
-                logger.error(f"Error calling asyncio.create_task directly for signal {sig} in test mode: {e}")
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error scheduling async handler for signal {sig} without event: {e}",
-                    exc_info=True,
-                )
+        except RuntimeError as e:
+            logger.error(f"Error getting running loop for signal {actual_signum}: {e}")
+        except Exception as e:
+            logger.error(
+                f"Unexpected error scheduling async handler for signal {actual_signum} with event: {e}",
+                exc_info=True,
+            )
 
     return sync_wrapper
 
