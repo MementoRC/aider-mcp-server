@@ -1,4 +1,5 @@
 import asyncio
+import os  # Added for OS detection
 import signal
 from pathlib import Path
 from types import FrameType
@@ -159,20 +160,24 @@ async def _setup_sse_adapter(
 
 def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown_event: asyncio.Event) -> None:
     """Setup signal handlers for graceful shutdown."""
-
-    async def handle_shutdown() -> None:
-        """Handle graceful shutdown by setting the event."""
-        logger.info("Graceful shutdown initiated by signal.")
-        if not shutdown_event.is_set():
-            shutdown_event.set()
-
     for sig_val in (signal.SIGTERM, signal.SIGINT):
+        # Create a synchronous wrapper for the async handler
+        # This wrapper will be called by the OS/event loop when the signal is received.
+        # It then schedules the actual async shutdown logic on the event loop.
+        sync_handler = _create_shutdown_task_wrapper(sig_val, handle_shutdown_signal, shutdown_event)
 
-        def create_handler(s: int = sig_val) -> None:
-            logger.debug(f"Signal handler for {signal.Signals(s).name} creating task for handle_shutdown.")
-            asyncio.create_task(handle_shutdown())
-
-        loop.add_signal_handler(sig_val, create_handler)
+        if os.name == "nt":  # Windows
+            try:
+                signal.signal(sig_val, sync_handler)
+                logger.debug(f"Registered Windows signal handler for {signal.Signals(sig_val).name}.")
+            except ValueError as e:
+                logger.warning(f"Could not register signal handler for {signal.Signals(sig_val).name} on Windows: {e}")
+        else:  # Unix-like systems
+            try:
+                loop.add_signal_handler(sig_val, sync_handler)
+                logger.debug(f"Registered Unix signal handler for {signal.Signals(sig_val).name}.")
+            except RuntimeError as e:
+                logger.warning(f"Could not register signal handler for {signal.Signals(sig_val).name} on Unix: {e}")
 
 
 async def _wait_for_shutdown(sse_adapter: SSETransportAdapter, shutdown_event: asyncio.Event) -> None:
