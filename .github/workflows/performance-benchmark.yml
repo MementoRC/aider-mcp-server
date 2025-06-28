@@ -1,0 +1,129 @@
+name: Performance Benchmarking
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+  workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: 'Run benchmarks and establish a new performance baseline'
+        required: false
+        type: boolean
+        default: false
+      iterations:
+        description: 'Number of iterations for each benchmark (default: 50)'
+        required: false
+        type: number
+        default: 50
+
+concurrency:
+  group: performance-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-performance-benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write # Needed for issue creation later, or if script needs to write to GITHUB_OUTPUT
+      actions: write # Needed for cache actions
+
+    outputs:
+      regressions_detected: ${{ steps.run-benchmark-script.outputs.regressions_detected }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install hatch pyyaml requests
+          # Install project dependencies for running benchmarks
+          hatch env create dev || true
+          # Ensure aider_mcp_server is available in the path for the script
+          # This is handled by sys.path.insert in the script itself, but good to ensure env is ready.
+
+      - name: Create data and reports directories
+        run: |
+          mkdir -p data
+          mkdir -p reports
+
+      - name: Restore performance baseline from cache
+        id: restore-baseline-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/performance_baseline.json
+          key: performance-baseline-${{ github.ref_name }}
+          restore-keys: |
+            performance-baseline-
+
+      - name: Run performance benchmarks
+        id: run-benchmark-script
+        run: |
+          chmod +x scripts/run_performance_benchmark.py
+          python scripts/run_performance_benchmark.py \
+            ${{ github.event.inputs.update_baseline == true && '--establish-baseline' || '' }} \
+            --output-file reports/performance_results.json \
+            --baseline-path data/performance_baseline.json \
+            --iterations ${{ github.event.inputs.iterations }}
+        env:
+          # Pass GITHUB_OUTPUT for the script to write to
+          GITHUB_OUTPUT: ${{ github.output }}
+
+      - name: Save performance baseline to cache
+        if: success() # Only save if the benchmark run was successful
+        uses: actions/cache/save@v4
+        with:
+          path: data/performance_baseline.json
+          key: performance-baseline-${{ github.ref_name }}
+
+      - name: Upload performance results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results-${{ github.run_number }}
+          path: reports/performance_results.json
+          retention-days: 90
+
+  create-regression-issues:
+    needs: run-performance-benchmarks
+    if: needs.run-performance-benchmarks.outputs.regressions_detected == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies for issue creation
+        run: |
+          pip install pyyaml requests
+
+      - name: Download performance results artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-results-${{ github.run_number }}
+          path: reports/
+
+      - name: Create performance regression issues
+        run: |
+          chmod +x scripts/create_performance_issues.py
+          python scripts/create_performance_issues.py \
+            --report reports/performance_results.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
