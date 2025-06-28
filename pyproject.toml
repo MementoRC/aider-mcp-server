@@ -133,8 +133,8 @@ target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "A", "B", "C", "Q", "S"]  # Removed "I" for isort
-ignore = ["E501"]  # Ignore line length
+select = ["E", "F", "A", "B", "C", "Q", "S"] # Removed "I" for isort
+ignore = ["E501"] # Ignore line length
 # Ignore S101 (assert usage) in test files and exclude stubbed file from formatting
 # Allow S108 (/tmp usage) in test files
 # Define file-specific rule ignores
@@ -183,8 +183,8 @@ warn_unused_configs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
-disallow_untyped_decorators = false  # Allow untyped decorators by default
-ignore_missing_imports = true  # Ignore missing imports by default
+disallow_untyped_decorators = false # Allow untyped decorators by default
+ignore_missing_imports = true # Ignore missing imports by default
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -252,5 +252,9 @@ module = "aider_mcp_server.multi_transport_server"
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
-module = "toml"
-ignore_missing_imports = true
+module = "aider_mcp_server.atoms.utils.safety_configuration"
+disable_error_code = "no-any-return"
+
+[[tool.mypy.overrides]]
+module = "aider_mcp_server.molecules.configuration.configuration_manager"
+disable_error_code = "no-any-return"

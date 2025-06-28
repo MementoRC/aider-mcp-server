@@ -91,6 +91,7 @@ class PerformanceIssueCreator:
             )
             remote_url = result.stdout.strip()
             from urllib.parse import urlparse
+
             parsed_url = urlparse(remote_url)
             if parsed_url.hostname == "github.com":
                 # Parse GitHub URL (handles both SSH and HTTPS)
