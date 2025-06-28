@@ -250,3 +250,7 @@ disallow_untyped_decorators = false
 [[tool.mypy.overrides]]
 module = "aider_mcp_server.multi_transport_server"
 disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "toml"
+ignore_missing_imports = true
