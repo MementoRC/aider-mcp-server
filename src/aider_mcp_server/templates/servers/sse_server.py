@@ -94,12 +94,12 @@ def _create_shutdown_task_wrapper(
                 logger.debug(f"Scheduling async handler for signal {actual_signum} with event.")
                 if event is not None:
                     # For main server shutdown, pass event
-                    loop.call_soon_threadsafe(
-                        lambda: loop.create_task(async_handler(sig, event, actual_signum, actual_frame))
-                    )
+                    # On Windows, signals typically run in main thread, so use create_task directly
+                    # On Unix with loop.add_signal_handler, also runs in main thread
+                    loop.create_task(async_handler(sig, event, actual_signum, actual_frame))
                 else:
                     # For test mode, no event is passed to async_handler
-                    loop.call_soon_threadsafe(lambda: loop.create_task(async_handler(sig, actual_signum, actual_frame)))
+                    loop.create_task(async_handler(sig, actual_signum, actual_frame))
             else:
                 logger.warning(
                     f"Event loop not running or closed when handling signal {actual_signum}. Cannot schedule async handler."
