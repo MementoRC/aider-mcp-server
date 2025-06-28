@@ -45,6 +45,13 @@ async def test_parallel_server_starts(free_port, server_process):
     await asyncio.sleep(3)
 
     # Check if started
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+        print(f"\n--- Server Output for test_parallel_server_starts (Port: {free_port}) ---")
+        print(f"Server exited with code: {process.returncode}")
+        print(f"Server stdout:\n{stdout}")
+        print(f"Server stderr:\n{stderr}")
+        print("------------------------------------------------------------------")
     assert process.poll() is None, "Server should still be running"
 
     # Cleanup is handled by the fixture
@@ -87,6 +94,13 @@ async def test_another_parallel_server(free_port, server_process):
     await asyncio.sleep(3)
 
     # Check if started
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+        print(f"\n--- Server Output for test_another_parallel_server (Port: {free_port}) ---")
+        print(f"Server exited with code: {process.returncode}")
+        print(f"Server stdout:\n{stdout}")
+        print(f"Server stderr:\n{stderr}")
+        print("------------------------------------------------------------------")
     assert process.poll() is None, "Server should still be running"
 
     # Cleanup is handled by the fixture
