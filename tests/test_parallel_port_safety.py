@@ -2,6 +2,7 @@
 
 import asyncio
 import subprocess
+import sys  # Added import for sys
 import tempfile
 from pathlib import Path
 
@@ -22,7 +23,7 @@ async def test_parallel_server_starts(free_port, server_process):
     # Start the SSE server
     process = server_process(
         [
-            "python",
+            sys.executable,  # Changed from "python" to sys.executable
             "-m",
             "aider_mcp_server",
             "--server-mode",
@@ -71,7 +72,7 @@ async def test_another_parallel_server(free_port, server_process):
     # Start the SSE server
     process = server_process(
         [
-            "python",
+            sys.executable,  # Changed from "python" to sys.executable
             "-m",
             "aider_mcp_server",
             "--server-mode",
