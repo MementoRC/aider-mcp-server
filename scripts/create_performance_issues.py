@@ -90,7 +90,9 @@ class PerformanceIssueCreator:
                 check=True,
             )
             remote_url = result.stdout.strip()
-            if "github.com" in remote_url:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(remote_url)
+            if parsed_url.hostname == "github.com":
                 # Parse GitHub URL (handles both SSH and HTTPS)
                 if remote_url.startswith("git@"):
                     # SSH format: git@github.com:owner/repo.git
