@@ -157,6 +157,7 @@ claude-code-knowledge-framework/
 # Project Management and Session Files
 # -----------------------------------------------------------------------------
 # TaskMaster AI
+.taskmaster/
 tasks/
 tasks.json
 .taskmasterconfig
