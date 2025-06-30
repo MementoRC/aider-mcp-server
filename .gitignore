@@ -150,10 +150,14 @@ ai_docs/
 prompts/responses
 focus_output/
 
+# Claude Code Knowledge Framework - DO NOT DELETE
+claude-code-knowledge-framework/
+
 # -----------------------------------------------------------------------------
 # Project Management and Session Files
 # -----------------------------------------------------------------------------
 # TaskMaster AI
+.taskmaster/
 tasks/
 tasks.json
 .taskmasterconfig
@@ -177,6 +181,11 @@ CLAUDE.local.md
 # Development tracking and documentation (kept locally)
 IMPLEMENTATION_TRACKING.md
 src/aider_mcp_server/SUMMARY_DI_CONTAINER.md
+
+# Planning and analysis documents (local development only)
+maintenance-prd.md
+ci-analysis-*.md
+systematic-maintenance-framework.md
 
 # Example and template files
 src/aider_mcp_server/*example*.py

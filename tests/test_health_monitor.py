@@ -257,15 +257,17 @@ class TestHealthStatusGeneration:
 class TestMetricsSummary:
     """Test metrics summary functionality."""
 
+    @patch("time.time")
     @pytest.mark.asyncio
-    async def test_get_metrics_summary(self, health_monitor):
+    async def test_get_metrics_summary(self, mock_time, health_monitor):
         """Test getting metrics summary for a time period."""
-        current_time = time.time()
+        mock_current_time = 1700000000.0
+        mock_time.return_value = mock_current_time
 
         # Add request history spanning 45 minutes
         for i in range(10):
             # Add requests at different times
-            timestamp = current_time - (45 * 60) + (i * 5 * 60)  # Every 5 minutes
+            timestamp = mock_current_time - (45 * 60) + (i * 5 * 60)  # Every 5 minutes
             duration = 2.0 + (i * 0.1)  # Varying durations
             success = i < 8  # 8 successful, 2 failed
 
@@ -274,19 +276,23 @@ class TestMetricsSummary:
 
         # Add throttling events
         for i in range(3):
-            health_monitor.throttling_events.append(current_time - (20 * 60) + (i * 5 * 60))
+            health_monitor.throttling_events.append(mock_current_time - (20 * 60) + (i * 5 * 60))
 
         # Get 30-minute summary
         summary = await health_monitor.get_metrics_summary(minutes_back=30)
 
         assert summary["time_period_minutes"] == 30
-        # Should only include requests from last 30 minutes (6 requests)
-        assert summary["total_requests"] == 6
-        assert summary["successful_requests"] == 4  # 2 failed in last 30 min
+        # Requests from last 30 minutes are included.
+        # Timestamps are generated from -45min to 0min in 5min steps.
+        # Cutoff is at -30min. Included: -30, -25, -20, -15, -10, -5, 0. That's 7 requests.
+        assert summary["total_requests"] == 7
+        # For i=3 to 9: success is i < 8. So i=3,4,5,6,7 are successes (5).
+        assert summary["successful_requests"] == 5
         assert summary["failed_requests"] == 2
-        assert summary["success_rate"] == 4 / 6
+        assert summary["success_rate"] == 5 / 7
+        # Throttling events are all within last 30 mins.
         assert summary["throttling_events"] == 3
-        assert summary["requests_per_minute"] == 6 / 30
+        assert summary["requests_per_minute"] == 7 / 30
 
 
 class TestBackgroundTasks:

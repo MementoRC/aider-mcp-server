@@ -1,6 +1,6 @@
 import dataclasses
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -63,7 +63,7 @@ class AuditLogger:
     def _write_log(self, event_type: str, data: Dict[str, Any]) -> None:
         """Writes a structured log entry to the audit log file."""
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_type": event_type,
             "data": self._sanitize_data(data),
         }

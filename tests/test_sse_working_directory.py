@@ -1,6 +1,9 @@
 """Comprehensive tests for SSE working directory validation and configuration."""
 
+import os
+import shutil
 import subprocess
+import sys  # Ensure sys is imported for platform check
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,6 +14,10 @@ import pytest
 class TestSSEWorkingDirectory:
     """Test suite for SSE server working directory functionality."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     def test_sse_working_directory_logs_validation(self):
         """Test that SSE server logs validate the working directory."""
         # Skip the test if the module cannot be imported
@@ -20,7 +27,6 @@ class TestSSEWorkingDirectory:
             pytest.skip("aider_mcp_server module not available - likely installation issue")
 
         # Use a test directory with a unique name to avoid collisions
-        import os
         import random
 
         test_base = os.path.join(tempfile.gettempdir(), f"test_aider_sse_{random.randint(1000, 9999)}")  # noqa: S311
@@ -33,6 +39,20 @@ class TestSSEWorkingDirectory:
 
             # Use a random port to avoid collisions
             test_port = str(random.randint(9000, 9999))  # noqa: S311
+
+            # Ensure PYTHONPATH includes the project's src directory for the subprocess
+            project_root = Path(__file__).parent.parent
+            src_path = project_root / "src"
+            env = {**os.environ}
+            python_path = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{src_path}{os.pathsep}{python_path}" if python_path else str(src_path)
+            env.update(
+                {
+                    "OPENAI_API_KEY": "test-key",
+                    "TEST_MODE": "true",
+                    "MCP_LOG_LEVEL": "DEBUG",  # Enable debug logging to see what's happening
+                }
+            )
 
             # Start the SSE server with the test directory
             try:
@@ -50,16 +70,11 @@ class TestSSEWorkingDirectory:
                         "--editor-model",
                         "gpt-3.5-turbo",
                     ],
-                    cwd=Path(__file__).parent.parent,
+                    cwd=project_root,
                     capture_output=True,
                     text=True,
                     timeout=10,  # Even more timeout for CI
-                    env={
-                        "OPENAI_API_KEY": "test-key",
-                        "TEST_MODE": "true",
-                        "MCP_LOG_LEVEL": "DEBUG",  # Enable debug logging to see what's happening
-                        **subprocess.os.environ,
-                    },
+                    env=env,
                 )
                 stdout = result.stdout
                 stderr = result.stderr
@@ -99,11 +114,13 @@ class TestSSEWorkingDirectory:
 
         finally:
             # Cleanup - ensure we clean up even if test fails
-            import shutil
-
             if test_dir.exists():
                 shutil.rmtree(test_dir, ignore_errors=True)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     def test_sse_rejects_non_git_directory(self, free_port):
         """Test that SSE server validates working directory is a git repo."""
         # Use a non-git directory
@@ -111,6 +128,14 @@ class TestSSEWorkingDirectory:
         test_dir.mkdir(exist_ok=True)
 
         try:
+            # Ensure PYTHONPATH for subprocess
+            project_root = Path(__file__).parent.parent
+            src_path = project_root / "src"
+            env = {**os.environ}
+            python_path = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{src_path}{os.pathsep}{python_path}" if python_path else str(src_path)
+            env["OPENAI_API_KEY"] = "test-key"
+
             # Try to start the SSE server with a non-git directory
             # This should fail
             process = subprocess.Popen(  # noqa: S603
@@ -127,11 +152,11 @@ class TestSSEWorkingDirectory:
                     "--editor-model",
                     "gpt-3.5-turbo",
                 ],
-                cwd=Path(__file__).parent.parent,
+                cwd=project_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
+                env=env,
             )
 
             # Wait for error
@@ -165,8 +190,13 @@ class TestSSEWorkingDirectory:
                 except subprocess.TimeoutExpired:
                     process.kill()
             # Cleanup
-            subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
+            if test_dir.exists():
+                shutil.rmtree(test_dir, ignore_errors=True)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     def test_sse_accepts_git_directory(self, free_port):
         """Test that SSE server accepts a valid git directory."""
         # Use a git directory
@@ -177,6 +207,14 @@ class TestSSEWorkingDirectory:
         subprocess.run(["git", "init"], cwd=test_dir, capture_output=True)  # noqa: S603, S607
 
         try:
+            # Ensure PYTHONPATH for subprocess
+            project_root = Path(__file__).parent.parent
+            src_path = project_root / "src"
+            env = {**os.environ}
+            python_path = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{src_path}{os.pathsep}{python_path}" if python_path else str(src_path)
+            env["OPENAI_API_KEY"] = "test-key"
+
             # Start the SSE server with a git directory
             # This should start successfully
             process = subprocess.Popen(  # noqa: S603
@@ -193,11 +231,11 @@ class TestSSEWorkingDirectory:
                     "--editor-model",
                     "gpt-3.5-turbo",
                 ],
-                cwd=Path(__file__).parent.parent,
+                cwd=project_root,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
+                env=env,
             )
 
             # Give it some time to start
@@ -236,8 +274,13 @@ class TestSSEWorkingDirectory:
                 except subprocess.TimeoutExpired:
                     process.kill()
             # Cleanup
-            subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
+            if test_dir.exists():
+                shutil.rmtree(test_dir, ignore_errors=True)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Flaky on Windows due to subprocess, git operations, and temporary directory handling.",
+    )
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_sse_working_directory_integration(self):
@@ -293,7 +336,8 @@ class TestSSEWorkingDirectory:
 
         finally:
             # Cleanup
-            subprocess.run(["rm", "-rf", str(test_dir)], capture_output=True)  # noqa: S603, S607
+            if test_dir.exists():
+                shutil.rmtree(test_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

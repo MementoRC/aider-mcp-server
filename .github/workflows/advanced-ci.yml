@@ -1,0 +1,117 @@
+name: Advanced CI
+
+on:
+  pull_request:
+    branches: [main, development]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HATCH_ENV_ROOT: .hatch
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache hatch environment
+        uses: actions/cache@v4
+        with:
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          restore-keys: |
+            hatch-${{ runner.os }}-
+        continue-on-error: true
+
+      - name: Install hatch and dependencies
+        run: |
+          pip install hatch
+          hatch env create dev
+
+      - name: Create reports directory
+        run: mkdir -p reports/quality
+
+      - name: Run complexity analysis with radon
+        run: |
+          echo "Running complexity analysis with radon..."
+          hatch run dev:radon mi src/ -j > reports/quality/radon-mi.txt
+          hatch run dev:radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
+          hatch run dev:radon cc src/ -a -s > reports/quality/radon-cc.txt || true
+
+      - name: Run dead code detection with vulture
+        run: |
+          echo "Running dead code detection with vulture..."
+          hatch run dev:vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
+
+      - name: Upload quality reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports-${{ github.run_number }}
+          path: reports/quality/
+          retention-days: 30
+
+  sbom-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HATCH_ENV_ROOT: .hatch
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache hatch environments
+        uses: actions/cache@v4
+        with:
+          path: .hatch
+          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          restore-keys: |
+            hatch-${{ runner.os }}-
+        continue-on-error: true
+
+      - name: Install hatch and dependencies
+        run: |
+          pip install hatch
+          hatch env create
+          hatch env create dev
+
+      - name: Create reports directory
+        run: mkdir -p reports/sbom
+
+      - name: Generate requirements.txt for SBOM
+        run: |
+          echo "Generating requirements.txt for SBOM tools..."
+          hatch run default:pip freeze > reports/sbom/requirements.txt
+
+      - name: Generate CycloneDX SBOM
+        continue-on-error: true
+        run: |
+          echo "Generating CycloneDX SBOM..."
+          hatch run dev:cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
+
+      - name: Generate SPDX SBOM
+        continue-on-error: true
+        run: |
+          echo "Generating SPDX SBOM..."
+          hatch run dev:spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
+
+      - name: Upload SBOM reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports-${{ github.run_number }}
+          path: reports/sbom/
+          retention-days: 30

@@ -2,6 +2,7 @@
 
 import asyncio
 import subprocess
+import sys  # Added import for sys
 import tempfile
 from pathlib import Path
 
@@ -22,7 +23,7 @@ async def test_parallel_server_starts(free_port, server_process):
     # Start the SSE server
     process = server_process(
         [
-            "python",
+            sys.executable,  # Changed from "python" to sys.executable
             "-m",
             "aider_mcp_server",
             "--server-mode",
@@ -41,10 +42,17 @@ async def test_parallel_server_starts(free_port, server_process):
         env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
     )
 
-    # Wait briefly
-    await asyncio.sleep(1)
+    # Wait briefly to allow server to start, especially on slower CI
+    await asyncio.sleep(3)
 
     # Check if started
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+        print(f"\n--- Server Output for test_parallel_server_starts (Port: {free_port}) ---")
+        print(f"Server exited with code: {process.returncode}")
+        print(f"Server stdout:\n{stdout}")
+        print(f"Server stderr:\n{stderr}")
+        print("------------------------------------------------------------------")
     assert process.poll() is None, "Server should still be running"
 
     # Cleanup is handled by the fixture
@@ -64,7 +72,7 @@ async def test_another_parallel_server(free_port, server_process):
     # Start the SSE server
     process = server_process(
         [
-            "python",
+            sys.executable,  # Changed from "python" to sys.executable
             "-m",
             "aider_mcp_server",
             "--server-mode",
@@ -83,10 +91,17 @@ async def test_another_parallel_server(free_port, server_process):
         env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
     )
 
-    # Wait briefly
-    await asyncio.sleep(1)
+    # Wait briefly to allow server to start, especially on slower CI
+    await asyncio.sleep(3)
 
     # Check if started
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+        print(f"\n--- Server Output for test_another_parallel_server (Port: {free_port}) ---")
+        print(f"Server exited with code: {process.returncode}")
+        print(f"Server stdout:\n{stdout}")
+        print(f"Server stderr:\n{stderr}")
+        print("------------------------------------------------------------------")
     assert process.poll() is None, "Server should still be running"
 
     # Cleanup is handled by the fixture

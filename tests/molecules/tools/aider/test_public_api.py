@@ -28,9 +28,12 @@ class TestAiderToolPublicAPI:
     """Test the main AiderTool facade class."""
 
     @pytest.fixture
-    def aider_tool(self):
-        """Create an AiderTool instance for testing."""
-        config = {"working_dir": "/tmp/test"}
+    def aider_tool(self, tmp_path):
+        """Create an AiderTool instance for testing with a temporary working directory."""
+        # Use a temporary directory for the working_dir to avoid path issues on different OS
+        working_dir = str(tmp_path / "aider_test_working_dir")
+        os.makedirs(working_dir, exist_ok=True)  # Ensure directory exists
+        config = {"working_dir": working_dir}
         return AiderTool(config)
 
     @pytest.fixture
@@ -56,9 +59,10 @@ class TestAiderToolPublicAPI:
 
             yield aider_tool
 
-    def test_initialization(self, aider_tool):
+    def test_initialization(self, aider_tool, tmp_path):
         """Test that AiderTool initializes correctly."""
-        assert aider_tool.config == {"working_dir": "/tmp/test"}
+        expected_working_dir = str(tmp_path / "aider_test_working_dir")
+        assert aider_tool.config["working_dir"] == expected_working_dir
         assert isinstance(aider_tool.api_validator, APIValidator)
         assert isinstance(aider_tool.cache_manager, CacheManager)
         assert isinstance(aider_tool.core_executor, CoreExecutor)
@@ -74,7 +78,8 @@ class TestAiderToolPublicAPI:
 
         assert mock_components._initialized
         mock_components.cache_manager.initialize_cache.assert_called_once()
-        mock_components.api_validator.load_env_files.assert_called_once_with("/tmp/test")
+        # Use the actual working_dir from the fixture's config
+        mock_components.api_validator.load_env_files.assert_called_once_with(mock_components.config["working_dir"])
 
     @pytest.mark.asyncio
     async def test_initialize_idempotent(self, mock_components):
@@ -115,7 +120,8 @@ class TestAiderToolPublicAPI:
             relative_editable_files=["file1.py"],
             relative_readonly_files=["readme.md"],
             model="gpt-4",
-            working_dir="/tmp/test",
+            # Use the actual working_dir from the fixture's config
+            working_dir=mock_components.config["working_dir"],
         )
 
         # Verify result
@@ -123,9 +129,10 @@ class TestAiderToolPublicAPI:
 
         # Verify component calls
         mock_components.session_coordinator.start_session.assert_called_once()
-        mock_components.api_validator.check_api_keys.assert_called_once_with("/tmp/test")
+        # Use the actual working_dir from the fixture's config
+        mock_components.api_validator.check_api_keys.assert_called_once_with(mock_components.config["working_dir"])
         mock_components.cache_manager.generate_cache_key.assert_called_once_with(
-            working_dir="/tmp/test", files=["file1.py"]
+            working_dir=mock_components.config["working_dir"], files=["file1.py"]
         )
         mock_components.core_executor.execute_with_retry.assert_called_once()
         mock_components.response_formatter.finalize_aider_response.assert_called_once()
@@ -142,7 +149,8 @@ class TestAiderToolPublicAPI:
         result = await mock_components.execute_command(
             ai_coding_prompt="Test prompt",
             relative_editable_files=["file1.py"],
-            working_dir="/tmp/test",
+            # Use the actual working_dir from the fixture's config
+            working_dir=mock_components.config["working_dir"],
         )
 
         # Verify error handling
@@ -171,7 +179,8 @@ class TestAiderToolPublicAPI:
         result = await mock_components.execute_command(
             ai_coding_prompt="Test prompt",
             relative_editable_files=["file1.py"],
-            working_dir="/tmp/test",
+            # Use the actual working_dir from the fixture's config
+            working_dir=mock_components.config["working_dir"],
         )
 
         # Verify result is returned
@@ -191,7 +200,8 @@ class TestAiderToolPublicAPI:
         result = await mock_components.execute_command(
             ai_coding_prompt="Test prompt",
             relative_editable_files=["file1.py"],
-            working_dir="/tmp/test",
+            # Use the actual working_dir from the fixture's config
+            working_dir=mock_components.config["working_dir"],
         )
 
         # Verify error handling
@@ -213,7 +223,8 @@ class TestAiderToolPublicAPI:
         result = await mock_components.aider_ai_code(
             ai_coding_prompt="Test prompt",
             relative_editable_files=["file1.py"],
-            working_dir="/tmp/test",
+            # Use the actual working_dir from the fixture's config
+            working_dir=mock_components.config["working_dir"],
         )
 
         assert result == formatted_result
@@ -237,8 +248,13 @@ class TestConvenienceFunction:
     """Test the convenience function for quick usage."""
 
     @pytest.mark.asyncio
-    async def test_execute_aider_command_convenience(self):
+    async def test_execute_aider_command_convenience(self, tmp_path):
         """Test the convenience function creates and cleans up properly."""
+        # Use a temporary directory for the config working_dir
+        working_dir = str(tmp_path / "convenience_test_dir")
+        os.makedirs(working_dir, exist_ok=True)
+        test_config = {"test": "config", "working_dir": working_dir}
+
         with patch("aider_mcp_server.molecules.tools.aider.AiderTool") as mock_tool_class:
             mock_tool = MagicMock()
             mock_tool.execute_command = AsyncMock(return_value={"success": True})
@@ -246,18 +262,23 @@ class TestConvenienceFunction:
             mock_tool_class.return_value = mock_tool
 
             result = await execute_aider_command(
-                ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"], config={"test": "config"}
+                ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"], config=test_config
             )
 
             # Verify tool creation and cleanup
-            mock_tool_class.assert_called_once_with({"test": "config"})
+            mock_tool_class.assert_called_once_with(test_config)
             mock_tool.execute_command.assert_called_once()
             mock_tool.shutdown.assert_called_once()
             assert result == {"success": True}
 
     @pytest.mark.asyncio
-    async def test_execute_aider_command_convenience_exception(self):
+    async def test_execute_aider_command_convenience_exception(self, tmp_path):
         """Test convenience function cleans up even when exception occurs."""
+        # Use a temporary directory for the config working_dir
+        working_dir = str(tmp_path / "convenience_test_dir_exception")
+        os.makedirs(working_dir, exist_ok=True)
+        test_config = {"working_dir": working_dir}
+
         with patch("aider_mcp_server.molecules.tools.aider.AiderTool") as mock_tool_class:
             mock_tool = MagicMock()
             mock_tool.execute_command = AsyncMock(side_effect=Exception("Test error"))
@@ -265,7 +286,9 @@ class TestConvenienceFunction:
             mock_tool_class.return_value = mock_tool
 
             with pytest.raises(Exception, match="Test error"):
-                await execute_aider_command(ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"])
+                await execute_aider_command(
+                    ai_coding_prompt="Test prompt", relative_editable_files=["file1.py"], config=test_config
+                )
 
             # Verify cleanup still happened
             mock_tool.shutdown.assert_called_once()
@@ -326,13 +349,14 @@ class TestIntegrationScenarios:
                 }
 
                 # Test the full workflow
+                # Use the temporary directory as the working_dir
                 tool = AiderTool({"working_dir": temp_dir})
 
                 result = await tool.execute_command(
                     ai_coding_prompt="Add a print statement to the file",
                     relative_editable_files=["test.py"],
                     model="gpt-4",
-                    working_dir=temp_dir,
+                    working_dir=temp_dir,  # Pass the temporary directory
                 )
 
                 await tool.shutdown()

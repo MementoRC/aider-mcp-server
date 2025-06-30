@@ -1,0 +1,23 @@
+{
+  "overall_score": 98.5,
+  "component_scores": {
+    "dependency_health": 25.0,
+    "code_quality": 25.0,
+    "architecture_health": 25.0,
+    "ecosystem_alignment": 23.5
+  },
+  "monitoring_context": {},
+  "thresholds": {
+    "overall_score": 85,
+    "security_vulnerabilities": 0,
+    "dependency_staleness_days": 60,
+    "performance_regression": 0.1,
+    "code_coverage_minimum": 80,
+    "complexity_threshold": 10,
+    "technical_debt_ratio": 0.05
+  },
+  "calculated_at": "2025-06-14T15:27:24.266829",
+  "maintenance_needed": false,
+  "urgency_level": "low",
+  "recommendations": []
+}

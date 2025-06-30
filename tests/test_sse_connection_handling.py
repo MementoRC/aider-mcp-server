@@ -7,6 +7,7 @@ and graceful shutdown.
 """
 
 import asyncio
+import os
 import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -253,6 +254,7 @@ async def test_run_sse_server_initialization_and_shutdown():
         patch("asyncio.Event", return_value=shutdown_event),  # Standard asyncio.Event
         patch("aider_mcp_server.templates.servers.sse_server.is_git_repository", return_value=(True, "")),
         patch("asyncio.get_event_loop") as mock_get_loop,  # Standard asyncio.get_event_loop
+        patch("signal.signal") as mock_signal_signal,  # For Windows signal handling
     ):
         # Set up mock loop and signal handlers
         mock_loop = MagicMock()
@@ -265,8 +267,17 @@ async def test_run_sse_server_initialization_and_shutdown():
         # Call run_sse_server
         await run_sse_server(host="127.0.0.1", port=8765, current_working_dir="/mock/git/repo")
 
-        # Verify that signal handlers were added for graceful shutdown
-        assert mock_loop.add_signal_handler.call_count >= 2  # At least SIGTERM and SIGINT
+        # Verify that signal handlers were set up for graceful shutdown (platform-aware)
+        if os.name == "nt":  # Windows
+            # On Windows, should use signal.signal() instead of loop.add_signal_handler()
+            assert mock_signal_signal.call_count >= 2  # At least SIGTERM and SIGINT
+            # Should NOT use loop.add_signal_handler on Windows
+            assert mock_loop.add_signal_handler.call_count == 0
+        else:  # Unix-like systems
+            # On Unix, should use loop.add_signal_handler()
+            assert mock_loop.add_signal_handler.call_count >= 2  # At least SIGTERM and SIGINT
+            # Should NOT use signal.signal on Unix in this context
+            assert mock_signal_signal.call_count == 0
 
         # Verify adapter methods were called in the correct order
         mock_adapter.initialize.assert_called_once()

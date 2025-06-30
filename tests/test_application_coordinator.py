@@ -156,9 +156,9 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
         # ApplicationCoordinator calls initialize_adapter with (transport_name, coordinator_instance, config_dict)
         # The **kwargs from register_transport are not directly passed as **kwargs to initialize_adapter.
         # Config is hardcoded to {} in ApplicationCoordinator's call.
-        self.mock_transport_registry.initialize_adapter.assert_called_once_with("test_transport", coordinator, {})
+        self.mock_transport_registry.initialize_adapter.assert_awaited_once_with("test_transport", coordinator, {})
         # Per Task 9 spec, EC.register_transport is called. Using register_transport_adapter due to provided EC.
-        self.mock_event_coordinator.register_transport_adapter.assert_called_once_with(mock_transport_instance)
+        self.mock_event_coordinator.register_transport_adapter.assert_awaited_once_with(mock_transport_instance)
         self.assertIs(returned_transport, mock_transport_instance)
 
     async def test_register_transport_failure(self):
@@ -211,7 +211,7 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
 
         response = await coordinator.process_request(request_dict)
 
-        self.mock_request_processor.process_request.assert_called_once_with(request_dict)
+        self.mock_request_processor.process_request.assert_awaited_once_with(request_dict)
         self.assertEqual(response, expected_response)
 
     async def test_broadcast_event(self):
@@ -223,7 +223,7 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
         await coordinator.broadcast_event(event_type_str, event_data_dict, client_id_str)
 
         # EventCoordinator.broadcast_event doesn't support client_id, so it's called without it
-        self.mock_event_coordinator.broadcast_event.assert_called_once_with(event_type_str, event_data_dict)
+        self.mock_event_coordinator.broadcast_event.assert_awaited_once_with(event_type_str, event_data_dict)
 
     async def test_shutdown(self):
         # Ensure __init__ runs to set _initialized = True
@@ -232,7 +232,7 @@ class TestApplicationCoordinator(unittest.IsolatedAsyncioTestCase):
 
         await coordinator.shutdown()
 
-        self.mock_transport_registry.shutdown_all.assert_called_once()
+        self.mock_transport_registry.shutdown_all.assert_awaited_once()
         self.assertFalse(ApplicationCoordinator._initialized)
         mock_logger_instance.info.assert_any_call("ApplicationCoordinator shutdown complete.")
 
