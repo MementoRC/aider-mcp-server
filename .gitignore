@@ -182,6 +182,11 @@ CLAUDE.local.md
 IMPLEMENTATION_TRACKING.md
 src/aider_mcp_server/SUMMARY_DI_CONTAINER.md
 
+# Planning and analysis documents (local development only)
+maintenance-prd.md
+ci-analysis-*.md
+systematic-maintenance-framework.md
+
 # Example and template files
 src/aider_mcp_server/*example*.py
 scripts/example_prd.txt
