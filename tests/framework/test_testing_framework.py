@@ -6,6 +6,7 @@ components to ensure the framework itself meets quality standards.
 """
 
 import json
+from pathlib import Path  # Added this import
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -127,10 +128,10 @@ class TestTestingFramework:
             "hatch",
             "run",
             "dev:pytest",
-            "tests/atoms",
-            "tests/molecules",
+            str(temp_project / "tests" / "atoms"),
+            str(temp_project / "tests" / "molecules"),
             "-v",
-            "--cov=src/aider_mcp_server",
+            f"--cov={str(Path('src') / 'aider_mcp_server')}",
             "--cov-report=term-missing",
             "-m",
             "unit or not (integration or performance or security)",
@@ -148,11 +149,11 @@ class TestTestingFramework:
             "hatch",
             "run",
             "dev:pytest",
-            "tests/integration",
-            "tests/managers",
-            "tests/organisms",
+            str(temp_project / "tests" / "integration"),
+            str(temp_project / "tests" / "managers"),
+            str(temp_project / "tests" / "organisms"),
             "-v",
-            "--cov=src/aider_mcp_server",
+            f"--cov={str(Path('src') / 'aider_mcp_server')}",
             "--cov-report=term-missing",
             "-m",
             "integration",
@@ -170,7 +171,7 @@ class TestTestingFramework:
             "hatch",
             "run",
             "dev:pytest",
-            "tests/",
+            str(temp_project / "tests"),
             "-k",
             "performance or benchmark",
             "--benchmark-only",
@@ -191,7 +192,7 @@ class TestTestingFramework:
             "hatch",
             "run",
             "dev:pytest",
-            "tests/",
+            str(temp_project / "tests"),
             "-k",
             "security or auth",
             "-v",
