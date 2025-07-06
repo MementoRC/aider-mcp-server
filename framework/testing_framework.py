@@ -108,31 +108,32 @@ class TestingFramework:
     def _build_pytest_command(self, suite_type: TestSuiteType) -> List[str]:
         """Build pytest command for specific test suite type."""
         base_cmd = ["hatch", "run", "dev:pytest"]
+        cov_path = str(Path("src") / "aider_mcp_server")
 
         if suite_type == TestSuiteType.UNIT:
             cmd = base_cmd + [
-                "tests/atoms",
-                "tests/molecules",
+                str(self.test_dir / "atoms"),
+                str(self.test_dir / "molecules"),
                 "-v",
-                "--cov=src/aider_mcp_server",
+                f"--cov={cov_path}",
                 "--cov-report=term-missing",
                 "-m",
                 "unit or not (integration or performance or security)",
             ]
         elif suite_type == TestSuiteType.INTEGRATION:
             cmd = base_cmd + [
-                "tests/integration",
-                "tests/managers",
-                "tests/organisms",
+                str(self.test_dir / "integration"),
+                str(self.test_dir / "managers"),
+                str(self.test_dir / "organisms"),
                 "-v",
-                "--cov=src/aider_mcp_server",
+                f"--cov={cov_path}",
                 "--cov-report=term-missing",
                 "-m",
                 "integration",
             ]
         elif suite_type == TestSuiteType.PERFORMANCE:
             cmd = base_cmd + [
-                "tests/",
+                str(self.test_dir),
                 "-k",
                 "performance or benchmark",
                 "--benchmark-only",
@@ -142,7 +143,7 @@ class TestingFramework:
             ]
         elif suite_type == TestSuiteType.SECURITY:
             cmd = base_cmd + [
-                "tests/",
+                str(self.test_dir),
                 "-k",
                 "security or auth",
                 "-v",
@@ -150,7 +151,7 @@ class TestingFramework:
                 "security",
             ]
         else:
-            cmd = base_cmd + ["tests/", "-v"]
+            cmd = base_cmd + [str(self.test_dir), "-v"]
 
         return cmd
 
@@ -242,8 +243,9 @@ class TestingFramework:
 
         # Fallback to running coverage command
         try:
+            cov_path = str(Path("src") / "aider_mcp_server")
             result = subprocess.run(  # noqa: S603,S607
-                ["hatch", "run", "dev:pytest", "--cov=src/aider_mcp_server", "--cov-report=term"],  # noqa: S607
+                ["hatch", "run", "dev:pytest", f"--cov={cov_path}", "--cov-report=term"],  # noqa: S607
                 capture_output=True,
                 text=True,
                 cwd=self.project_root,
