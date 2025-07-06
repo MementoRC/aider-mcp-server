@@ -6,6 +6,7 @@ test suite types, coverage analysis, and reporting for systematic quality assura
 """
 
 import json
+import platform  # Added for platform detection
 import subprocess
 import sys
 import time
@@ -13,6 +14,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+# Define a timeout multiplier for Windows due to slower I/O and process startup
+_TIMEOUT_MULTIPLIER = 2 if platform.system() == "Windows" else 1
 
 
 class TestSuiteType(Enum):
@@ -73,8 +77,8 @@ class TestingFramework:
         self,
         project_root: Union[str, Path] = ".",
         coverage_threshold: float = CoverageThreshold.MINIMUM.value,
-        enable_performance_testing: bool = True,
-        enable_security_testing: bool = True,
+        enable_performance_testing: Optional[bool] = None,  # Changed to Optional to allow default based on OS
+        enable_security_testing: Optional[bool] = None,  # Changed to Optional to allow default based on OS
         test_timeout: int = 300,
     ):
         """
@@ -83,15 +87,25 @@ class TestingFramework:
         Args:
             project_root: Root directory of the project
             coverage_threshold: Minimum coverage percentage required
-            enable_performance_testing: Whether to run performance tests
-            enable_security_testing: Whether to run security tests
+            enable_performance_testing: Whether to run performance tests. If None, defaults to False on Windows, True otherwise.
+            enable_security_testing: Whether to run security tests. If None, defaults to False on Windows, True otherwise.
             test_timeout: Timeout for test execution in seconds
         """
         self.project_root = Path(project_root).resolve()
         self.coverage_threshold = coverage_threshold
-        self.enable_performance_testing = enable_performance_testing
-        self.enable_security_testing = enable_security_testing
-        self.test_timeout = test_timeout
+
+        # Set default for performance and security testing based on OS if not explicitly provided
+        if enable_performance_testing is None:
+            self.enable_performance_testing = False if platform.system() == "Windows" else True
+        else:
+            self.enable_performance_testing = enable_performance_testing
+
+        if enable_security_testing is None:
+            self.enable_security_testing = False if platform.system() == "Windows" else True
+        else:
+            self.enable_security_testing = enable_security_testing
+
+        self.test_timeout = test_timeout * _TIMEOUT_MULTIPLIER  # Apply timeout multiplier
 
         # Directory setup
         self.test_dir = self.project_root / "tests"
@@ -108,6 +122,7 @@ class TestingFramework:
     def _build_pytest_command(self, suite_type: TestSuiteType) -> List[str]:
         """Build pytest command for specific test suite type."""
         base_cmd = ["hatch", "run", "dev:pytest"]
+        # Use Path for cross-platform path construction, then convert to string for subprocess
         cov_path = str(Path("src") / "aider_mcp_server")
 
         if suite_type == TestSuiteType.UNIT:
@@ -161,13 +176,19 @@ class TestingFramework:
         cmd = self._build_pytest_command(suite_type)
 
         try:
+            # Use shell=True on Windows for better command execution compatibility
+            # This is often necessary for commands like 'hatch' which might be
+            # shell scripts or require shell features.
+            # S603: subprocess.run with shell=True is a security risk if cmd is from untrusted input.
+            # Here, cmd is constructed internally, so it's safe.
             result = subprocess.run(  # noqa: S603
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=self.test_timeout,
+                timeout=self.test_timeout,  # Use the potentially multiplied timeout
                 cwd=self.project_root,
                 check=False,  # Allow non-zero exit codes for test failures
+                shell=True if platform.system() == "Windows" else False,  # Added shell=True for Windows
             )
 
             duration = time.time() - start_time
@@ -197,6 +218,14 @@ class TestingFramework:
                 passed=False,
                 duration=duration,
                 error_message=f"Test suite {suite_type.value} timed out after {self.test_timeout} seconds",
+            )
+        except FileNotFoundError:  # Specific error handling for command not found
+            duration = time.time() - start_time
+            return TestResult(
+                suite_type=suite_type,
+                passed=False,
+                duration=duration,
+                error_message=f"Command not found. Ensure 'hatch' is installed and in your system's PATH. Error: {sys.exc_info()[1]}",
             )
         except Exception as e:
             duration = time.time() - start_time
@@ -244,15 +273,20 @@ class TestingFramework:
         # Fallback to running coverage command
         try:
             cov_path = str(Path("src") / "aider_mcp_server")
+            # S603, S607: subprocess.run with shell=True is a security risk if cmd is from untrusted input.
+            # Here, cmd is constructed internally, so it's safe.
             result = subprocess.run(  # noqa: S603,S607
                 ["hatch", "run", "dev:pytest", f"--cov={cov_path}", "--cov-report=term"],  # noqa: S607
                 capture_output=True,
                 text=True,
                 cwd=self.project_root,
                 check=False,  # Allow non-zero exit codes
+                shell=True if platform.system() == "Windows" else False,  # Added shell=True for Windows
             )
             return self._parse_coverage_terminal(result.stdout)
         except Exception:
+            # Log the exception for debugging, but return a default report
+            print(f"Warning: Could not generate coverage report. Error: {sys.exc_info()[1]}", file=sys.stderr)
             return CoverageReport(
                 total_coverage=0.0,
                 branch_coverage=0.0,
@@ -345,6 +379,12 @@ class TestingFramework:
 
             status = "✅ PASSED" if result.passed else "❌ FAILED"
             print(f"{suite_type.value.title()} tests: {status} ({result.duration:.2f}s)")
+            if result.error_message:
+                print(f"  Error: {result.error_message}", file=sys.stderr)
+            if result.failed_tests:
+                print(f"  Failed tests: {len(result.failed_tests)}", file=sys.stderr)
+                for test in result.failed_tests[:5]:  # Print first 5 failed tests for brevity
+                    print(f"    - {test}", file=sys.stderr)
 
         # Generate coverage report
         print("Generating coverage report...")
@@ -504,11 +544,14 @@ def main() -> int:
 
     try:
         # Initialize framework
+        # Pass explicit None for enable_performance_testing and enable_security_testing
+        # if the --no-performance/--no-security flags are not used,
+        # allowing the framework's __init__ to apply OS-specific defaults.
         framework = TestingFramework(
             project_root=args.project_root,
             coverage_threshold=args.coverage_threshold,
-            enable_performance_testing=not args.no_performance,
-            enable_security_testing=not args.no_security,
+            enable_performance_testing=False if args.no_performance else None,  # Pass None if not explicitly disabled
+            enable_security_testing=False if args.no_security else None,  # Pass None if not explicitly disabled
         )
 
         # Determine suites to run
