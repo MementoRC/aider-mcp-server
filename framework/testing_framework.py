@@ -192,6 +192,8 @@ class TestingFramework:
             )
 
             duration = time.time() - start_time
+            # Ensure a minimum duration for test execution
+            duration = max(duration, 0.001)  # At least 1ms
 
             # Parse test output
             failed_tests, skipped_tests = self._parse_pytest_output(result.stdout)
@@ -213,6 +215,8 @@ class TestingFramework:
 
         except subprocess.TimeoutExpired:
             duration = time.time() - start_time
+            # Ensure a minimum duration for test execution
+            duration = max(duration, 0.001)  # At least 1ms
             return TestResult(
                 suite_type=suite_type,
                 passed=False,
@@ -221,6 +225,8 @@ class TestingFramework:
             )
         except FileNotFoundError:  # Specific error handling for command not found
             duration = time.time() - start_time
+            # Ensure a minimum duration for test execution
+            duration = max(duration, 0.001)  # At least 1ms
             return TestResult(
                 suite_type=suite_type,
                 passed=False,
@@ -229,6 +235,8 @@ class TestingFramework:
             )
         except Exception as e:
             duration = time.time() - start_time
+            # Ensure a minimum duration for test execution
+            duration = max(duration, 0.001)  # At least 1ms
             return TestResult(
                 suite_type=suite_type,
                 passed=False,
@@ -295,7 +303,7 @@ class TestingFramework:
 
     def _parse_coverage_json(self, json_path: Path) -> CoverageReport:
         """Parse coverage from JSON report."""
-        with open(json_path) as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
 
         total_coverage = data.get("totals", {}).get("percent_covered", 0.0)
@@ -430,7 +438,7 @@ class TestingFramework:
             else None,
         }
 
-        with open(json_report_path, "w") as f:
+        with open(json_report_path, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2)
 
         # Generate summary report
@@ -445,7 +453,7 @@ class TestingFramework:
         coverage_met = self.coverage_report.meets_threshold if self.coverage_report else False
         overall_status = "✅ PASS" if all_passed and coverage_met else "❌ FAIL"
 
-        with open(summary_path, "w") as f:
+        with open(summary_path, "w", encoding="utf-8") as f:
             f.write("COMPREHENSIVE TESTING FRAMEWORK REPORT\n")
             f.write("=" * 50 + "\n\n")
 
