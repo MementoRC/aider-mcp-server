@@ -176,6 +176,8 @@ jobs:
           else
             pixi run python -m pip install aider-chat==${{ matrix.aider-version }}
           fi
+          echo "Verifying aider installation..."
+          pixi run python -c "import aider; print('Successfully installed aider')"
 
       - name: Show pixi environment
         shell: bash
@@ -191,7 +193,7 @@ jobs:
 
       - name: Display aider version
         run: |
-          pixi run python -c "import aider; print('Testing with aider version: ' + aider.__version__)"
+          pixi run python -c 'import aider; print("Testing with aider version: " + aider.__version__)'
 
       - name: Run compatibility tests
         run: |
