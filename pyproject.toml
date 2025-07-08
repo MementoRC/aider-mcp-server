@@ -49,6 +49,7 @@ dev = [
     "ruff>=0.11.6",
     "pydantic>=2.11.2",  # Explicit pydantic dependency
     "types-PyYAML",  # Type stubs for PyYAML
+    "types-toml",    # Type stubs for toml
     "pytest-benchmark",
     # Systematic maintenance framework tools
     "pip-audit>=2.6.0",  # Dependency vulnerability scanning
