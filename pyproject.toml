@@ -159,10 +159,10 @@ disable_error_code = "no-any-return"
 
 [tool.pixi.project]
 channels = ["conda-forge"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "win-64"]
 
 [tool.pixi.dependencies]
-# Essential runtime and development dependencies from conda-forge  
+# Essential runtime and development dependencies from conda-forge
 python = ">=3.12"
 fastapi = ">=0.115.0"
 mcp = ">=1.9.1"
