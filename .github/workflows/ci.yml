@@ -135,7 +135,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          pixi run test-cov -vv --durations=10
+          pixi run test-cov
 
       - name: Upload coverage report
         if: success() && matrix.os == 'ubuntu-latest'
