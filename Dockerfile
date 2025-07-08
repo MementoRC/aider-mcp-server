@@ -1,41 +1,51 @@
-# Use a Python image with uv pre-installed
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS uv
+# Use a Python base image
+FROM python:3.12-bookworm-slim AS builder
 
-# Install the project into `/app`
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
+# Install pixi
+RUN curl -fsSL https://pixi.sh/install.sh | bash
+ENV PATH="/root/.pixi/bin:${PATH}"
 
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
+# Copy project files
+COPY pyproject.toml ./
+COPY src/ ./src/
+COPY README.md ./
 
-#ENV OPENAI_API_KEY=${OPENAI_API_KEY}
-#ENV ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-#ENV GOOGLE_API_KEY=${GOOGLE_API_KEY}
-#ENV GEMINI_API_KEY=${GEMINI_API_KEY}
+# Install dependencies with pixi
+RUN pixi install --locked
 
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev --no-editable
+# Production stage
+FROM python:3.12-bookworm-slim
 
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
-ADD . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+# Install git (required for aider operations)
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-FROM python:3.12-slim-bookworm
+# Create non-root user
+RUN useradd -m -u 1000 app
 
+# Set working directory
 WORKDIR /app
 
-# COPY --from=uv /root/.local /root/.local
-COPY --from=uv --chown=app:app /app/.venv /app/.venv
+# Copy pixi environment from builder
+COPY --from=builder --chown=app:app /root/.pixi /home/app/.pixi
+COPY --from=builder --chown=app:app /app /app
 
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
+# Set environment variables
+ENV PATH="/home/app/.pixi/bin:${PATH}"
+ENV PYTHONPATH="/app/src"
 
-# when running the container, add --db-path and a bind mount to the host's db file
-ENTRYPOINT ["aider"]
+# Switch to non-root user
+USER app
+
+# Default command
+CMD ["pixi", "run", "mcp-server"]

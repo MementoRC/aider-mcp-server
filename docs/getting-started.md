@@ -29,10 +29,10 @@ Aider MCP Server is a modular, AI-powered coding server built with **Atomic Desi
     pip install aider-mcp-server
     ```
 
-=== "uv"
+=== "pixi"
 
     ```bash
-    uv add aider-mcp-server
+    pixi add aider-mcp-server
     ```
 
 === "Development Install"
