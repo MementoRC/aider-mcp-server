@@ -31,7 +31,7 @@ def temp_dir() -> Generator[str, None, None]:
     tmp_dir = tempfile.mkdtemp()
 
     # Create a basic README file to simulate a git repo
-    with open(os.path.join(tmp_dir, "README.md"), "w") as f:
+    with open(os.path.join(tmp_dir, "README.md"), "w", encoding="utf-8") as f:
         f.write("# Test Repository\nThis is a test repository for Aider MCP Server tests.")
 
     yield tmp_dir
@@ -41,12 +41,12 @@ def test_check_for_meaningful_changes(temp_dir: str) -> None:
     """Test the _check_for_meaningful_changes function with mock files."""
     # Create a test file without meaningful content
     empty_file = os.path.join(temp_dir, "empty.py")
-    with open(empty_file, "w") as f:
+    with open(empty_file, "w", encoding="utf-8") as f:
         f.write("# Just a comment\n")
 
     # Create a test file with meaningful content
     meaningful_file = os.path.join(temp_dir, "meaningful.py")
-    with open(meaningful_file, "w") as f:
+    with open(meaningful_file, "w", encoding="utf-8") as f:
         f.write("def hello():\n    return 'world'\n")
 
     # Test with empty file
@@ -77,7 +77,7 @@ async def test_addition_mock(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that adds two numbers using mocks."""
     # Create the test file
     test_file = os.path.join(temp_dir, "math_add.py")
-    with open(test_file, "w") as f:
+    with open(test_file, "w", encoding="utf-8") as f:
         f.write("# This file should implement addition\n")
 
     prompt = "Implement a function add(a, b) that returns the sum of a and b in the math_add.py file."
@@ -107,7 +107,7 @@ async def test_addition_mock(temp_dir: str) -> None:
         )
 
         # Check that the file was modified correctly
-        with open(test_file, "r") as f:
+        with open(test_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "def add(a, b):" in content, "Expected to find add function in the file"
@@ -130,7 +130,7 @@ async def test_subtraction_mock(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that subtracts two numbers using mocks."""
     # Create the test file
     test_file = os.path.join(temp_dir, "math_subtract.py")
-    with open(test_file, "w") as f:
+    with open(test_file, "w", encoding="utf-8") as f:
         f.write("# This file should implement subtraction\n")
 
     prompt = "Implement a function subtract(a, b) that returns a minus b in the math_subtract.py file."
@@ -160,7 +160,7 @@ async def test_subtraction_mock(temp_dir: str) -> None:
         )
 
         # Check that the file was modified correctly
-        with open(test_file, "r") as f:
+        with open(test_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "def subtract(a, b):" in content, "Expected to find subtract function in the file"
@@ -183,7 +183,7 @@ async def test_multiplication_mock(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that multiplies two numbers using mocks."""
     # Create the test file
     test_file = os.path.join(temp_dir, "math_multiply.py")
-    with open(test_file, "w") as f:
+    with open(test_file, "w", encoding="utf-8") as f:
         f.write("# This file should implement multiplication\n")
 
     prompt = "Implement a function multiply(a, b) that returns the product of a and b in the math_multiply.py file."
@@ -213,7 +213,7 @@ async def test_multiplication_mock(temp_dir: str) -> None:
         )
 
         # Check that the file was modified correctly
-        with open(test_file, "r") as f:
+        with open(test_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "def multiply(a, b):" in content, "Expected to find multiply function in the file"
@@ -236,7 +236,7 @@ async def test_division_mock(temp_dir: str) -> None:
     """Test that code_with_aider can create a file that divides two numbers using mocks."""
     # Create the test file
     test_file = os.path.join(temp_dir, "math_divide.py")
-    with open(test_file, "w") as f:
+    with open(test_file, "w", encoding="utf-8") as f:
         f.write("# This file should implement division\n")
 
     prompt = "Implement a function divide(a, b) that returns a divided by b in the math_divide.py file. Handle division by zero by returning None."
@@ -266,7 +266,7 @@ async def test_division_mock(temp_dir: str) -> None:
         )
 
         # Check that the file was modified correctly
-        with open(test_file, "r") as f:
+        with open(test_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "def divide(a, b):" in content, "Expected to find divide function in the file"
@@ -290,7 +290,7 @@ async def test_failure_case_mock(temp_dir: str) -> None:
     """Test that code_with_aider handles failure cases correctly using mocks."""
     # Create a test file in the temp directory
     test_file = os.path.join(temp_dir, "failure_test.py")
-    with open(test_file, "w") as f:
+    with open(test_file, "w", encoding="utf-8") as f:
         f.write("# This file should trigger a failure\n")
 
     # Use an invalid model name to ensure a failure
@@ -361,7 +361,7 @@ async def test_complex_tasks_mock(temp_dir: str) -> None:
     """Test that code_with_aider correctly implements more complex tasks using mocks."""
     # Create the test file for a calculator class
     test_file = os.path.join(temp_dir, "calculator.py")
-    with open(test_file, "w") as f:
+    with open(test_file, "w", encoding="utf-8") as f:
         f.write("# This file should implement a calculator class\n")
 
     # More complex prompt suitable for architect mode
@@ -402,7 +402,7 @@ async def test_complex_tasks_mock(temp_dir: str) -> None:
         )
 
         # Check that the file was modified correctly with expected elements
-        with open(test_file, "r") as f:
+        with open(test_file, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Check for class definition and methods

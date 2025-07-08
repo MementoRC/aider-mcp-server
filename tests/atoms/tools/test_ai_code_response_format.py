@@ -16,7 +16,7 @@ from aider_mcp_server.molecules.tools.aider_ai_code import (
 def create_test_file(temp_dir, filename, content):
     """Helper to create a test file"""
     filepath = os.path.join(temp_dir, filename)
-    with open(filepath, "w") as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
     return filepath
 
