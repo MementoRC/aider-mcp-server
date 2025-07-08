@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .hatch
-          key: hatch-dev-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          key: hatch-dev-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/.pre-commit-config.yaml', '**/uv.lock') }}
           restore-keys: |
             hatch-dev-${{ runner.os }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
@@ -40,10 +40,15 @@ jobs:
           pip install hatch
           hatch env create dev
 
+      - name: Clean pre-commit cache
+        run: |
+          hatch run dev:pre-commit clean || true
+          rm -rf ~/.cache/pre-commit || true
+
       - name: Run all pre-commit hooks
         run: |
           echo "Running all pre-commit hooks (formatters, linters, and mypy)..."
-          hatch run dev:pre-commit install
+          hatch run dev:pre-commit install --install-hooks
           hatch run dev:pre-commit run --all-files
 
       - name: Check for formatting changes
@@ -82,7 +87,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .hatch
-          key: hatch-test-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          key: hatch-test-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
           restore-keys: |
             hatch-test-${{ runner.os }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
@@ -175,7 +180,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .hatch
-          key: hatch-test-${{ runner.os }}-${{ matrix.aider-version }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
+          key: hatch-test-${{ runner.os }}-${{ matrix.aider-version }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
           restore-keys: |
             hatch-test-${{ runner.os }}-${{ matrix.aider-version }}-
         continue-on-error: true # Don't fail workflow if cache service is unavailable
