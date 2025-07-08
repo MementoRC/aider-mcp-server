@@ -155,7 +155,8 @@ skip-magic-trailing-comma = false
 [tool.isort]
 profile = "black"
 line_length = 120
-skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi"]
+skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi", ".venv", "venv", ".hatch"]
+skip_glob = ["**/venv/**", "**/.venv/**", "**/.hatch/**"]
 
 [tool.uv]
 dev-dependencies = [
