@@ -198,11 +198,11 @@ jobs:
 
       - name: Run compatibility tests
         run: |
-          pixi run test tests/compatibility/ -v
+          pixi run python -m pytest tests/compatibility/ -v
 
       - name: Run integration tests
         run: |
-          pixi run test tests/ -v -m integration
+          pixi run python -m pytest tests/ -v -m integration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
