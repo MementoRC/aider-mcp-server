@@ -34,11 +34,13 @@ class TestTestingFramework:
         (project_root / "src" / "mypackage").mkdir()
 
         # Create basic source file
-        (project_root / "src" / "mypackage" / "__init__.py").write_text("pass")
-        (project_root / "src" / "mypackage" / "module.py").write_text("def example_function():\n    return 'hello'")
+        (project_root / "src" / "mypackage" / "__init__.py").write_text("pass", encoding="utf-8")
+        (project_root / "src" / "mypackage" / "module.py").write_text(
+            "def example_function():\n    return 'hello'", encoding="utf-8"
+        )
 
         # Create basic test file
-        (project_root / "tests" / "test_module.py").write_text("def test_example():\n    assert True")
+        (project_root / "tests" / "test_module.py").write_text("def test_example():\n    assert True", encoding="utf-8")
 
         return project_root
 
@@ -296,7 +298,7 @@ class TestTestingFramework:
 
         # Create temporary JSON file
         json_path = temp_project / "coverage.json"
-        with open(json_path, "w") as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(coverage_data, f)
 
         report = framework._parse_coverage_json(json_path)
@@ -494,7 +496,7 @@ class TestTestingFramework:
         assert summary_report.exists()
 
         # Verify JSON report content
-        with open(json_report) as f:
+        with open(json_report, encoding="utf-8") as f:
             report_data = json.load(f)
 
         assert "test_results" in report_data
@@ -530,7 +532,7 @@ class TestTestingFramework:
 
         # Check summary report content
         summary_report = framework.reports_dir / "test_summary.txt"
-        content = summary_report.read_text()
+        content = summary_report.read_text(encoding="utf-8")
 
         assert "COMPREHENSIVE TESTING FRAMEWORK REPORT" in content
         assert "Overall Status:" in content and "FAIL" in content
@@ -656,8 +658,9 @@ class TestTestingFrameworkIntegration:
         # Create source structure
         src_dir = project_root / "src" / "myapp"
         src_dir.mkdir(parents=True)
-        (src_dir / "__init__.py").write_text("")
-        (src_dir / "core.py").write_text("""
+        (src_dir / "__init__.py").write_text("", encoding="utf-8")
+        (src_dir / "core.py").write_text(
+            """
 def add(a, b):
     return a + b
 
@@ -668,13 +671,16 @@ def divide(a, b):
     if b == 0:
         raise ValueError("Cannot divide by zero")
     return a / b
-""")
+""",
+            encoding="utf-8",
+        )
 
         # Create test structure
         test_dir = project_root / "tests"
         test_dir.mkdir()
-        (test_dir / "__init__.py").write_text("")
-        (test_dir / "test_core.py").write_text("""
+        (test_dir / "__init__.py").write_text("", encoding="utf-8")
+        (test_dir / "test_core.py").write_text(
+            """
 import pytest
 from myapp.core import add, multiply, divide
 
@@ -690,7 +696,9 @@ def test_divide():
     assert divide(6, 2) == 3
     with pytest.raises(ValueError):
         divide(1, 0)
-""")
+""",
+            encoding="utf-8",
+        )
 
         # Initialize framework
         framework = TestingFramework(
@@ -776,7 +784,7 @@ class TestCoverageReportParsing:
 
         # Create temporary JSON file
         json_path = tmp_path / "coverage.json"
-        with open(json_path, "w") as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(coverage_data, f)
 
         report = framework._parse_coverage_json(json_path)
