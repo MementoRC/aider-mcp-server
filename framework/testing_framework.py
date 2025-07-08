@@ -407,7 +407,7 @@ class TestingFramework:
 
         return self.test_results
 
-    def _generate_test_reports(self):
+    def _generate_test_reports(self) -> None:
         """Generate comprehensive test reports."""
         # Generate JSON report
         json_report_path = self.reports_dir / "test_framework_report.json"
@@ -444,7 +444,7 @@ class TestingFramework:
         # Generate summary report
         self._generate_summary_report()
 
-    def _generate_summary_report(self):
+    def _generate_summary_report(self) -> None:
         """Generate human-readable summary report."""
         summary_path = self.reports_dir / "test_summary.txt"
 
@@ -486,7 +486,7 @@ class TestingFramework:
                         coverage = self.coverage_report.coverage_by_module.get(file_path, 0.0)
                         f.write(f"  {file_path}: {coverage:.1f}%\n")
 
-    def _validate_test_results(self, fail_on_coverage: bool = True):
+    def _validate_test_results(self, fail_on_coverage: bool = True) -> None:
         """Validate test results and raise exception if validation fails."""
         issues = []
 
