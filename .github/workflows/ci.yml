@@ -81,9 +81,15 @@ jobs:
         shell: bash
         run: |
           echo ">>> Installing pixi environment"
-          pixi install --verbose
+          pixi install --verbose || {
+            echo ">>> Pixi install failed, trying alternative approach"
+            pixi install --no-deps --verbose
+          }
           echo ">>> Installing aider-chat"
-          pixi run python -m pip install aider-chat --verbose
+          pixi run python -m pip install aider-chat --verbose || {
+            echo ">>> Aider install failed, trying without verbose"
+            pixi run python -m pip install aider-chat
+          }
 
       - name: Show pixi environment
         shell: bash
