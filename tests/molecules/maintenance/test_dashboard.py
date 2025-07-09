@@ -92,7 +92,7 @@ class TestMaintenanceDashboard(unittest.TestCase):
 
             # Test health endpoint
             with urllib.request.urlopen(f"{base_url}/api/health") as response:  # noqa: S310
-                health_data = json.loads(response.read().decode())
+                health_data = json.loads(response.read().decode("utf-8"))
                 self.assertIn("overall_score", health_data)
                 self.assertIn("status", health_data)
                 self.assertIn("component_scores", health_data)
@@ -100,19 +100,19 @@ class TestMaintenanceDashboard(unittest.TestCase):
 
             # Test maintenance plan endpoint
             with urllib.request.urlopen(f"{base_url}/api/maintenance-plan") as response:  # noqa: S310
-                plan_data = json.loads(response.read().decode())
+                plan_data = json.loads(response.read().decode("utf-8"))
                 self.assertIn("tasks", plan_data)
                 self.assertIn("automation_level", plan_data)
 
             # Test performance endpoint
             with urllib.request.urlopen(f"{base_url}/api/performance") as response:  # noqa: S310
-                performance_data = json.loads(response.read().decode())
+                performance_data = json.loads(response.read().decode("utf-8"))
                 self.assertIn("benchmarks", performance_data)
                 self.assertIn("trends", performance_data)
 
             # Test health history endpoint
             with urllib.request.urlopen(f"{base_url}/api/history/health") as response:  # noqa: S310
-                history_data = json.loads(response.read().decode())
+                history_data = json.loads(response.read().decode("utf-8"))
                 self.assertIn("data", history_data)
                 self.assertIn("period", history_data)
 
@@ -132,7 +132,7 @@ class TestMaintenanceDashboard(unittest.TestCase):
 
             # Test main dashboard page
             with urllib.request.urlopen(base_url) as response:  # noqa: S310
-                html_content = response.read().decode()
+                html_content = response.read().decode("utf-8")
                 self.assertIn("<!DOCTYPE html>", html_content)
                 self.assertIn("Maintenance Dashboard", html_content)
                 self.assertIn("chart.js", html_content)
@@ -140,7 +140,7 @@ class TestMaintenanceDashboard(unittest.TestCase):
 
             # Test /dashboard path
             with urllib.request.urlopen(f"{base_url}/dashboard") as response:  # noqa: S310
-                html_content = response.read().decode()
+                html_content = response.read().decode("utf-8")
                 self.assertIn("<!DOCTYPE html>", html_content)
 
         finally:
@@ -163,7 +163,7 @@ class TestMaintenanceDashboard(unittest.TestCase):
                     pass
             except urllib.error.HTTPError as e:
                 self.assertEqual(e.code, 404)
-                self.assertIn("Not Found", e.read().decode())
+                self.assertIn("Not Found", e.read().decode("utf-8"))
 
         finally:
             dashboard.stop()
