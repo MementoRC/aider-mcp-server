@@ -53,6 +53,6 @@ repos:
       - id: check-aider-compatibility
         name: Check Aider Compatibility
         entry: python scripts/check_aider_compatibility.py
-        language: python
+        language: system
         pass_filenames: false
         always_run: true
