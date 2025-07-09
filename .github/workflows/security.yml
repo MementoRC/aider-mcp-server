@@ -32,18 +32,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.8.2
         with:
-          path: .uv
-          key: uv-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
-          restore-keys: |
-            uv-${{ runner.os }}-
+          pixi-version: latest
+          cache: true
 
-      - name: Install uv and sync dependencies
+      - name: Install dependencies
         run: |
-          pip install uv
-          uv sync --dev
+          pixi install
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -51,18 +48,18 @@ jobs:
       - name: Dependency vulnerability scan
         run: |
           echo "Scanning dependencies for vulnerabilities..."
-          uv run pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
-          uv run pip-audit --desc --output=text > reports/pip-audit.txt || true
+          pixi run pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
+          pixi run pip-audit --desc --output=text > reports/pip-audit.txt || true
 
           # Also scan with safety
-          uv run safety check --json > reports/safety-scan.json || true
-          uv run safety check > reports/safety-scan.txt || true
+          pixi run safety check --json > reports/safety-scan.json || true
+          pixi run safety check > reports/safety-scan.txt || true
 
       - name: Security linting with bandit
         run: |
           echo "Running security linting..."
-          uv run bandit -r src/ -f json -o reports/bandit-scan.json || true
-          uv run bandit -r src/ -f txt -o reports/bandit-scan.txt || true
+          pixi run bandit -r src/ -f json -o reports/bandit-scan.json || true
+          pixi run bandit -r src/ -f txt -o reports/bandit-scan.txt || true
 
       - name: Process security scan results
         id: process-results
