@@ -259,7 +259,7 @@ class TestCreateSafetySystemManager:
     def test_create_with_config_file(self, temp_git_repo):
         """Test factory function loading from a config file."""
         config_data = {"profile": "maximum"}
-        with (temp_git_repo / ".aider-safety.yaml").open("w") as f:
+        with (temp_git_repo / ".aider-safety.yaml").open("w", encoding="utf-8") as f:
             yaml.dump(config_data, f)
 
         manager = create_safety_system_manager(project_root=temp_git_repo)
@@ -269,7 +269,7 @@ class TestCreateSafetySystemManager:
     def test_create_with_file_and_overrides(self, temp_git_repo):
         """Test factory with file and CLI overrides."""
         config_data = {"profile": "maximum", "enable_diff_analysis": False}
-        with (temp_git_repo / ".aider-safety.yaml").open("w") as f:
+        with (temp_git_repo / ".aider-safety.yaml").open("w", encoding="utf-8") as f:
             yaml.dump(config_data, f)
 
         overrides = {"enable_diff_analysis": True, "validation_level": "basic"}

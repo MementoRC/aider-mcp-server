@@ -427,7 +427,7 @@ class TestCoordinatorDiscovery:
         # Manually set an old heartbeat
         registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         registry_data[0]["last_heartbeat"] = time.time() - 100  # 100 seconds ago
-        temp_discovery_file.write_text(json.dumps(registry_data))
+        temp_discovery_file.write_text(json.dumps(registry_data), encoding="utf-8")
 
         # Discover coordinators should filter out unhealthy ones
         healthy_coords = await discovery.discover_coordinators(max_age_seconds=30)
@@ -603,7 +603,7 @@ class TestCoordinatorDiscovery:
     async def test_corrupted_registry_file(self, temp_discovery_file):
         """Test handling of corrupted registry file."""
         # Write invalid JSON to the file
-        temp_discovery_file.write_text("{ invalid json }")
+        temp_discovery_file.write_text("{ invalid json }", encoding="utf-8")
 
         # Should handle gracefully and create new empty registry
         discovery = CoordinatorDiscovery(discovery_file=temp_discovery_file)

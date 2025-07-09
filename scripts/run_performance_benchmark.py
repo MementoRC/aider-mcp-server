@@ -144,7 +144,7 @@ def save_results_and_output(
         sys.exit(1)
 
     # Indicate if regressions were detected for workflow output
-    with open(os.environ.get("GITHUB_OUTPUT", "output.txt"), "a") as gh_output:
+    with open(os.environ.get("GITHUB_OUTPUT", "output.txt"), "a", encoding="utf-8") as gh_output:
         gh_output.write(f"regressions_detected={'true' if detected_regressions else 'false'}\n")
 
 

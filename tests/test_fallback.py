@@ -133,7 +133,7 @@ def main() -> int:
 
     # Load the .rate-limit-fallback.json file to verify its contents
     try:
-        with open("../.rate-limit-fallback.json", "r") as f:
+        with open("../.rate-limit-fallback.json", "r", encoding="utf-8") as f:
             config = json.load(f)
             print("\n📄 .rate-limit-fallback.json configuration:")
             print(json.dumps(config, indent=2))

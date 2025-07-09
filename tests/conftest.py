@@ -123,7 +123,7 @@ def temp_git_repo() -> Generator[str, None, None]:
         )
 
         # Create a README.md file
-        with open(os.path.join(tmp_dir, "README.md"), "w") as f:
+        with open(os.path.join(tmp_dir, "README.md"), "w", encoding="utf-8") as f:
             f.write("# Test Repository\n\nThis is a test repository.\n")
 
         subprocess.run(  # noqa: S603
