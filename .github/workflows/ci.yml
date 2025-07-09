@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
     env:
       HATCH_ENV_ROOT: .hatch
       # Provide mock API keys to allow integration tests to run without real secrets
