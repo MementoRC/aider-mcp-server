@@ -130,11 +130,11 @@ async def test_code_with_aider_architect_mode(mock_run_aider, mock_setup_coder, 
         from pathlib import Path
 
         readonly_file = Path(temp_dir) / "readonly.py"
-        readonly_file.write_text("def helper_function(): pass")
+        readonly_file.write_text("def helper_function(): pass", encoding="utf-8")
 
         # Create the expected editable file to prevent misfire detection
         editable_file = Path(temp_dir) / "file.py"
-        editable_file.write_text("# File created by test setup")
+        editable_file.write_text("# File created by test setup", encoding="utf-8")
 
         # Call with architect mode parameters
         result = await code_with_aider(
@@ -197,7 +197,7 @@ async def test_code_with_aider_default_mode(mock_run_aider, mock_setup_coder, mo
         from pathlib import Path
 
         editable_file = Path(temp_dir) / "file.py"
-        editable_file.write_text("# File created by test setup")
+        editable_file.write_text("# File created by test setup", encoding="utf-8")
 
         # Call with default parameters (no architect mode)
         result = await code_with_aider(

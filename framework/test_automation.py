@@ -455,7 +455,7 @@ class TestAutomationOrchestrator:
             "generated_at": datetime.now().isoformat(),
         }
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2)
 
         logger.info(f"Automation report saved to: {output_path}")

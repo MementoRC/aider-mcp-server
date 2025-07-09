@@ -231,7 +231,7 @@ class TestCoordinatorDiscovery:
         assert coord_id is not None
 
         # Verify it's in the registry file (which is now a list)
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert isinstance(registry_data, list)
         assert len(registry_data) == 1
 
@@ -265,7 +265,7 @@ class TestCoordinatorDiscovery:
         assert coord_id is not None
 
         # Verify it's in the registry file with capabilities
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(registry_data) == 1
 
         coord_data = registry_data[0]
@@ -351,7 +351,7 @@ class TestCoordinatorDiscovery:
             "last_heartbeat": time.time(),
             "metadata": {},
         }
-        temp_discovery_file.write_text(json.dumps([old_coord_data]))
+        temp_discovery_file.write_text(json.dumps([old_coord_data]), encoding="utf-8")
 
         # Discover all coordinators - should find the old one
         all_coords = await discovery.discover_coordinators()
@@ -375,7 +375,7 @@ class TestCoordinatorDiscovery:
         )
 
         # Get initial heartbeat from registered coordinator
-        initial_data = json.loads(temp_discovery_file.read_text())
+        initial_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         _ = initial_data[0]["last_heartbeat"]  # noqa: F841
 
         # Wait a bit and manually update registry
@@ -384,7 +384,7 @@ class TestCoordinatorDiscovery:
         # Let's just verify it's running
 
         # Verify registry still has the coordinator
-        final_data = json.loads(temp_discovery_file.read_text())
+        final_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(final_data) == 1
         assert final_data[0]["coordinator_id"] == coord_id
 
@@ -400,7 +400,7 @@ class TestCoordinatorDiscovery:
         )
 
         # Verify it exists
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(registry_data) == 1
         assert registry_data[0]["coordinator_id"] == coord_id
 
@@ -408,7 +408,7 @@ class TestCoordinatorDiscovery:
         await discovery.shutdown()
 
         # Verify it's gone
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(registry_data) == 0
 
     @pytest.mark.asyncio
@@ -425,7 +425,7 @@ class TestCoordinatorDiscovery:
         )
 
         # Manually set an old heartbeat
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         registry_data[0]["last_heartbeat"] = time.time() - 100  # 100 seconds ago
         temp_discovery_file.write_text(json.dumps(registry_data))
 
@@ -450,7 +450,7 @@ class TestCoordinatorDiscovery:
         coord_ids = await asyncio.gather(*tasks)
 
         # Verify all were registered
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(registry_data) == 5
         registered_ids = {coord["coordinator_id"] for coord in registry_data}
         for coord_id in coord_ids:
@@ -473,7 +473,7 @@ class TestCoordinatorDiscovery:
         )
 
         # Read the file directly and check the raw data
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(registry_data) == 1
         raw_data = registry_data[0]
         assert raw_data["coordinator_id"] == coord_id
@@ -509,7 +509,7 @@ class TestCoordinatorDiscovery:
         await asyncio.sleep(0.3)
 
         # Check that heartbeat has been updated
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         coord_info = CoordinatorInfo.from_dict(registry_data[0])
         assert coord_info.last_heartbeat > coord_info.start_time
 
@@ -555,7 +555,7 @@ class TestCoordinatorDiscovery:
         )
 
         # Verify registry has entry
-        registry_data = json.loads(temp_discovery_file.read_text())
+        registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
         assert len(registry_data) == 1
 
         # Shutdown the discovery
@@ -563,7 +563,7 @@ class TestCoordinatorDiscovery:
 
         # Verify cleanup happened
         if temp_discovery_file.exists():  # File might be deleted in cleanup
-            registry_data = json.loads(temp_discovery_file.read_text())
+            registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
             assert len(registry_data) == 0
 
     @pytest.mark.asyncio
@@ -578,12 +578,12 @@ class TestCoordinatorDiscovery:
             )
 
             # Verify registry has entry
-            registry_data = json.loads(temp_discovery_file.read_text())
+            registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
             assert len(registry_data) == 1
 
         # After context exit, verify cleanup
         if temp_discovery_file.exists():  # File might be deleted in cleanup
-            registry_data = json.loads(temp_discovery_file.read_text())
+            registry_data = json.loads(temp_discovery_file.read_text(encoding="utf-8"))
             assert len(registry_data) == 0
 
     @pytest.mark.asyncio

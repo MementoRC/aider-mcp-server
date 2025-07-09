@@ -33,7 +33,7 @@ class TestDataManager:
             data = {"id": f"{data_type}_{i + 1}", "value": f"sample_value_{i + 1}", **kwargs}
             file_path = os.path.join(data_dir, f"{data_type}_{i + 1}.json")
             try:
-                with open(file_path, "w") as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
                 generated_files.append(file_path)
                 logger.debug(f"Generated data file: {file_path}")
@@ -57,7 +57,7 @@ class TestDataManager:
                 logger.error(f"Data file not found: {file_path}")
                 return {}
             try:
-                with open(file_path, "r") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 logger.info(f"Loaded data from {file_path}")
                 return data
@@ -73,7 +73,7 @@ class TestDataManager:
                 if f_name.endswith(".json"):
                     file_path = os.path.join(data_dir, f_name)
                     try:
-                        with open(file_path, "r") as f:
+                        with open(file_path, "r", encoding="utf-8") as f:
                             all_data.append(json.load(f))
                     except (json.JSONDecodeError, IOError) as e:
                         logger.error(f"Error processing {file_path}: {e}")

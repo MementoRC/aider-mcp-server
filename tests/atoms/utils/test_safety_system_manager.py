@@ -45,7 +45,7 @@ def temp_git_repo():
 
         # Create test files
         test_file = repo_path / "test.py"
-        test_file.write_text("print('hello world')")
+        test_file.write_text("print('hello world')", encoding="utf-8")
 
         subprocess.run(["git", "add", "test.py"], cwd=repo_path, check=True)  # noqa: S603,S607
         subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True)  # noqa: S603,S607

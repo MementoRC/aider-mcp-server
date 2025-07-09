@@ -16,7 +16,7 @@ def mock_project_path(tmp_path):
     """Fixture to create a temporary project path with a pyproject.toml."""
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
-    (project_dir / "pyproject.toml").write_text('[tool.poetry]\nname = "test-project"')
+    (project_dir / "pyproject.toml").write_text('[tool.poetry]\nname = "test-project"', encoding="utf-8")
     return str(project_dir)
 
 

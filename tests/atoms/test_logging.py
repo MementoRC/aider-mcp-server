@@ -60,7 +60,7 @@ def test_log_levels_and_output(tmp_path: Path) -> None:
     # Verify file output
     assert expected_log_file.exists(), "Log file should exist for level testing"
 
-    file_content = expected_log_file.read_text()
+    file_content = expected_log_file.read_text(encoding="utf-8")
 
     # Verify file output contains messages and level indicators
     for level, msg in messages.items():
@@ -99,7 +99,7 @@ def test_log_level_filtering(tmp_path: Path) -> None:
     # Verify file output filtering
     assert expected_log_file.exists(), "Log file should exist for filtering testing"
 
-    file_content = expected_log_file.read_text()
+    file_content = expected_log_file.read_text(encoding="utf-8")
 
     assert debug_msg not in file_content, "Debug message should be filtered from file"
     assert info_msg not in file_content, "Info message should be filtered from file"
@@ -142,7 +142,7 @@ def test_log_appending(tmp_path: Path) -> None:
 
     # Verify both messages are in the file
     assert expected_log_file.exists(), "Log file should exist for appending test"
-    file_content = expected_log_file.read_text()
+    file_content = expected_log_file.read_text(encoding="utf-8")
 
     assert message1 in file_content, "First message not found in appended log file"
     assert logger_name_1 in file_content, "First logger name not found in appended log file"
