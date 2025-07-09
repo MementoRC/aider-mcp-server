@@ -78,9 +78,12 @@ jobs:
           cache: true
 
       - name: Install dependencies
+        shell: bash
         run: |
-          pixi install
-          pixi run python -m pip install aider-chat
+          echo ">>> Installing pixi environment"
+          pixi install --verbose
+          echo ">>> Installing aider-chat"
+          pixi run python -m pip install aider-chat --verbose
 
       - name: Show pixi environment
         shell: bash
