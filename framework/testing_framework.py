@@ -185,6 +185,7 @@ class TestingFramework:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",  # Explicitly specify UTF-8 encoding for Windows
                 timeout=self.test_timeout,  # Use the potentially multiplied timeout
                 cwd=self.project_root,
                 check=False,  # Allow non-zero exit codes for test failures
@@ -287,6 +288,7 @@ class TestingFramework:
                 ["hatch", "run", "dev:pytest", f"--cov={cov_path}", "--cov-report=term"],  # noqa: S607
                 capture_output=True,
                 text=True,
+                encoding="utf-8",  # Explicitly specify UTF-8 encoding for Windows
                 cwd=self.project_root,
                 check=False,  # Allow non-zero exit codes
                 shell=True if platform.system() == "Windows" else False,  # Added shell=True for Windows
