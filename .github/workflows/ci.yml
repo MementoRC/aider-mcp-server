@@ -45,6 +45,11 @@ jobs:
           hatch run dev:pre-commit clean || true
           rm -rf ~/.cache/pre-commit || true
 
+      - name: Configure git for consistency
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - name: Run all pre-commit hooks
         run: |
           echo "Running all pre-commit hooks (formatters, linters, and mypy)..."
