@@ -177,6 +177,11 @@ uvicorn = ">=0.30.0"
 httpx = ">=0.27.0"
 packaging = ">=21.3"
 toml = ">=0.10.2"
+pillow = ">=11.3.0"
+git = "*"
+# Aider dependencies (explicitly listed since we use --no-deps)
+configargparse = "*"
+beautifulsoup4 = "*"
 # Build system
 hatchling = ">=1.18.0"
 python-build = "*"
@@ -208,6 +213,8 @@ spdx-tools = ">=0.8.0"
 [tool.pixi.pypi-dependencies]
 # Essential PyPI-only packages
 aider-mcp-server = { path = ".", editable = true }
+# Aider dependencies not available on conda-forge
+oslex = "*"
 # Note: aider-chat has complex dependency conflicts, install separately if needed
 
 [tool.pixi.environments]
@@ -219,8 +226,8 @@ lint = "ruff check src tests"
 lint-fix = "ruff check --fix src tests"
 format = "ruff format src tests"
 typecheck = "mypy src"
-test = { cmd = "python -m pytest tests -x || (echo '::error::Pytest failed, check dependencies and import paths' && exit 1)", depends-on = ["install-editable"] }
-test-cov = { cmd = "python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests -x || (echo '::error::Pytest with coverage failed' && exit 1)", depends-on = ["install-editable"] }
+test = { cmd = "pip install aider-chat --no-deps && python -m pytest tests -x || (echo '::error::Pytest failed, check dependencies and import paths' && exit 1)", depends-on = ["install-editable"] }
+test-cov = { cmd = "pip install aider-chat --no-deps && python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests -x || (echo '::error::Pytest with coverage failed' && exit 1)", depends-on = ["install-editable"] }
 build = { cmd = "python -m build", depends-on = ["install-editable"] }
 clean = "rm -rf dist build .ruff_cache .mypy_cache .pytest_cache *.egg-info src/aider_mcp_server.egg-info"
 setup-pre-commit = "pre-commit install --install-hooks"
