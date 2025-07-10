@@ -37,6 +37,7 @@ jobs:
         with:
           pixi-version: v0.49.0
           cache: true
+          activate-environment: true
 
       - name: Install dependencies
         run: |
