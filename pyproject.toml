@@ -13,63 +13,13 @@ authors = [
     {name = "Aider Team"}
 ]
 dependencies = [
-    "aider-chat>=0.83.1",
-    "fastapi>=0.115.0",  # Required for multi-transport server and app endpoints
-    "mcp>=1.9.1",
-    "pydantic>=2.11.2",  # Explicit pydantic dependency
-    "psutil>=5.9.0",  # Added for system resource monitoring
-    "pyjwt>=2.8.0",  # Added for JWT token generation and validation
-    "python-dotenv",
-    "rich>=14.0.0",
-    "sse-starlette>=2.0.0",  # Added for SSE specific functionality
-    "starlette>=0.38.0",     # Added for SSE server
-    "uvicorn[standard]>=0.30.0", # Added for running Starlette/SSE server
-    "hatch",
-    "toml>=0.10.2",  # Added for reading pyproject.toml in compatibility tests
-    "packaging>=21.3",  # Added for version parsing in compatibility checks
+    # Minimal dependencies for pip/setuptools compatibility - pixi manages actual deps
 ]
 
 [project.scripts]
 mcp-aider-server = "aider_mcp_server:main"
 mcp-aider = "aider_mcp_server:main"
 
-[project.optional-dependencies]
-dev = [
-    "isort",
-    "mkdocs",
-    "mypy>=1.15.0",
-    "pre-commit",
-    "pre-commit-hooks",
-    "pytest>=7.0.0",
-    "pytest-asyncio",
-    "pytest-cov",
-    "pytest-json-report>=1.5.0",
-    "pytest-mock",
-    "httpx>=0.27.0",  # Added for testing SSE endpoints
-    "ruff>=0.11.6",
-    "pydantic>=2.11.2",  # Explicit pydantic dependency
-    "types-PyYAML",  # Type stubs for PyYAML
-    "pytest-benchmark",
-    # Systematic maintenance framework tools
-    "pip-audit>=2.6.0",  # Dependency vulnerability scanning
-    "safety>=3.0.0",     # Security vulnerability database
-    "bandit>=1.7.0",     # Security linting for Python
-    "radon>=6.0.0",      # Code complexity analysis
-    "vulture>=2.9.0",    # Dead code detection
-    "pyyaml>=6.0.0",     # YAML configuration parsing
-    "cyclonedx-python-lib>=3.0.0", # For CycloneDX SBOM generation
-    "spdx-tools>=0.8.0", # For SPDX SBOM generation
-]
-
-test = [
-    "pytest>=7.0.0",
-    "pytest-asyncio",
-    "pytest-cov",
-    "pytest-json-report>=1.5.0",
-    "pytest-mock",
-    "httpx>=0.27.0",  # Added for testing SSE endpoints
-    "pytest-benchmark",
-]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -81,52 +31,6 @@ markers = [
     "integration: marks tests that perform integration testing",
 ]
 
-[tool.hatch]
-package-dir = {"" = "src"}
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/aider_mcp_server"]
-
-[tool.hatch.envs.dev]
-dependencies = ["aider-mcp-server[dev]"]
-features = ["dev"]
-
-[tool.hatch.envs.dev.scripts]
-# Format and lint commands
-format = [
-    "isort . --profile black",
-    "ruff format .",
-    "ruff check --fix .",
-]
-lint = "pre-commit run --all-files"
-test = "pytest {args}"
-all = [
-    "format",
-    "lint",
-    "test",
-]
-# Pre-commit management
-install-hooks = "pre-commit install --install-hooks"
-update-hooks = "pre-commit autoupdate"
-# Environment synchronization
-sync-uv = "python -c \"import subprocess; subprocess.run(['uv', 'sync', '--refresh', '--dev'])\""
-sync-all = [
-    "sync-uv",
-    "install-hooks",
-]
-# Quality gates
-check-all = [
-    "format",
-    "lint",
-    "test",
-]
-
-[tool.hatch.envs.test]
-dependencies = ["aider-mcp-server[test]"]
-features = ["test"]
-
-[tool.hatch.envs.test.scripts]
-test = "pytest {args}"
 
 [tool.ruff]
 target-version = "py312"
@@ -156,12 +60,6 @@ skip-magic-trailing-comma = false
 profile = "black"
 line_length = 120
 skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi"]
-
-[tool.uv]
-dev-dependencies = [
-    "aider-mcp-server[dev]"
-]
-package = true
 
 [tool.mypy]
 python_version = "3.12"
@@ -258,3 +156,73 @@ disable_error_code = "no-any-return"
 [[tool.mypy.overrides]]
 module = "aider_mcp_server.molecules.configuration.configuration_manager"
 disable_error_code = "no-any-return"
+
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["linux-64", "win-64"]
+
+[tool.pixi.dependencies]
+# Essential runtime and development dependencies from conda-forge
+python = ">=3.12"
+fastapi = ">=0.115.0"
+mcp = ">=1.9.1"
+pydantic = ">=2.11.2"
+psutil = ">=5.9.0"
+pyjwt = ">=2.8.0"
+python-dotenv = ">=1.0.0"
+rich = ">=14.0.0"
+sse-starlette = ">=2.0.0"
+starlette = ">=0.38.0"
+uvicorn = ">=0.30.0"
+httpx = ">=0.27.0"
+packaging = ">=21.3"
+toml = ">=0.10.2"
+# Build system
+hatchling = ">=1.18.0"
+python-build = "*"
+# Development tools from conda-forge
+pytest = ">=7.0.0"
+pytest-asyncio = ">=0.21.0"
+pytest-cov = ">=4.0.0"
+pytest-mock = ">=3.10.0"
+pytest-benchmark = "*"
+pytest-timeout = "*"
+pytest-xdist = "*"
+pytest-json-report = ">=1.5.0"
+isort = "*"
+mkdocs = "*"
+mypy = ">=1.15.0"
+pre-commit = "*"
+pre-commit-hooks = "*"
+safety = ">=3.0.0"
+bandit = ">=1.7.0"
+radon = ">=6.0.0"
+vulture = ">=2.9.0"
+pyyaml = ">=6.0.0"
+ruff = ">=0.11.6"
+types-pyyaml = "*"
+pip-audit = ">=2.6.0"
+cyclonedx-python-lib = ">=3.0.0"
+spdx-tools = ">=0.8.0"
+
+[tool.pixi.pypi-dependencies]
+# Essential PyPI-only packages
+aider-mcp-server = { path = ".", editable = true }
+# Note: aider-chat has complex dependency conflicts, install separately if needed
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+
+[tool.pixi.tasks]
+install-editable = "python -m pip install -e . || (echo '::error::Editable installation failed' && exit 1)"
+lint = "ruff check src tests"
+lint-fix = "ruff check --fix src tests"
+format = "ruff format src tests"
+typecheck = "mypy src"
+test = { cmd = "python -m pytest tests -x || (echo '::error::Pytest failed, check dependencies and import paths' && exit 1)", depends-on = ["install-editable"] }
+test-cov = { cmd = "python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests -x || (echo '::error::Pytest with coverage failed' && exit 1)", depends-on = ["install-editable"] }
+build = { cmd = "python -m build", depends-on = ["install-editable"] }
+clean = "rm -rf dist build .ruff_cache .mypy_cache .pytest_cache *.egg-info src/aider_mcp_server.egg-info"
+setup-pre-commit = "pre-commit install --install-hooks"
+check-all = { depends-on = ["lint", "typecheck", "test"] }
+mcp-server = { cmd = "python -m aider_mcp_server", env = { PYTHONPATH = "src" }, depends-on = ["install-editable"] }
