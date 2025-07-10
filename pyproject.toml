@@ -179,9 +179,6 @@ packaging = ">=21.3"
 toml = ">=0.10.2"
 pillow = ">=11.3.0"
 git = "*"
-# Aider dependencies (explicitly listed since we use --no-deps)
-configargparse = "*"
-beautifulsoup4 = "*"
 # Build system
 hatchling = ">=1.18.0"
 python-build = "*"
@@ -213,8 +210,10 @@ spdx-tools = ">=0.8.0"
 [tool.pixi.pypi-dependencies]
 # Essential PyPI-only packages
 aider-mcp-server = { path = ".", editable = true }
-# Aider dependencies not available on conda-forge
+# Aider dependencies not available on conda-forge or causing conflicts
 oslex = "*"
+configargparse = "*"
+beautifulsoup4 = "*"
 # Note: aider-chat has complex dependency conflicts, install separately if needed
 
 [tool.pixi.environments]
