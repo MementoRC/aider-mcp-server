@@ -167,7 +167,7 @@ jobs:
       - name: Install specific aider version
         run: |
           echo "Installing aider-chat version: ${{ matrix.aider-version }}"
-          pixi run python -m pip install aider-chat --verbose
+          pixi run python -m pip install aider-chat --no-deps --verbose
           echo "Verifying aider installation..."
           pixi run python -c "import aider; print('Successfully installed aider')" || echo "Warning: aider import failed, but continuing..."
 

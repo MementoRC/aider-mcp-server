@@ -214,6 +214,7 @@ aider-mcp-server = { path = ".", editable = true }
 oslex = "*"
 configargparse = "*"
 beautifulsoup4 = "*"
+json5 = "*"
 # Note: aider-chat has complex dependency conflicts, install separately if needed
 
 [tool.pixi.environments]
