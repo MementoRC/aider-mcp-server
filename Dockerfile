@@ -1,5 +1,5 @@
 # Use a Python base image
-FROM python:3.12-bookworm-slim AS builder
+FROM python:3.12-slim AS builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -16,6 +16,7 @@ ENV PATH="/root/.pixi/bin:${PATH}"
 
 # Copy project files
 COPY pyproject.toml ./
+COPY pixi.lock ./
 COPY src/ ./src/
 COPY README.md ./
 
@@ -23,7 +24,7 @@ COPY README.md ./
 RUN pixi install --locked
 
 # Production stage
-FROM python:3.12-bookworm-slim
+FROM python:3.12-slim
 
 # Install git (required for aider operations)
 RUN apt-get update && apt-get install -y \
