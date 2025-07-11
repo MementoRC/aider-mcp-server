@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,66 +8,33 @@ version = "0.1.0"
 description = "Aider MCP Server - Offload AI coding tasks to Aider"
 readme = "README.md"
 requires-python = ">=3.12"
-license = {text = "MIT"}
-authors = [
-    {name = "Aider Team"}
-]
-dependencies = [
-    # Minimal dependencies for pip/setuptools compatibility - pixi manages actual deps
-]
+dependencies = []
+[[project.authors]]
+name = "Aider Team"
+
+[project.license]
+text = "MIT"
 
 [project.scripts]
 mcp-aider-server = "aider_mcp_server:main"
 mcp-aider = "aider_mcp_server:main"
 
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-pythonpath = ["src"]
-asyncio_default_fixture_loop_scope = "function"
-markers = [
-    "api: marks tests that require API keys",
-    "integration: marks tests that perform integration testing",
-]
-
-
 [tool.ruff]
 target-version = "py312"
 line-length = 120
 
-[tool.ruff.lint]
-select = ["E", "F", "A", "B", "C", "Q", "S"] # Removed "I" for isort
-ignore = ["E501"] # Ignore line length
-# Ignore S101 (assert usage) in test files and exclude stubbed file from formatting
-# Allow S108 (/tmp usage) in test files
-# Define file-specific rule ignores
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S608"]
-"test_*.py" = ["S101", "S105", "S106", "S108", "S608"]
-"src/aider_mcp_server/stubs/sse_starlette.pyi" = ["E", "F", "I", "A", "B", "C", "Q", "S"]
-"src/aider_mcp_server/atoms/tools/aider_ai_code.py" = ["C901"]
-"src/aider_mcp_server/atoms/tools/changes_summarizer.py" = ["C901"]
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-line-ending = "auto"
-# Skip formatting long imports to avoid conflicts with isort
-skip-magic-trailing-comma = false
-
 [tool.isort]
 profile = "black"
 line_length = 120
-skip = ["src/aider_mcp_server/stubs/sse_starlette.pyi"]
+skip = [ "src/aider_mcp_server/stubs/sse_starlette.pyi",]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["aider_mcp_server"]
-package_root = ["src"]
+packages = [ "aider_mcp_server",]
+package_root = [ "src",]
 namespace_packages = true
 explicit_package_bases = true
-plugins = ["pydantic.mypy"]
+plugins = [ "pydantic.mypy",]
 mypy_path = "src"
 strict = true
 disallow_untyped_defs = true
@@ -81,9 +48,8 @@ warn_unused_configs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
-disallow_untyped_decorators = false # Allow untyped decorators by default
-ignore_missing_imports = true # Ignore missing imports by default
-
+disallow_untyped_decorators = false
+ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
@@ -100,12 +66,10 @@ ignore_missing_imports = true
 module = "mcp.server.stdio"
 ignore_missing_imports = true
 
-
 [[tool.mypy.overrides]]
 module = "mcp.types"
 ignore_missing_imports = true
 
-# External dependencies - ignore missing imports for all of these
 [[tool.mypy.overrides]]
 module = "aider.*"
 ignore_missing_imports = true
@@ -135,7 +99,6 @@ ignore_missing_imports = true
 module = "dotenv"
 ignore_missing_imports = true
 
-# Internal modules with special configuration
 [[tool.mypy.overrides]]
 module = "aider_mcp_server.server"
 disallow_untyped_calls = false
@@ -157,32 +120,46 @@ disable_error_code = "no-any-return"
 module = "aider_mcp_server.molecules.configuration.configuration_manager"
 disable_error_code = "no-any-return"
 
+[tool.pytest.ini_options]
+testpaths = [ "tests",]
+python_files = "test_*.py"
+pythonpath = [ "src",]
+asyncio_default_fixture_loop_scope = "function"
+markers = [ "api: marks tests that require API keys", "integration: marks tests that perform integration testing",]
+
+[tool.ruff.lint]
+select = [ "E", "F", "A", "B", "C", "Q", "S",]
+ignore = [ "E501",]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+
 [tool.pixi.project]
-channels = ["conda-forge"]
-platforms = ["linux-64", "win-64"]
+channels = [ "conda-forge",]
+platforms = [ "linux-64", "win-64",]
 
 [tool.pixi.dependencies]
-# Essential runtime and development dependencies from conda-forge
 python = ">=3.12"
 fastapi = ">=0.115.0"
 mcp = ">=1.9.1"
-pydantic = ">=2.11.2"
-psutil = ">=5.9.0"
+pydantic = "*"
+psutil = "*"
 pyjwt = ">=2.8.0"
 python-dotenv = ">=1.0.0"
-rich = ">=14.0.0"
+rich = "*"
 sse-starlette = ">=2.0.0"
 starlette = ">=0.38.0"
 uvicorn = ">=0.30.0"
 httpx = ">=0.27.0"
-packaging = ">=21.3"
+packaging = "25.0"
 toml = ">=0.10.2"
-pillow = ">=11.3.0"
+pillow = "11.2.1"
 git = "*"
-# Build system
 hatchling = ">=1.18.0"
 python-build = "*"
-# Development tools from conda-forge
 pytest = ">=7.0.0"
 pytest-asyncio = ">=0.21.0"
 pytest-cov = ">=4.0.0"
@@ -200,21 +177,74 @@ safety = ">=3.0.0"
 bandit = ">=1.7.0"
 radon = ">=6.0.0"
 vulture = ">=2.9.0"
-pyyaml = ">=6.0.0"
+pyyaml = "*"
 ruff = ">=0.11.6"
 types-pyyaml = "*"
 pip-audit = ">=2.6.0"
 cyclonedx-python-lib = ">=3.0.0"
 spdx-tools = ">=0.8.0"
+aiohttp = "3.12.13"
+aiosignal = "1.3.2"
+backoff = "*"
+beautifulsoup4 = "4.13.4"
+certifi = "2025.6.15"
+configargparse = "*"
+diff-match-patch = "*"
+diskcache = "*"
+flake8 = "*"
+frozenlist = "1.7.0"
+gitdb = "*"
+gitpython = "*"
+google-ai-generativelanguage = "*"
+google-api-core = "*"
+google-api-python-client = "2.174.0"
+google-auth = "2.40.3"
+google-auth-httplib2 = "*"
+google-generativeai = "*"
+googleapis-common-protos = "*"
+grep-ast = "0.9.0"
+grpcio = "*"
+grpcio-status = "*"
+importlib-metadata = "<8.0.0"
+importlib-resources = "*"
+json5 = "*"
+jsonschema = "*"
+litellm = "1.73.1"
+mccabe = "*"
+mixpanel = "*"
+multidict = "6.5.1"
+networkx = "3.4.2"
+numpy = "1.26.4"
+openai = "1.91.0"
+pathspec = "*"
+pexpect = "*"
+posthog = "5.4.0"
+prompt_toolkit = "3.0.51"
+protobuf = "*"
+pydub = "*"
+pycodestyle = "*"
+pydantic-core = "*"
+pyflakes = "*"
+pypandoc = "*"
+pyperclip = "*"
+pysoundfile = "*"
+python-sounddevice = "*"
+rpds-py = "0.25.1"
+scipy = "*"
+shtab = "*"
+smmap = "*"
+socksio = "*"
+soupsieve = "*"
+tokenizers = "0.21.2"
+tree-sitter-c-sharp = "*"
+tree-sitter-embedded-template = "*"
+tree-sitter-language-pack = "0.8.0"
+tree-sitter-yaml = "0.7.1"
+typing-extensions = "4.14.0"
+watchfiles = "*"
 
 [tool.pixi.pypi-dependencies]
-# Essential PyPI-only packages
-aider-mcp-server = { path = ".", editable = true }
-# Aider dependencies not available on conda-forge or causing conflicts
 oslex = "*"
-
-[tool.pixi.environments]
-default = { solve-group = "default" }
 
 [tool.pixi.tasks]
 install-editable = "python -m pip install -e . || (echo '::error::Editable installation failed' && exit 1)"
@@ -222,13 +252,43 @@ lint = "ruff check src tests"
 lint-fix = "ruff check --fix src tests"
 format = "ruff format src tests"
 typecheck = "mypy src"
-test = { cmd = "pip install aider-chat --no-deps && python -m pytest tests -x || (echo '::error::Pytest failed, check dependencies and import paths' && exit 1)", depends-on = ["install-editable"] }
-test-cov = { cmd = "pip install aider-chat --no-deps && python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests -x || (echo '::error::Pytest with coverage failed' && exit 1)", depends-on = ["install-editable"] }
-build = { cmd = "python -m build", depends-on = ["install-editable"] }
 clean = "rm -rf dist build .ruff_cache .mypy_cache .pytest_cache *.egg-info src/aider_mcp_server.egg-info"
 setup-pre-commit = "pre-commit install --install-hooks"
-check-all = { depends-on = ["lint", "typecheck", "test"] }
-mcp-server = { cmd = "pip install aider-chat --no-deps && python -m aider_mcp_server", env = { PYTHONPATH = "src" }, depends-on = ["install-editable"] }
-# Aider dependency management
 sync-aider-deps = "python scripts/sync_aider_deps.py"
 remove-aider-deps = "python scripts/sync_aider_deps.py --remove"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [ "S101", "S105", "S106", "S608",]
+"test_*.py" = [ "S101", "S105", "S106", "S108", "S608",]
+"src/aider_mcp_server/stubs/sse_starlette.pyi" = [ "E", "F", "I", "A", "B", "C", "Q", "S",]
+"src/aider_mcp_server/atoms/tools/aider_ai_code.py" = [ "C901",]
+"src/aider_mcp_server/atoms/tools/changes_summarizer.py" = [ "C901",]
+
+[tool.pixi.pypi-dependencies.aider-mcp-server]
+path = "."
+editable = true
+
+[tool.pixi.environments.default]
+solve-group = "default"
+
+[tool.pixi.tasks.test]
+cmd = "pip install aider-chat --no-deps && python -m pytest tests -x || (echo '::error::Pytest failed, check dependencies and import paths' && exit 1)"
+depends-on = [ "install-editable",]
+
+[tool.pixi.tasks.test-cov]
+cmd = "pip install aider-chat --no-deps && python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests -x || (echo '::error::Pytest with coverage failed' && exit 1)"
+depends-on = [ "install-editable",]
+
+[tool.pixi.tasks.build]
+cmd = "python -m build"
+depends-on = [ "install-editable",]
+
+[tool.pixi.tasks.check-all]
+depends-on = [ "lint", "typecheck", "test",]
+
+[tool.pixi.tasks.mcp-server]
+cmd = "pip install aider-chat --no-deps && python -m aider_mcp_server"
+depends-on = [ "install-editable",]
+
+[tool.pixi.tasks.mcp-server.env]
+PYTHONPATH = "src"
