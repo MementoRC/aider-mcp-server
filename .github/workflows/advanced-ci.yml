@@ -29,9 +29,9 @@ jobs:
           cache: true
           activate-environment: true
 
-      - name: Install dependencies
+      - name: Install dependencies (quality-extended environment)
         run: |
-          pixi install
+          pixi install -e quality-extended
 
       - name: Create reports directory
         run: mkdir -p reports/quality
@@ -39,14 +39,14 @@ jobs:
       - name: Run complexity analysis with radon
         run: |
           echo "Running complexity analysis with radon..."
-          pixi run radon mi src/ -j > reports/quality/radon-mi.txt
-          pixi run radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
-          pixi run radon cc src/ -a -s > reports/quality/radon-cc.txt || true
+          pixi run -e quality-extended radon mi src/ -j > reports/quality/radon-mi.txt
+          pixi run -e quality-extended radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
+          pixi run -e quality-extended radon cc src/ -a -s > reports/quality/radon-cc.txt || true
 
       - name: Run dead code detection with vulture
         run: |
           echo "Running dead code detection with vulture..."
-          pixi run vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
+          pixi run -e quality-extended vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
 
       - name: Upload quality reports
         uses: actions/upload-artifact@v4
@@ -74,9 +74,9 @@ jobs:
           cache: true
           activate-environment: true
 
-      - name: Install dependencies
+      - name: Install dependencies (quality-extended environment)
         run: |
-          pixi install
+          pixi install -e quality-extended
 
       - name: Create reports directory
         run: mkdir -p reports/sbom
@@ -84,19 +84,19 @@ jobs:
       - name: Generate requirements.txt for SBOM
         run: |
           echo "Generating requirements.txt for SBOM tools..."
-          pixi run pip freeze > reports/sbom/requirements.txt
+          pixi run -e quality-extended pip freeze > reports/sbom/requirements.txt
 
       - name: Generate CycloneDX SBOM
         continue-on-error: true
         run: |
           echo "Generating CycloneDX SBOM..."
-          pixi run cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
+          pixi run -e quality-extended cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
 
       - name: Generate SPDX SBOM
         continue-on-error: true
         run: |
           echo "Generating SPDX SBOM..."
-          pixi run spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
+          pixi run -e quality-extended spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
 
       - name: Upload SBOM reports
         uses: actions/upload-artifact@v4

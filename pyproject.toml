@@ -179,6 +179,8 @@ hatchling = ">=1.18.0"
 python-build = "*"
 pip-audit = ">=2.6.0"
 pytest-json-report = ">=1.5.0"
+cyclonedx-python-lib = ">=3.0.0"
+spdx-tools = ">=0.8.0"
 
 # TIER 4: Aider Dependencies (heavy packages) - MINIMAL SET FOR CI
 [tool.pixi.feature.aider-deps.dependencies]
@@ -212,7 +214,7 @@ default = {solve-group = "default"}
 
 # Quality gate environments (tiered approach)
 quality = {features = ["quality"], solve-group = "default"}
-quality-extended = {features = ["quality", "quality-extended"], solve-group = "default"}
+quality-extended = {features = ["quality", "quality-extended", "build"], solve-group = "default"}
 quality-full = {features = ["quality", "quality-extended", "build"], solve-group = "default"}
 
 # Development environment (includes aider dependencies)

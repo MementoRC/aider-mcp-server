@@ -39,9 +39,9 @@ jobs:
           cache: true
           activate-environment: true
 
-      - name: Install dependencies
+      - name: Install dependencies (quality-extended environment)
         run: |
-          pixi install
+          pixi install -e quality-extended
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -49,18 +49,18 @@ jobs:
       - name: Dependency vulnerability scan
         run: |
           echo "Scanning dependencies for vulnerabilities..."
-          pixi run pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
-          pixi run pip-audit --desc --output=text > reports/pip-audit.txt || true
+          pixi run -e quality-extended pip-audit --desc --output=json --cache-dir=.pip-audit-cache > reports/pip-audit.json || true
+          pixi run -e quality-extended pip-audit --desc --output=text > reports/pip-audit.txt || true
 
           # Also scan with safety
-          pixi run safety check --json > reports/safety-scan.json || true
-          pixi run safety check > reports/safety-scan.txt || true
+          pixi run -e quality-extended safety check --json > reports/safety-scan.json || true
+          pixi run -e quality-extended safety check > reports/safety-scan.txt || true
 
       - name: Security linting with bandit
         run: |
           echo "Running security linting..."
-          pixi run bandit -r src/ -f json -o reports/bandit-scan.json || true
-          pixi run bandit -r src/ -f txt -o reports/bandit-scan.txt || true
+          pixi run -e quality-extended bandit -r src/ -f json -o reports/bandit-scan.json || true
+          pixi run -e quality-extended bandit -r src/ -f txt -o reports/bandit-scan.txt || true
 
       - name: Process security scan results
         id: process-results
