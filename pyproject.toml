@@ -206,9 +206,6 @@ types-pyyaml = "*"
 pip-audit = ">=2.6.0"
 cyclonedx-python-lib = ">=3.0.0"
 spdx-tools = ">=0.8.0"
-configargparse = "*"
-beautifulsoup4 = "*"
-json5 = "*"
 
 [tool.pixi.pypi-dependencies]
 # Essential PyPI-only packages
@@ -232,3 +229,6 @@ clean = "rm -rf dist build .ruff_cache .mypy_cache .pytest_cache *.egg-info src/
 setup-pre-commit = "pre-commit install --install-hooks"
 check-all = { depends-on = ["lint", "typecheck", "test"] }
 mcp-server = { cmd = "pip install aider-chat --no-deps && python -m aider_mcp_server", env = { PYTHONPATH = "src" }, depends-on = ["install-editable"] }
+# Aider dependency management
+sync-aider-deps = "python scripts/sync_aider_deps.py"
+remove-aider-deps = "python scripts/sync_aider_deps.py --remove"
