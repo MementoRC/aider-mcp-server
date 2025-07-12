@@ -182,18 +182,10 @@ pytest-json-report = ">=1.5.0"
 cyclonedx-python-lib = ">=3.0.0"
 spdx-tools = ">=0.8.0"
 
-# TIER 4: Aider Dependencies - DIRECT CONDA INSTALL
+# TIER 4: Aider Dependencies - MINIMAL FOR TESTING ONLY
 [tool.pixi.feature.aider-deps.dependencies]
-aider-chat = ">=0.85.1"
-# Core aider dependencies already included in aider-chat package
-pillow = "*"
-beautifulsoup4 = "*"
-configargparse = "*"
-gitpython = "*"
-numpy = "*"
-pydantic = "*"
-pyyaml = "*"
-rich = "*"
+# No aider dependencies in conda to avoid conflicts
+# Aider will be installed via pip --no-deps in CI when needed
 
 # Legacy packages (may cause conflicts)
 [tool.pixi.feature.legacy.dependencies]
@@ -284,8 +276,8 @@ remove-aider-deps = "python scripts/sync_aider_deps.py --remove"
 test-legacy = { cmd = "pip install aider-chat --no-deps && python -m pytest tests/ -x", depends-on = ["install-editable"] }
 test-cov-legacy = { cmd = "pip install aider-chat --no-deps && python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests/ -x", depends-on = ["install-editable"] }
 
-[tool.pixi.pypi-dependencies]
-oslex = "*"
+# [tool.pixi.pypi-dependencies]
+# oslex = "*"  # Removed to avoid aider dependency conflicts
 
 [tool.pixi.pypi-dependencies.aider-mcp-server]
 path = "."

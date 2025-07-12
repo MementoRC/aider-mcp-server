@@ -36,9 +36,28 @@ webbrowser.open_new_tab = _blocked_browser_open  # noqa: E402
 if TYPE_CHECKING:
     from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator  # noqa: E402
 
-from aider.coders import Coder  # noqa: E402
-from aider.io import InputOutput  # noqa: E402
-from aider.models import Model  # noqa: E402
+try:
+    from aider.coders import Coder  # noqa: E402
+    from aider.io import InputOutput  # noqa: E402
+    from aider.models import Model  # noqa: E402
+
+    AIDER_AVAILABLE = True
+except ImportError:
+    # Fallback classes when aider is not available
+    AIDER_AVAILABLE = False
+
+    class Coder:  # type: ignore  # noqa: E402
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Aider not available - install aider-chat to use this functionality")
+
+    class InputOutput:  # type: ignore  # noqa: E402
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Aider not available - install aider-chat to use this functionality")
+
+    class Model:  # type: ignore  # noqa: E402
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Aider not available - install aider-chat to use this functionality")
+
 
 from aider_mcp_server.atoms.logging.logger import get_logger  # noqa: E402
 
@@ -1856,6 +1875,19 @@ async def code_with_aider(  # noqa: C901
     Returns:
         str: JSON string containing 'success', 'changes_summary', 'file_status', 'safety_status', and other relevant information.
     """
+    # Check if aider is available
+    if not AIDER_AVAILABLE:
+        logger.error("🚨 Aider is not available - cannot perform code operation")
+        return json.dumps(
+            {
+                "success": False,
+                "changes_summary": "No changes made - aider not available",
+                "file_status": "unchanged",
+                "error": "aider_not_available",
+                "message": "Aider is not available. Please install aider-chat or run in an environment where aider dependencies are available.",
+            }
+        )
+
     # ========== BROWSER POPUP INVESTIGATION START ==========
     logger.info("🔍 ========== AIDER EXECUTION START - BROWSER POPUP INVESTIGATION ==========")
     _log_browser_popup_phase(
