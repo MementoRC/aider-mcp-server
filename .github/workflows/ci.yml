@@ -40,7 +40,7 @@ jobs:
         run: |
           echo "Running all pre-commit hooks (formatters, linters, and mypy)..."
           pixi run -e quality-extended install-pre-commit
-          pixi run -e quality-extended pre-commit run --all-files
+          pixi run -e quality-extended pre-commit
 
       - name: Check for formatting changes
         run: |
