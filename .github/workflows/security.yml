@@ -37,6 +37,7 @@ jobs:
         with:
           pixi-version: v0.49.0
           cache: false  # Temporarily disable cache to force fresh environment
+          log-level: vvv  # Maximum verbosity for debugging
           activate-environment: true
 
       - name: Install dependencies (quality-extended environment)
