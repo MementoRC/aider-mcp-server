@@ -129,8 +129,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          pixi run -e ci install-aider
-          pixi run -e ci test-cov-legacy
+          pixi run -e ci test-cov
 
       - name: Upload coverage report
         if: success() && matrix.os == 'ubuntu-latest'
@@ -165,12 +164,10 @@ jobs:
         run: |
           pixi install -e ci
 
-      - name: Install specific aider version
+      - name: Verify aider installation
         run: |
-          echo "Installing aider-chat version: ${{ matrix.aider-version }}"
-          pixi run -e ci install-aider
-          echo "Verifying aider installation..."
-          pixi run -e ci python -c "import aider; print('Successfully installed aider')" || echo "Warning: aider import failed, but continuing..."
+          echo "Verifying aider installation (version: ${{ matrix.aider-version }})..."
+          pixi run -e ci python -c "import aider; print('Successfully imported aider version: ' + aider.__version__)"
 
       - name: Show pixi environment
         shell: bash

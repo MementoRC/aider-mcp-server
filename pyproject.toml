@@ -182,8 +182,10 @@ pytest-json-report = ">=1.5.0"
 cyclonedx-python-lib = ">=3.0.0"
 spdx-tools = ">=0.8.0"
 
-# TIER 4: Aider Dependencies (heavy packages) - MINIMAL SET FOR CI
+# TIER 4: Aider Dependencies - DIRECT CONDA INSTALL
 [tool.pixi.feature.aider-deps.dependencies]
+aider-chat = ">=0.85.1"
+# Core aider dependencies already included in aider-chat package
 pillow = "*"
 beautifulsoup4 = "*"
 configargparse = "*"
