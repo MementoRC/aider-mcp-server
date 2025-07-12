@@ -127,10 +127,13 @@ def temp_dir() -> Generator[str, None, None]:
     """Create a temporary directory with an initialized Git repository for testing."""
     tmp_dir = tempfile.mkdtemp()
     try:
-        # Get the full path to git executable
-        git_executable = shutil.which("git")
-        if not git_executable or git_executable is None:
-            pytest.skip("Git executable not found")
+        # Get the real git executable (bypass Claude Code redirector)
+        git_executable = "/usr/bin/git"
+        if not os.path.exists(git_executable):
+            # Fallback to system git if /usr/bin/git doesn't exist
+            git_executable = shutil.which("git")
+            if not git_executable or "redirected_bins" in git_executable:
+                pytest.skip("Real git executable not found")
 
         # Initialize git repository in the temp directory
         subprocess.run(  # noqa: S603
