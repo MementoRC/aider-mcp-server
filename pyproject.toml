@@ -143,27 +143,27 @@ platforms = [ "linux-64"]
 
 [tool.pixi.dependencies]
 # CORE RUNTIME (minimal for CI stability)
-python = ">=3.12"
 fastapi = ">=0.115.0"
+httpx = ">=0.27.0"
 mcp = ">=1.9.1"
 pyjwt = ">=2.8.0"
+python = ">=3.12"
 python-dotenv = ">=1.0.0"
 sse-starlette = ">=2.0.0"
 starlette = ">=0.38.0"
-uvicorn = ">=0.30.0"
-httpx = ">=0.27.0"
 toml = ">=0.10.2"
+uvicorn = "*"
 
 # TIER 1: Essential Quality Gates
 [tool.pixi.feature.quality.dependencies]
-pytest = ">=7.0.0"
-pytest-cov = ">=4.0.0"
-pytest-timeout = ">=2.1.0"
-pytest-asyncio = ">=0.21.0"
-pytest-xdist = ">=3.3.0"
-pytest-mock = ">=3.10.0"
-ruff = ">=0.11.6"
 mypy = ">=1.15.0"
+pytest = ">=7.0.0"
+pytest-asyncio = ">=0.21.0"
+pytest-cov = ">=4.0.0"
+pytest-mock = ">=3.10.0"
+pytest-timeout = ">=2.1.0"
+pytest-xdist = ">=3.3.0"
+ruff = ">=0.11.6"
 
 # TIER 2: Extended Quality & Security
 [tool.pixi.feature.quality-extended.dependencies]
@@ -175,32 +175,32 @@ pre-commit = ">=3.0.0"
 
 # TIER 3: Build & CI Tools
 [tool.pixi.feature.build.dependencies]
+cyclonedx-python-lib = ">=3.0.0"
 hatchling = ">=1.18.0"
-python-build = "*"
 pip-audit = ">=2.6.0"
 pytest-json-report = ">=1.5.0"
-cyclonedx-python-lib = ">=3.0.0"
+python-build = "*"
 spdx-tools = ">=0.8.0"
 
 # TIER 4: Aider Dependencies - MINIMAL FOR TESTING ONLY
 [tool.pixi.feature.aider-deps.dependencies]
-# No aider dependencies in conda to avoid conflicts
-# Aider will be installed via pip --no-deps in CI when needed
+# Aider-chat is now available in conda-forge as of version 0.85.1
+aider-chat = ">=0.85.1"
 
 # Legacy packages (may cause conflicts)
 [tool.pixi.feature.legacy.dependencies]
-flake8 = "*"
-mccabe = "*"
-pycodestyle = "*"
-pyflakes = "*"
-isort = "*"
-types-pyyaml = "*"
 cyclonedx-python-lib = ">=3.0.0"
-spdx-tools = ">=0.8.0"
-pytest-benchmark = "*"
+flake8 = "*"
+git = "*"
+isort = "*"
+mccabe = "*"
 mkdocs = "*"
 pre-commit-hooks = "*"
-git = "*"
+pycodestyle = "*"
+pyflakes = "*"
+pytest-benchmark = "*"
+spdx-tools = ">=0.8.0"
+types-pyyaml = "*"
 
 [tool.pixi.environments]
 # Basic runtime environment
@@ -267,14 +267,12 @@ pre-commit = "pre-commit run --all-files"
 install-pre-commit = "pre-commit install --install-hooks"
 
 # ===== AIDER-SPECIFIC TASKS =====
-install-aider = "pip install aider-chat --no-deps"
+install-aider = "echo 'aider-chat available via conda environment'"
 mcp-server = { cmd = "python -m aider_mcp_server", env = { PYTHONPATH = "src" } }
-sync-aider-deps = "python scripts/sync_aider_deps.py"
-remove-aider-deps = "python scripts/sync_aider_deps.py --remove"
 
 # Legacy task compatibility (with aider install)
-test-legacy = { cmd = "pip install aider-chat --no-deps && python -m pytest tests/ -x", depends-on = ["install-editable"] }
-test-cov-legacy = { cmd = "pip install aider-chat --no-deps && python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests/ -x", depends-on = ["install-editable"] }
+test-legacy = { cmd = "python -m pytest tests/ -x", depends-on = ["install-editable"] }
+test-cov-legacy = { cmd = "python -m pytest --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml tests/ -x", depends-on = ["install-editable"] }
 
 # [tool.pixi.pypi-dependencies]
 # oslex = "*"  # Removed to avoid aider dependency conflicts
