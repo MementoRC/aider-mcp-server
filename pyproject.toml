@@ -173,6 +173,8 @@ pytest-mock = ">=3.10.0"
 pytest-timeout = ">=2.1.0"
 pytest-xdist = ">=3.3.0"
 ruff = ">=0.11.6"
+types-pyyaml = "*"
+types-toml = "*"
 
 # TIER 2: Extended Quality & Security
 [tool.pixi.feature.quality-extended.dependencies]
