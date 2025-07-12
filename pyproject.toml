@@ -124,6 +124,15 @@ disable_error_code = "no-any-return"
 select = [ "E", "F", "A", "B", "C", "Q", "S",]
 ignore = [ "E501",]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",  # Allow assert statements in test files
+    "S105",  # Allow hardcoded passwords in test files
+    "S106",  # Allow hardcoded passwords in arguments in test files
+    "S108",  # Allow temp file/directory usage in test files
+    "S608",  # Allow SQL injection patterns in test files
+]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
