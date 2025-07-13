@@ -17,6 +17,9 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Enable git access if needed by security tools
+      CLAUDECODE: "0"
     permissions:
       contents: read
       security-events: write

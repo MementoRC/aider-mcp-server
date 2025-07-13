@@ -13,6 +13,9 @@ jobs:
   code-quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Enable git access if needed by quality tools
+      CLAUDECODE: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -59,6 +62,9 @@ jobs:
   sbom-generation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Enable git access if needed by SBOM tools
+      CLAUDECODE: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
