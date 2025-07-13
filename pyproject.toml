@@ -236,10 +236,10 @@ full = {features = ["quality", "quality-extended", "build", "aider-deps", "legac
 install-editable = "pip install -e ."
 
 # Testing (ZERO-TOLERANCE QUALITY GATES)
-test = "CLAUDECODE=0 python -m pytest tests/ -v"
-test-cov = "CLAUDECODE=0 python -m pytest tests/ --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml"
-test-unit = "CLAUDECODE=0 python -m pytest tests/atoms/ tests/molecules/ -v"
-test-integration = "CLAUDECODE=0 python -m pytest tests/organisms/ -v"
+test = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; python -m pytest tests/ -v'"
+test-cov = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; python -m pytest tests/ --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml'"
+test-unit = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; python -m pytest tests/atoms/ tests/molecules/ -v'"
+test-integration = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; python -m pytest tests/organisms/ -v'"
 
 # Quality Gates (CRITICAL - MUST PASS)
 lint = "ruff check src/ tests/ --select=F,E9"
@@ -253,7 +253,7 @@ quality = { depends-on = ["test", "lint", "typecheck"] }
 
 # ===== TIER 2: CI-OPTIMIZED TASKS =====
 # CI-specific variants (use ci environment)
-ci-test = "CLAUDECODE=0 python -m pytest tests/ --cov=src/aider_mcp_server --cov-report=xml --timeout=90"
+ci-test = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; python -m pytest tests/ --cov=src/aider_mcp_server --cov-report=xml --timeout=90'"
 ci-lint = "ruff check src/ tests/ --output-format=github"
 ci-format-check = "ruff format --check src/ tests/"
 
@@ -274,8 +274,8 @@ build = "python -m build"
 clean = "rm -rf __pycache__ .pytest_cache .coverage htmlcov .ruff_cache dist build"
 
 # Pre-commit Integration (with Claude Code git bypass)
-pre-commit = "CLAUDECODE=0 pre-commit run --all-files"
-install-pre-commit = "CLAUDECODE=0 pre-commit install --install-hooks"
+pre-commit = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; pre-commit run --all-files'"
+install-pre-commit = "bash -c 'export CLAUDECODE=${CLAUDECODE:-0}; pre-commit install --install-hooks'"
 
 # ===== AIDER-SPECIFIC TASKS =====
 install-aider = "echo 'aider-chat available via conda environment'"
