@@ -6,7 +6,7 @@ allowing clients to connect and receive real-time events over a persistent HTTP 
 and send messages via HTTP POST.
 """
 
-from __future__ import annotations  # Ensure forward references work
+# Removed __future__ annotations to fix MCP server introspection issues
 
 import asyncio
 import json
@@ -71,7 +71,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
 
     def __init__(
         self,
-        coordinator: Optional[ApplicationCoordinator] = None,
+        coordinator: Optional["ApplicationCoordinator"] = None,
         host: str = "127.0.0.1",  # noqa: S104
         port: int = 8766,  # Default port, different from SSE
         stream_queue_size: int = 100,
