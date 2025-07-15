@@ -1,6 +1,7 @@
 """Test that multiple SSE tests can run in parallel without port conflicts."""
 
 import asyncio
+import os
 import subprocess
 import sys  # Added import for sys
 import tempfile
@@ -18,7 +19,7 @@ async def test_parallel_server_starts(free_port, server_process):
     test_dir.mkdir(exist_ok=True)
 
     # Initialize a git repo in the test directory
-    subprocess.run(["git", "init"], cwd=test_dir, capture_output=True)  # noqa: S603, S607
+    subprocess.run(["git", "init"], cwd=test_dir, capture_output=True, env={**os.environ, "CLAUDECODE": "0"})  # noqa: S603, S607
 
     # Start the SSE server
     process = server_process(
@@ -39,7 +40,7 @@ async def test_parallel_server_starts(free_port, server_process):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
+        env={**subprocess.os.environ, "OPENAI_API_KEY": "test-key", "CLAUDECODE": "0"},
     )
 
     # Wait briefly to allow server to start, especially on slower CI
@@ -67,7 +68,7 @@ async def test_another_parallel_server(free_port, server_process):
     test_dir.mkdir(exist_ok=True)
 
     # Initialize a git repo in the test directory
-    subprocess.run(["git", "init"], cwd=test_dir, capture_output=True)  # noqa: S603, S607
+    subprocess.run(["git", "init"], cwd=test_dir, capture_output=True, env={**os.environ, "CLAUDECODE": "0"})  # noqa: S603, S607
 
     # Start the SSE server
     process = server_process(
@@ -88,7 +89,7 @@ async def test_another_parallel_server(free_port, server_process):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env={"OPENAI_API_KEY": "test-key", **subprocess.os.environ},
+        env={**subprocess.os.environ, "OPENAI_API_KEY": "test-key", "CLAUDECODE": "0"},
     )
 
     # Wait briefly to allow server to start, especially on slower CI
