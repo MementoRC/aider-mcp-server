@@ -136,7 +136,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          pixi run -e ci test-cov-legacy
+          pixi run -e ci ci-test
 
       - name: Upload coverage report
         if: success() && matrix.os == 'ubuntu-latest'
@@ -200,11 +200,11 @@ jobs:
 
       - name: Run compatibility tests
         run: |
-          pixi run -e ci python -m pytest tests/compatibility/ -v
+          pixi run -e ci python -m pytest tests/compatibility/ -v --timeout=60
 
       - name: Run integration tests
         run: |
-          pixi run -e ci python -m pytest tests/ -v -m integration
+          pixi run -e ci python -m pytest tests/ -v -m integration --timeout=120
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
