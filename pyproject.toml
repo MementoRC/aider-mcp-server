@@ -162,6 +162,10 @@ sse-starlette = ">=2.0.0"
 starlette = ">=0.38.0"
 toml = ">=0.10.2"
 uvicorn = "*"
+pytest = ">=8.4.1,<9"
+pytest-asyncio = ">=1.0.0,<2"
+aider-chat = ">=0.85.1,<0.86"
+requests = ">=2.32.4,<3"
 
 # TIER 1: Essential Quality Gates
 [tool.pixi.feature.quality.dependencies]
