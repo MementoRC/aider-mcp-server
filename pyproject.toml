@@ -220,7 +220,7 @@ types-pyyaml = "*"
 
 [tool.pixi.environments]
 # Basic runtime environment
-default = {solve-group = "default"}
+default = {features = ["quality"], solve-group = "default"}
 
 # Quality gate environments (tiered approach)
 quality = {features = ["quality"], solve-group = "default"}
