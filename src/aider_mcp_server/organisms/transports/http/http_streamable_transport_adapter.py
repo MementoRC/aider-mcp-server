@@ -376,8 +376,19 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             self.logger.error(f"Failed to send initial connection message to {client_id}: {e}", exc_info=True)
             # Proceed with stream anyway, or terminate? For now, proceed.
 
+        async def cleanup_on_disconnect() -> AsyncGenerator[str, None]:
+            """Generator wrapper that ensures cleanup on client disconnect."""
+            try:
+                async for chunk in self._stream_generator(client_id, queue):
+                    yield chunk
+            finally:
+                # Ensure connection is removed when client disconnects
+                if client_id in self._active_connections:
+                    del self._active_connections[client_id]
+                    self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+
         return StreamingResponse(
-            self._stream_generator(client_id, queue),
+            cleanup_on_disconnect(),
             media_type="application/x-ndjson",  # Newline Delimited JSON
         )
 
