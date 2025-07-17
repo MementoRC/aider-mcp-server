@@ -96,9 +96,9 @@ jobs:
         shell: bash
         run: |
           echo ">>> Pixi environment details"
-          pixi info -e ci
-          echo ">>> Installed packages in CI environment"
-          pixi run -e ci pip list
+          pixi info
+          echo ">>> Active environment packages"
+          pixi list -e ci
 
       - name: Check system resources (Linux)
         if: runner.os == 'Linux'
@@ -188,9 +188,9 @@ jobs:
         shell: bash
         run: |
           echo ">>> Pixi environment details"
-          pixi info -e ci
-          echo ">>> Installed packages in CI environment"
-          pixi run -e ci pip list
+          pixi info
+          echo ">>> Active environment packages"
+          pixi list -e ci
 
       - name: Run compatibility check script
         run: |
