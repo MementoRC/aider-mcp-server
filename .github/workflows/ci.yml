@@ -63,6 +63,8 @@ jobs:
     env:
       # Enable git access for tests and pre-commit hooks
       CLAUDECODE: "0"
+      # Set GitHub repository for maintenance issue tests
+      GITHUB_REPOSITORY: ${{ github.repository }}
       # Provide mock API keys to allow integration tests to run without real secrets
       OPENAI_API_KEY: "sk-mock-openai-key"
       ANTHROPIC_API_KEY: "sk-mock-anthropic-key"
