@@ -381,11 +381,24 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             try:
                 async for chunk in self._stream_generator(client_id, queue):
                     yield chunk
+            except GeneratorExit:
+                # Handle client disconnect gracefully
+                self.logger.debug(f"Client {client_id} disconnected during streaming.")
+                raise  # Re-raise to maintain proper cleanup flow
+            except Exception as e:
+                # Log any unexpected errors during streaming
+                self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
+                raise
             finally:
                 # Ensure connection is removed when client disconnects
-                if client_id in self._active_connections:
-                    del self._active_connections[client_id]
-                    self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+                # Use a more robust cleanup approach for CI environments
+                try:
+                    if client_id in self._active_connections:
+                        del self._active_connections[client_id]
+                        self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+                except Exception as cleanup_error:
+                    # Don't let cleanup errors break the response
+                    self.logger.warning(f"Error during connection cleanup for {client_id}: {cleanup_error}")
 
         return StreamingResponse(
             cleanup_on_disconnect(),
