@@ -32,6 +32,7 @@ jobs:
         with:
           pixi-version: v0.49.0
           cache: true
+          cache-key: "pixi-${{ runner.os }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
           log-level: vvv  # Maximum verbosity for debugging
           activate-environment: true
 
@@ -85,6 +86,7 @@ jobs:
         with:
           pixi-version: v0.49.0
           cache: true
+          cache-key: "pixi-${{ runner.os }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
           log-level: vvv  # Maximum verbosity for debugging
           activate-environment: true
 
@@ -170,6 +172,7 @@ jobs:
         with:
           pixi-version: v0.49.0
           cache: true
+          cache-key: "pixi-${{ runner.os }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
           log-level: vvv  # Maximum verbosity for debugging
           activate-environment: true
 
