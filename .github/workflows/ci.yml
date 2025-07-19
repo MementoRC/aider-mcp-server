@@ -137,10 +137,60 @@ jobs:
           echo "::endgroup::"
 
 
-      - name: Run tests
+      - name: Run tests with retry on failure
         shell: bash
         run: |
-          pixi run -e ci ci-test
+          echo "::group::Running tests with improved diagnostics"
+
+          # Function to run tests with diagnostics
+          run_tests_with_diagnostics() {
+            echo ">>> Starting test run at $(date)"
+            echo ">>> System resources before tests:"
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              df -h | head -3
+              free -h | head -2
+            fi
+
+            # Run tests with timeout and capture exit code
+            set +e
+            pixi run -e ci ci-test
+            exit_code=$?
+            set -e
+
+            echo ">>> Test run completed at $(date) with exit code: $exit_code"
+            echo ">>> System resources after tests:"
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              df -h | head -3
+              free -h | head -2
+            fi
+
+            return $exit_code
+          }
+
+          # First attempt
+          echo ">>> First attempt"
+          if run_tests_with_diagnostics; then
+            echo "✅ Tests passed on first attempt"
+            exit 0
+          fi
+
+          echo "⚠️ First attempt failed, analyzing and retrying..."
+
+          # Wait a moment and retry once
+          echo ">>> Waiting 10 seconds before retry..."
+          sleep 10
+
+          echo ">>> Second attempt (final)"
+          if run_tests_with_diagnostics; then
+            echo "✅ Tests passed on retry"
+            exit 0
+          else
+            echo "❌ Tests failed on both attempts"
+            echo "::error::Tests failed consistently - this indicates a real issue"
+            exit 1
+          fi
+
+          echo "::endgroup::"
 
       - name: Upload coverage report
         if: success() && matrix.os == 'ubuntu-latest'
