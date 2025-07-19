@@ -158,8 +158,6 @@ claude-code-knowledge-framework/
 # -----------------------------------------------------------------------------
 # TaskMaster AI
 .taskmaster/
-tasks/
-tasks.json
 .taskmasterconfig
 
 # Claude Code session files
@@ -215,4 +213,10 @@ logs
 .idea
 .vscode
 # OS specific
+
 # Task files
+# tasks.json
+# tasks/
+
+# UV lock file (not used - this project uses pixi)
+uv.lock
