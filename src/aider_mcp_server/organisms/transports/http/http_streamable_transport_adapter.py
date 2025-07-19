@@ -398,7 +398,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
                 yield chunk
         except GeneratorExit:
             self.logger.debug(f"Client {client_id} disconnected during streaming.")
-            raise  # Re-raise to maintain proper cleanup flow
+            # Don't re-raise GeneratorExit - let it fall through to finally for cleanup
         except Exception as e:
             self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
             raise
