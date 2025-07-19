@@ -337,11 +337,7 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             self.logger.error(f"Error in stream generator for client {client_id}: {e}", exc_info=True)
         finally:
             self.logger.debug(f"Stream generator for client {client_id} finished.")
-            # Ensure connection is removed if it still exists (e.g., if loop broke due to error)
-            # Use pop to avoid KeyError if already removed by another cleanup
-            removed_queue = self._active_connections.pop(client_id, None)
-            if removed_queue:
-                self.logger.info(f"Removed active connection for client {client_id} after stream ended/error.")
+            # Delegate cleanup to the wrapper - don't do it here to avoid race conditions
 
     async def handle_stream_request(self, request: Request) -> Response:
         """Handle new client connection requests for the HTTP stream."""
@@ -407,11 +403,19 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
             raise
         finally:
-            # Ensure connection is removed when client disconnects
+            # Primary cleanup point - always execute regardless of how the stream ended
             try:
                 removed_queue = self._active_connections.pop(client_id, None)
                 if removed_queue:
                     self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+                    # Also send close signal to any remaining operations
+                    try:
+                        removed_queue.put_nowait("CLOSE_STREAM")
+                    except (asyncio.QueueFull, RuntimeError):
+                        # Queue might be full or closed, that's fine
+                        pass
+                else:
+                    self.logger.debug(f"Connection for client {client_id} was already cleaned up.")
             except Exception as cleanup_error:
                 self.logger.warning(f"Error during connection cleanup for {client_id}: {cleanup_error}")
 
