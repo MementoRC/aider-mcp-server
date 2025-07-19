@@ -364,10 +364,50 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
     async def _cleanup_existing_connection(self, client_id: str) -> None:
         """Clean up any existing connection for the client."""
         if client_id in self._active_connections:
-            # For now, always reject duplicate connections to maintain test compatibility
-            # This ensures clean behavior and prevents connection conflicts
-            self.logger.warning(f"Client {client_id} attempted to connect but already has an active stream.")
-            raise ConnectionError(f"Client {client_id} already connected. Reconnection not yet supported this way.")
+            # Check if the connection is still active by trying to put a test message
+            existing_queue = self._active_connections.get(client_id)
+            if existing_queue:
+                try:
+                    # If we can put a message without it being full, connection is likely active
+                    existing_queue.put_nowait("CONNECTION_TEST")
+                    # If successful, this is a duplicate connection attempt
+                    # Remove the test message and reject
+                    try:
+                        existing_queue.get_nowait()  # Remove the test message
+                    except asyncio.QueueEmpty:
+                        pass
+                    self.logger.warning(f"Client {client_id} attempted to connect but already has an active stream.")
+                    raise ConnectionError(
+                        f"Client {client_id} already connected. Disconnect first before reconnecting."
+                    )
+                except asyncio.QueueFull:
+                    # Queue is full, connection might be stuck, allow cleanup and reconnection
+                    pass
+                except RuntimeError:
+                    # Queue is closed/invalid, allow cleanup and reconnection
+                    pass
+
+            # If we reach here, the existing connection should be cleaned up
+            self.logger.info(f"Client {client_id} has existing connection. Cleaning up for reconnection.")
+            try:
+                # Send close signal to existing connection
+                if existing_queue:
+                    try:
+                        existing_queue.put_nowait("CLOSE_STREAM")
+                    except (asyncio.QueueFull, RuntimeError):
+                        # Queue might be full or closed, that's fine
+                        pass
+
+                # Remove from active connections
+                self._active_connections.pop(client_id, None)
+                self.logger.info(f"Successfully cleaned up existing connection for client {client_id}")
+
+                # Small delay to ensure cleanup completes
+                await asyncio.sleep(0.01)
+
+            except Exception as cleanup_error:
+                self.logger.warning(f"Error during existing connection cleanup for {client_id}: {cleanup_error}")
+                # Continue with reconnection even if cleanup had issues
 
     async def _create_new_connection(self, client_id: str) -> asyncio.Queue[str]:
         """Create a new connection queue and send initial message."""
