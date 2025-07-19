@@ -338,8 +338,9 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
         finally:
             self.logger.debug(f"Stream generator for client {client_id} finished.")
             # Ensure connection is removed if it still exists (e.g., if loop broke due to error)
-            if client_id in self._active_connections:
-                del self._active_connections[client_id]
+            # Use pop to avoid KeyError if already removed by another cleanup
+            removed_queue = self._active_connections.pop(client_id, None)
+            if removed_queue:
                 self.logger.info(f"Removed active connection for client {client_id} after stream ended/error.")
 
     async def handle_stream_request(self, request: Request) -> Response:
@@ -349,21 +350,38 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             self.logger.warning("Stream request received without client_id in path.")
             return Response("client_id path parameter is required.", status_code=400, media_type="text/plain")
 
-        if client_id in self._active_connections:
-            self.logger.warning(f"Client {client_id} attempted to connect but already has an active stream.")
-            return Response(
-                f"Client {client_id} already connected. Reconnection not yet supported this way.",
-                status_code=409,
-                media_type="text/plain",
-            )
+        # Handle existing connection cleanup
+        try:
+            await self._cleanup_existing_connection(client_id)
+        except ConnectionError as e:
+            return Response(str(e), status_code=409, media_type="text/plain")
 
+        # Create new connection
+        queue = await self._create_new_connection(client_id)
+
+        # Return streaming response with cleanup wrapper
+        return StreamingResponse(
+            self._create_cleanup_wrapper(client_id, queue),
+            media_type="application/x-ndjson",  # Newline Delimited JSON
+        )
+
+    async def _cleanup_existing_connection(self, client_id: str) -> None:
+        """Clean up any existing connection for the client."""
+        if client_id in self._active_connections:
+            # For now, always reject duplicate connections to maintain test compatibility
+            # This ensures clean behavior and prevents connection conflicts
+            self.logger.warning(f"Client {client_id} attempted to connect but already has an active stream.")
+            raise ConnectionError(f"Client {client_id} already connected. Reconnection not yet supported this way.")
+
+    async def _create_new_connection(self, client_id: str) -> asyncio.Queue[str]:
+        """Create a new connection queue and send initial message."""
         queue: asyncio.Queue[str] = asyncio.Queue(self._stream_queue_size)
         self._active_connections[client_id] = queue
         self.logger.info(
             f"Client {client_id} connected to stream. Total active connections: {len(self._active_connections)}"
         )
 
-        # Send an initial status message
+        # Send initial status message
         try:
             initial_event_data = {
                 "message": "Successfully connected to HTTP stream.",
@@ -374,36 +392,28 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
             await queue.put(json.dumps(initial_message_payload))
         except Exception as e:
             self.logger.error(f"Failed to send initial connection message to {client_id}: {e}", exc_info=True)
-            # Proceed with stream anyway, or terminate? For now, proceed.
 
-        async def cleanup_on_disconnect() -> AsyncGenerator[str, None]:
-            """Generator wrapper that ensures cleanup on client disconnect."""
+        return queue
+
+    async def _create_cleanup_wrapper(self, client_id: str, queue: asyncio.Queue[str]) -> AsyncGenerator[str, None]:
+        """Generator wrapper that ensures cleanup on client disconnect."""
+        try:
+            async for chunk in self._stream_generator(client_id, queue):
+                yield chunk
+        except GeneratorExit:
+            self.logger.debug(f"Client {client_id} disconnected during streaming.")
+            raise  # Re-raise to maintain proper cleanup flow
+        except Exception as e:
+            self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
+            raise
+        finally:
+            # Ensure connection is removed when client disconnects
             try:
-                async for chunk in self._stream_generator(client_id, queue):
-                    yield chunk
-            except GeneratorExit:
-                # Handle client disconnect gracefully
-                self.logger.debug(f"Client {client_id} disconnected during streaming.")
-                raise  # Re-raise to maintain proper cleanup flow
-            except Exception as e:
-                # Log any unexpected errors during streaming
-                self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
-                raise
-            finally:
-                # Ensure connection is removed when client disconnects
-                # Use a more robust cleanup approach for CI environments
-                try:
-                    if client_id in self._active_connections:
-                        del self._active_connections[client_id]
-                        self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
-                except Exception as cleanup_error:
-                    # Don't let cleanup errors break the response
-                    self.logger.warning(f"Error during connection cleanup for {client_id}: {cleanup_error}")
-
-        return StreamingResponse(
-            cleanup_on_disconnect(),
-            media_type="application/x-ndjson",  # Newline Delimited JSON
-        )
+                removed_queue = self._active_connections.pop(client_id, None)
+                if removed_queue:
+                    self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+            except Exception as cleanup_error:
+                self.logger.warning(f"Error during connection cleanup for {client_id}: {cleanup_error}")
 
     async def _parse_message_payload(
         self, request: Request, client_id: str
