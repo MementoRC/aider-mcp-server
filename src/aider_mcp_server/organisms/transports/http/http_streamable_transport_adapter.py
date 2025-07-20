@@ -432,32 +432,45 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
         return queue
 
     async def _create_cleanup_wrapper(self, client_id: str, queue: asyncio.Queue[str]) -> AsyncGenerator[str, None]:
-        """Generator wrapper that ensures cleanup on client disconnect."""
+        """Generator wrapper that ensures immediate cleanup on client disconnect."""
+        cleanup_done = False
+
+        def perform_cleanup() -> None:
+            """Perform immediate synchronous cleanup."""
+            nonlocal cleanup_done
+            if not cleanup_done:
+                try:
+                    removed_queue = self._active_connections.pop(client_id, None)
+                    if removed_queue:
+                        self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+                        # Send close signal to any remaining operations
+                        try:
+                            removed_queue.put_nowait("CLOSE_STREAM")
+                        except (asyncio.QueueFull, RuntimeError):
+                            # Queue might be full or closed, that's fine
+                            pass
+                    else:
+                        self.logger.debug(f"Connection for client {client_id} was already cleaned up.")
+                except Exception as cleanup_error:
+                    self.logger.warning(f"Error during connection cleanup for {client_id}: {cleanup_error}")
+                finally:
+                    cleanup_done = True
+
         try:
             async for chunk in self._stream_generator(client_id, queue):
                 yield chunk
         except GeneratorExit:
             self.logger.debug(f"Client {client_id} disconnected during streaming.")
+            # Immediate cleanup on disconnect
+            perform_cleanup()
             # Don't re-raise GeneratorExit - let it fall through to finally for cleanup
         except Exception as e:
             self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
+            perform_cleanup()
             raise
         finally:
-            # Primary cleanup point - always execute regardless of how the stream ended
-            try:
-                removed_queue = self._active_connections.pop(client_id, None)
-                if removed_queue:
-                    self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
-                    # Also send close signal to any remaining operations
-                    try:
-                        removed_queue.put_nowait("CLOSE_STREAM")
-                    except (asyncio.QueueFull, RuntimeError):
-                        # Queue might be full or closed, that's fine
-                        pass
-                else:
-                    self.logger.debug(f"Connection for client {client_id} was already cleaned up.")
-            except Exception as cleanup_error:
-                self.logger.warning(f"Error during connection cleanup for {client_id}: {cleanup_error}")
+            # Backup cleanup in case other paths didn't trigger it
+            perform_cleanup()
 
     async def _parse_message_payload(
         self, request: Request, client_id: str
