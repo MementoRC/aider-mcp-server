@@ -168,6 +168,7 @@ pytest-mock = ">=3.10.0"
 aider-chat = ">=0.85.1,<0.86"
 requests = ">=2.32.4,<3"
 pre-commit = ">=4.2.0,<5"
+types-toml = "*"
 
 # TIER 1: Essential Quality Gates
 [tool.pixi.feature.quality.dependencies]
