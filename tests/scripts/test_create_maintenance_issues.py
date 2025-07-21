@@ -68,7 +68,7 @@ class TestMaintenanceIssueCreator(unittest.TestCase):
         self.assertEqual(creator.repo_info["repo"], "test-repo")
         self.assertEqual(creator.config, self.test_config)
 
-    @patch.dict(os.environ, {"GITHUB_REPOSITORY": "test-owner/test-repo"})
+    @patch.dict(os.environ, {"GITHUB_REPOSITORY": "test-owner/test-repo"}, clear=True)
     def test_initialization_without_token(self):
         """Test initialization failure without GitHub token."""
         with self.assertRaises(ValueError) as context:
