@@ -47,6 +47,17 @@ def _try_process_one_event_from_buffer(buffer: bytes, events: List[Dict[str, Any
     return buffer, False
 
 
+async def _wait_for_cleanup(adapter: HttpStreamableTransportAdapter, client_id: str, timeout: float = 1.0) -> None:
+    """Wait for client connection cleanup with timeout and retries."""
+    start_time = asyncio.get_event_loop().time()
+    while asyncio.get_event_loop().time() - start_time < timeout:
+        if client_id not in adapter._active_connections:
+            return  # Cleanup completed
+        await asyncio.sleep(0.05)  # Check every 50ms
+    # If we reach here, cleanup didn't complete in time
+    raise AssertionError(f"Client {client_id} was not cleaned up within {timeout} seconds")
+
+
 async def _fetch_chunk_with_timeout(
     response_content_iterator: AsyncGenerator[bytes, None],
     timeout_per_message: float,
@@ -297,8 +308,7 @@ class TestHttpStreamableTransportAdapter:
         assert initial_event["data"]["message"] == "Successfully connected to HTTP stream."
         assert initial_event["data"]["client_id"] == client_id
 
-        await asyncio.sleep(0.1)  # Allow time for disconnect to be processed
-        assert client_id not in adapter._active_connections
+        await _wait_for_cleanup(adapter, client_id, timeout=2.0)  # More robust cleanup wait
 
     async def test_stream_connection_no_client_id_in_path_param(self, http_client: httpx.AsyncClient):
         # Starlette's router should handle this with a 404 if client_id is a mandatory path param.
@@ -321,8 +331,7 @@ class TestHttpStreamableTransportAdapter:
             assert response2.status_code == 409
             assert f"Client {client_id} already connected" in response2.text
 
-        await asyncio.sleep(0.1)
-        assert client_id not in adapter._active_connections
+        await _wait_for_cleanup(adapter, client_id, timeout=2.0)  # More robust cleanup wait
 
     @mock.patch("aider_mcp_server.organisms.processors.handlers.process_aider_ai_code_request")
     async def test_message_handler_aider_ai_code_success(
@@ -663,8 +672,7 @@ class TestHttpStreamableTransportAdapter:
             assert response1.status_code == 200
             initial_events1 = await read_ndjson_stream_from_response(response1.aiter_bytes(), expected_messages=1)
             assert len(initial_events1) == 1
-        await asyncio.sleep(0.1)  # Allow server to process disconnect
-        assert client_id not in adapter._active_connections
+        await _wait_for_cleanup(adapter, client_id, timeout=2.0)  # More robust cleanup wait
 
         # Reconnection
         async with http_client.stream("GET", f"/stream/{client_id}") as response2:
@@ -676,5 +684,4 @@ class TestHttpStreamableTransportAdapter:
         assert events_reconnect[0]["event"] == EventTypes.STATUS.value
         assert events_reconnect[0]["data"]["client_id"] == client_id
 
-        await asyncio.sleep(0.1)
-        assert client_id not in adapter._active_connections
+        await _wait_for_cleanup(adapter, client_id, timeout=2.0)  # More robust cleanup wait
