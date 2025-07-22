@@ -282,7 +282,7 @@ build = "python -m build"
 clean = "rm -rf __pycache__ .pytest_cache .coverage htmlcov .ruff_cache dist build"
 
 # Pre-commit Integration - with Claude Code git bypass
-pre-commit = { cmd = "pre-commit run --all-files", env = { CLAUDECODE = "0" } }
+pre-commit = { cmd = "pre-commit run --all-files", env = { CLAUDECODE = "0", PRE_COMMIT = "1" } }
 install-pre-commit = { cmd = "pre-commit install --install-hooks", env = { CLAUDECODE = "0" } }
 
 # ===== AIDER-SPECIFIC TASKS =====

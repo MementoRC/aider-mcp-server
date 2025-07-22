@@ -214,9 +214,9 @@ logs
 .vscode
 # OS specific
 
+# UV lock file (not used - this project uses pixi)
+uv.lock
+
 # Task files
 # tasks.json
 # tasks/
-
-# UV lock file (not used - this project uses pixi)
-uv.lock
