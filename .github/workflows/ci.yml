@@ -168,7 +168,7 @@ jobs:
 
             # Run tests with timeout and capture exit code - using exact pixi task
             set +e
-            timeout 1200s pixi run -e ci ci-test
+            timeout 600s pixi run -e ci ci-test
             exit_code=$?
             set -e
 

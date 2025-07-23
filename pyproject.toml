@@ -261,7 +261,7 @@ quality = { depends-on = ["test", "lint", "typecheck"] }
 # ===== TIER 2: CI-OPTIMIZED TASKS =====
 # CI-specific variants (use ci environment)
 # CI-specific variants (use ci environment) - with Claude Code git bypass
-ci-test = { cmd = "python -m pytest tests/ --timeout=300 --tb=short -v", env = { CLAUDECODE = "0" } }
+ci-test = { cmd = "python -m pytest tests/ --timeout=180 --tb=short -v", env = { CLAUDECODE = "0" } }
 ci-lint = "ruff check src/ tests/ --output-format=github"
 ci-format-check = "ruff format --check src/ tests/"
 
