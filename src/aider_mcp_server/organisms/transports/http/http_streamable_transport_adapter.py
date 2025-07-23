@@ -431,22 +431,33 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
 
         return queue
 
+    async def _async_client_cleanup(self, client_id: str) -> None:
+        """Perform async cleanup with event loop scheduling."""
+        removed_queue = self._active_connections.pop(client_id, None)
+        if removed_queue:
+            self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
+            try:
+                removed_queue.put_nowait("CLOSE_STREAM")
+            except (asyncio.QueueFull, RuntimeError):
+                pass
+            # Small delay to ensure cleanup completes on event loop
+            await asyncio.sleep(0.001)
+        else:
+            self.logger.debug(f"Connection for client {client_id} was already cleaned up.")
+
+    def _sync_fallback_cleanup(self, client_id: str) -> None:
+        """Synchronous fallback cleanup for event loop closure."""
+        removed_queue = self._active_connections.pop(client_id, None)
+        if removed_queue:
+            self.logger.info(f"Fallback sync cleanup for client {client_id}.")
+            try:
+                removed_queue.put_nowait("CLOSE_STREAM")
+            except (asyncio.QueueFull, RuntimeError):
+                pass
+
     async def _create_cleanup_wrapper(self, client_id: str, queue: asyncio.Queue[str]) -> AsyncGenerator[str, None]:
         """Generator wrapper that ensures immediate cleanup on client disconnect."""
         self.logger.debug(f"Starting cleanup wrapper for client {client_id}")
-
-        def immediate_cleanup() -> None:
-            """Perform immediate synchronous cleanup."""
-            removed_queue = self._active_connections.pop(client_id, None)
-            if removed_queue:
-                self.logger.info(f"Cleaned up connection for client {client_id} on disconnect.")
-                try:
-                    removed_queue.put_nowait("CLOSE_STREAM")
-                except (asyncio.QueueFull, RuntimeError):
-                    pass
-            else:
-                self.logger.debug(f"Connection for client {client_id} was already cleaned up.")
-
         try:
             # Start the stream generator and yield chunks
             stream_generator = self._stream_generator(client_id, queue)
@@ -454,19 +465,22 @@ class HttpStreamableTransportAdapter(AbstractTransportAdapter):
                 yield chunk
         except GeneratorExit:
             self.logger.debug(f"Client {client_id} disconnected via GeneratorExit.")
-            # Immediate synchronous cleanup
-            immediate_cleanup()
+            await self._async_client_cleanup(client_id)
         except asyncio.CancelledError:
             self.logger.debug(f"Client {client_id} stream cancelled.")
-            immediate_cleanup()
+            await self._async_client_cleanup(client_id)
             raise
         except Exception as e:
             self.logger.error(f"Error during streaming for client {client_id}: {e}", exc_info=True)
-            immediate_cleanup()
+            await self._async_client_cleanup(client_id)
             raise
         finally:
             # Final cleanup to ensure it happens regardless of exit path
-            immediate_cleanup()
+            try:
+                asyncio.create_task(self._async_client_cleanup(client_id))
+            except RuntimeError:
+                # If event loop is closed, do synchronous cleanup
+                self._sync_fallback_cleanup(client_id)
             self.logger.debug(f"Cleanup wrapper finished for client {client_id}")
 
     async def _parse_message_payload(
