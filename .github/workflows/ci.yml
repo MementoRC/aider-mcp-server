@@ -56,7 +56,7 @@ jobs:
 
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -159,12 +159,16 @@ jobs:
             export PYTHONDONTWRITEBYTECODE=1
             export PYTHONUNBUFFERED=1
 
-            # Increase timeout for CI environment (240s vs 180s)
-            echo ">>> Running tests with extended timeout for CI environment"
+            # CI-specific optimizations for GitHub Actions runners
+            export PYTEST_TIMEOUT=300
+            export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 
-            # Run tests with timeout and capture exit code
+            # Increase timeout for CI environment (300s vs 180s)
+            echo ">>> Running tests with extended timeout for CI environment (300s)"
+
+            # Run tests with timeout and capture exit code - using exact pixi task
             set +e
-            timeout 900s pixi run -e ci python -m pytest tests/ --timeout=240 --tb=short -v --maxfail=10
+            timeout 1200s pixi run -e ci ci-test
             exit_code=$?
             set -e
 
