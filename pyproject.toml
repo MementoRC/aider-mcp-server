@@ -145,7 +145,7 @@ python_files = "test_*.py"
 pythonpath = [ "src",]
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
-addopts = "--asyncio-mode=auto"
+addopts = ""
 markers = [ "api: marks tests that require API keys", "integration: marks tests that perform integration testing",]
 
 [tool.pixi.project]
