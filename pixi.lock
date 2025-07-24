@@ -35,7 +35,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.2.1-pyh707e725_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.1-pyhe01879c_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cryptography-43.0.3-py312hda17c39_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cyclonedx-python-lib-9.1.0-pyh29332c3_0.conda
@@ -608,7 +608,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.2.1-pyh707e725_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.1-pyhe01879c_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cryptography-43.0.3-py312hda17c39_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cyclonedx-python-lib-9.1.0-pyh29332c3_0.conda
@@ -931,7 +931,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.2.1-pyh707e725_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.1-pyhe01879c_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cryptography-43.0.3-py312hda17c39_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cyclonedx-python-lib-9.1.0-pyh29332c3_0.conda
@@ -1269,7 +1269,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.2.1-pyh707e725_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.1-pyhe01879c_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cryptography-43.0.3-py312hda17c39_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/diff-match-patch-20241021-pyhd8ed1ab_1.conda
@@ -1549,7 +1549,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.2.1-pyh707e725_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.1-pyhe01879c_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cryptography-43.0.3-py312hda17c39_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cyclonedx-python-lib-9.1.0-pyh29332c3_0.conda
@@ -1872,7 +1872,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.2.1-pyh707e725_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorama-0.4.6-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.1-pyhe01879c_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cryptography-43.0.3-py312hda17c39_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cyclonedx-python-lib-9.1.0-pyh29332c3_0.conda
@@ -2273,7 +2273,7 @@ packages:
 - pypi: ./
   name: aider-mcp-server
   version: 0.1.0
-  sha256: 90babea0e4f98835b6cb041c1b2e6be084e1c065256787df805bacd851c38b6d
+  sha256: 2c39ebd3b037f692ba3c20a5639146dd33172874c7ced09ef311647d8009cdd8
   requires_python: '>=3.12'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/aiohappyeyeballs-2.6.1-pyhd8ed1ab_0.conda
@@ -2615,21 +2615,20 @@ packages:
   - pkg:pypi/configargparse?source=hash-mapping
   size: 40511
   timestamp: 1748302135421
-- conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.9.2-py312h178313f_0.conda
-  sha256: fff058f8a145faed110680339ebbadfeb57b8ecb7164a415856d27f3c2fb6b1f
-  md5: c6fbd05ceaeed83ef044de66e3f26fef
+- conda: https://conda.anaconda.org/conda-forge/linux-64/coverage-7.10.0-py312h8a5da7c_0.conda
+  sha256: dd85469de0d62d65c456abfefd62939a28cb53704120b4f43f14f967b5123d53
+  md5: 10c5a17b4546b4e236031ef8177cf9d1
   depends:
   - __glibc >=2.17,<3.0.a0
-  - libgcc >=13
+  - libgcc >=14
   - python >=3.12,<3.13.0a0
   - python_abi 3.12.* *_cp312
   - tomli
   license: Apache-2.0
-  license_family: APACHE
   purls:
   - pkg:pypi/coverage?source=hash-mapping
-  size: 372127
-  timestamp: 1751548868805
+  size: 377204
+  timestamp: 1753387756069
 - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.12.11-py312hd8ed1ab_0.conda
   noarch: generic
   sha256: 7e7bc8e73a2f3736444a8564cbece7216464c00f0bc38e604b0c792ff60d621a
@@ -6305,7 +6304,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/typing-inspection?source=compressed-mapping
+  - pkg:pypi/typing-inspection?source=hash-mapping
   size: 18809
   timestamp: 1747870776989
 - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.14.0-pyhe01879c_0.conda
