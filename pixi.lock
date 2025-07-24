@@ -2267,7 +2267,7 @@ packages:
 - pypi: ./
   name: aider-mcp-server
   version: 0.1.0
-  sha256: 6931a52ad428e08398df1b350a84e269b45f646da95dc78756fef77bf7a9dc35
+  sha256: 51ed0b4dddf0dccce72cfb6f7b1c4ca722c55de0ad305243fed216bef15bca0e
   requires_python: '>=3.12'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/aiohappyeyeballs-2.6.1-pyhd8ed1ab_0.conda
