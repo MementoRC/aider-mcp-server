@@ -143,8 +143,7 @@ skip-magic-trailing-comma = false
 testpaths = [ "tests",]
 python_files = "test_*.py"
 pythonpath = [ "src",]
-asyncio_mode = "auto"
-addopts = "-p pytest_asyncio"
+addopts = ""
 markers = [ "api: marks tests that require API keys", "integration: marks tests that perform integration testing",]
 
 [tool.pixi.project]
