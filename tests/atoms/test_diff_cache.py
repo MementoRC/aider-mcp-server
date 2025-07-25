@@ -4,71 +4,59 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+import pytest_asyncio
 
 from aider_mcp_server.atoms.utils.diff_cache import DiffCache, get_object_size
 
 
-@pytest.fixture
-def diff_cache():
+@pytest_asyncio.fixture
+async def diff_cache():
     """Create a DiffCache with short expiry for testing."""
-
-    async def _setup():
-        cache = DiffCache(expiry_duration=timedelta(seconds=0.1))
-        await cache.start()  # Start the cleanup task
-        return cache
-
-    cache = asyncio.run(_setup())
+    cache = DiffCache(expiry_duration=timedelta(seconds=0.1))
+    await cache.start()  # Start the cleanup task
     yield cache
-    asyncio.run(cache.shutdown())  # Clean up resources after tests
+    await cache.shutdown()  # Clean up resources after tests
 
 
-@pytest.fixture
-def size_limited_cache():
+@pytest_asyncio.fixture
+async def size_limited_cache():
     """Create a DiffCache with size limit for testing eviction."""
-
-    async def _setup():
-        # Smaller size limit (2KB) to ensure eviction of early entries in tests
-        cache = DiffCache(
-            expiry_duration=timedelta(minutes=1),
-            max_size=2 * 1024,  # 2KB
-        )
-        await cache.start()  # Start the cleanup task
-        return cache
-
-    cache = asyncio.run(_setup())
+    # Smaller size limit (2KB) to ensure eviction of early entries in tests
+    cache = DiffCache(
+        expiry_duration=timedelta(minutes=1),
+        max_size=2 * 1024,  # 2KB
+    )
+    await cache.start()  # Start the cleanup task
     yield cache
-    asyncio.run(cache.shutdown())  # Clean up resources after tests
+    await cache.shutdown()  # Clean up resources after tests
 
 
-# Basic functionality tests (converted to synchronous)
-def test_basic_caching(diff_cache):
+# Basic functionality tests (similar to original tests)
+@pytest.mark.asyncio
+async def test_basic_caching(diff_cache):
     file_paths = "file1.txt,file2.txt"
     diff = {"file1.txt": "content1", "file2.txt": "content2"}
 
-    async def _test():
-        await diff_cache.set(file_paths, diff)
-        cached_diff = await diff_cache.get(file_paths)
-        return cached_diff
+    await diff_cache.set(file_paths, diff)
+    cached_diff = await diff_cache.get(file_paths)
 
-    cached_diff = asyncio.run(_test())
     assert cached_diff == diff
 
 
-def test_cache_expiry(diff_cache):
+@pytest.mark.asyncio
+async def test_cache_expiry(diff_cache):
     file_paths = "file1.txt,file2.txt"
     diff = {"file1.txt": "content1", "file2.txt": "content2"}
 
-    async def _test():
-        await diff_cache.set(file_paths, diff)
-        await asyncio.sleep(0.2)  # Wait for cache to expire
-        cached_diff = await diff_cache.get(file_paths)
-        return cached_diff
+    await diff_cache.set(file_paths, diff)
+    await asyncio.sleep(0.2)  # Wait for cache to expire
+    cached_diff = await diff_cache.get(file_paths)
 
-    cached_diff = asyncio.run(_test())
     assert cached_diff is None
 
 
-def test_compare_and_cache_default(diff_cache):
+@pytest.mark.asyncio
+async def test_compare_and_cache_default(diff_cache):
     file_paths = "file1.txt,file2.txt"
     old_diff = {"file1.txt": "old_content1", "file2.txt": "old_content2"}
     new_diff = {
@@ -77,18 +65,15 @@ def test_compare_and_cache_default(diff_cache):
         "file3.txt": "new_content3",
     }
 
-    async def _test():
-        await diff_cache.set(file_paths, old_diff)
-        changes = await diff_cache.compare_and_cache(file_paths, new_diff)
-        cached_diff = await diff_cache.get(file_paths)
-        return changes, cached_diff
+    await diff_cache.set(file_paths, old_diff)
+    changes = await diff_cache.compare_and_cache(file_paths, new_diff)
 
-    changes, cached_diff = asyncio.run(_test())
     assert changes == {"file1.txt": "new_content1", "file3.txt": "new_content3"}
-    assert cached_diff == new_diff
+    assert await diff_cache.get(file_paths) == new_diff
 
 
-def test_compare_and_cache_clear_unchanged(diff_cache):
+@pytest.mark.asyncio
+async def test_compare_and_cache_clear_unchanged(diff_cache):
     file_paths = "file1.txt,file2.txt"
     old_diff = {"file1.txt": "old_content1", "file2.txt": "old_content2"}
     new_diff = {
@@ -97,20 +82,18 @@ def test_compare_and_cache_clear_unchanged(diff_cache):
         "file3.txt": "new_content3",
     }
 
-    async def _test():
-        await diff_cache.set(file_paths, old_diff)
-        changes = await diff_cache.compare_and_cache(file_paths, new_diff, clear_cached_for_unchanged=True)
-        # With clear_cached_for_unchanged=True, only the changed files should be in the cache
-        cached_diff = await diff_cache.get(file_paths)
-        return changes, cached_diff
+    await diff_cache.set(file_paths, old_diff)
+    changes = await diff_cache.compare_and_cache(file_paths, new_diff, clear_cached_for_unchanged=True)
 
-    changes, cached_diff = asyncio.run(_test())
     assert changes == {"file1.txt": "new_content1", "file3.txt": "new_content3"}
+    # With clear_cached_for_unchanged=True, only the changed files should be in the cache
+    cached_diff = await diff_cache.get(file_paths)
     assert cached_diff == {"file1.txt": "new_content1", "file3.txt": "new_content3"}
     assert "file2.txt" not in cached_diff  # Unchanged file should be removed
 
 
-def test_nested_diffs(diff_cache):
+@pytest.mark.asyncio
+async def test_nested_diffs(diff_cache):
     file_paths = "file1.txt,file2.txt"
     old_diff = {
         "file1.txt": {"key1": "value1", "key2": "value2"},
@@ -121,16 +104,12 @@ def test_nested_diffs(diff_cache):
         "file2.txt": "content2",
     }
 
-    async def _test():
-        await diff_cache.set(file_paths, old_diff)
-        changes = await diff_cache.compare_and_cache(file_paths, new_diff)
-        cached_diff = await diff_cache.get(file_paths)
-        return changes, cached_diff
+    await diff_cache.set(file_paths, old_diff)
+    changes = await diff_cache.compare_and_cache(file_paths, new_diff)
 
-    changes, cached_diff = asyncio.run(_test())
     # Only key1 (changed) and key3 (new) should be in changes for file1.txt
     assert changes == {"file1.txt": {"key1": "new_value1", "key3": "value3"}}
-    assert cached_diff == new_diff
+    assert await diff_cache.get(file_paths) == new_diff
 
 
 # New tests for improved functionality
