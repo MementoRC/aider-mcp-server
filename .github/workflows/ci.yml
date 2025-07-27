@@ -231,7 +231,7 @@ jobs:
           sleep 15
 
           echo ">>> Second attempt (final) with conservative settings"
-          export PYTEST_ADDOPTS="--maxfail=1 --tb=line --disable-warnings --no-cov"
+          export PYTEST_ADDOPTS="--maxfail=1 --tb=line --disable-warnings --no-cov -x"
           if run_tests_with_diagnostics 2; then
             echo "✅ Tests passed on retry"
             exit 0

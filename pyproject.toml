@@ -261,7 +261,7 @@ quality = { depends-on = ["test", "lint", "typecheck"] }
 # ===== TIER 2: CI-OPTIMIZED TASKS =====
 # CI-specific variants (use ci environment)
 # CI-specific variants (use ci environment) - with Claude Code git bypass
-ci-test = { cmd = "python -m pytest tests/ --tb=short -v", env = { CLAUDECODE = "0" }, cwd = ".", depends-on = ["install-editable"] }
+ci-test = { cmd = "python -m pytest tests/ --tb=short -v --maxfail=3 --disable-warnings", env = { CLAUDECODE = "0", PYTHONPATH = "src" }, cwd = ".", depends-on = ["install-editable"] }
 ci-lint = "ruff check src/ tests/ --output-format=github"
 ci-format-check = "ruff format --check src/ tests/"
 
