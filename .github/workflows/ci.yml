@@ -172,13 +172,15 @@ jobs:
             # CI-specific optimizations for GitHub Actions runners
             export PYTEST_TIMEOUT=300
             export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+            export CLAUDECODE=0
 
             # Increase timeout for CI environment (300s vs 180s)
             echo ">>> Running tests with extended timeout for CI environment (300s)"
+            echo ">>> Using --asyncio-mode=auto to fix async test support"
 
-            # Run tests with timeout and capture exit code - using exact pixi task
+            # Run tests with timeout and capture exit code - with explicit asyncio mode
             set +e
-            timeout 600s pixi run -e ci ci-test
+            timeout 600s pixi run -e ci python -m pytest tests/ --tb=short -v --asyncio-mode=auto
             exit_code=$?
             set -e
 
@@ -235,7 +237,7 @@ jobs:
           sleep 15
 
           echo ">>> Second attempt (final) with conservative settings"
-          export PYTEST_ADDOPTS="--maxfail=1 --tb=line --disable-warnings --no-cov"
+          export PYTEST_ADDOPTS="--maxfail=1 --tb=line --disable-warnings --no-cov --asyncio-mode=auto"
           if run_tests_with_diagnostics 2; then
             echo "✅ Tests passed on retry"
             exit 0
