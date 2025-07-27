@@ -144,7 +144,7 @@ jobs:
           echo ">>> Checking pixi task definition for ci-test"
           pixi task list | grep ci-test || echo "ci-test task not found"
           echo ">>> Checking pytest-asyncio availability"
-          pixi run -e ci python -c "import pytest_asyncio; print('pytest-asyncio version:', pytest_asyncio.__version__)"
+          pixi run -e ci python -c 'import pytest_asyncio; print("pytest-asyncio version:", pytest_asyncio.__version__)'
           echo ">>> Checking pytest plugins"
           pixi run -e ci python -m pytest --version
           pixi run -e ci python -m pytest --collect-only tests/atoms/test_diff_cache.py::test_basic_caching || echo "Test collection failed"
