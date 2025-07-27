@@ -137,6 +137,16 @@ jobs:
           echo "::endgroup::"
 
 
+      - name: Debug pixi task execution
+        shell: bash
+        run: |
+          echo "::group::Debug pixi task and environment"
+          echo ">>> Checking pixi task definition for ci-test"
+          pixi task list | grep ci-test || echo "ci-test task not found"
+          echo ">>> Attempting to run ci-test in debug mode"
+          pixi run -e ci -v ci-test --collect-only || echo "Test collection failed"
+          echo "::endgroup::"
+
       - name: Run tests with retry on failure
         shell: bash
         run: |
