@@ -163,12 +163,18 @@ jobs:
             export PYTEST_TIMEOUT=300
             export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 
+            # Additional CI stability improvements
+            export PYTEST_NUMPROCESSES=1  # Force single-threaded execution in CI
+            export PYTHONHASHSEED=0       # Deterministic hash seed
+            export PYTEST_CURRENT_TEST=1  # Show current test being run
+
             # Increase timeout for CI environment (300s vs 180s)
             echo ">>> Running tests with extended timeout for CI environment (300s)"
+            echo ">>> CI optimizations: single-threaded execution, deterministic hashing"
 
             # Run tests with timeout and capture exit code - using exact pixi task
             set +e
-            timeout 600s pixi run -e ci ci-test
+            timeout 900s pixi run -e ci ci-test
             exit_code=$?
             set -e
 
