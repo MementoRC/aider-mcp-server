@@ -181,9 +181,9 @@ jobs:
             echo ">>> Running tests with extended timeout for CI environment (300s)"
             echo ">>> Using --asyncio-mode=auto to fix async test support"
 
-            # Run tests with timeout and capture exit code - with explicit asyncio mode and plugin
+            # Run tests with timeout and capture exit code - explicit plugins now in pyproject.toml
             set +e
-            timeout 600s pixi run -e ci python -m pytest tests/ --tb=short -v --asyncio-mode=auto -p asyncio
+            timeout 600s pixi run -e ci python -m pytest tests/ --tb=short -v
             exit_code=$?
             set -e
 
@@ -240,7 +240,7 @@ jobs:
           sleep 15
 
           echo ">>> Second attempt (final) with conservative settings"
-          export PYTEST_ADDOPTS="--maxfail=1 --tb=line --disable-warnings --no-cov --asyncio-mode=auto -p asyncio"
+          export PYTEST_ADDOPTS="--maxfail=1 --tb=line --disable-warnings --no-cov"
           if run_tests_with_diagnostics 2; then
             echo "✅ Tests passed on retry"
             exit 0
