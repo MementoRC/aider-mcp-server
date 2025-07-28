@@ -146,7 +146,7 @@ jobs:
           echo ">>> Checking pytest-asyncio availability"
           pixi run -e ci python -c 'import pytest_asyncio; print("pytest-asyncio version:", pytest_asyncio.__version__)'
           echo ">>> Checking pytest-mock availability"
-          pixi run -e ci python -c 'import pytest_mock; print("pytest-mock version:", pytest_mock.__version__)'
+          pixi run -e ci python -c 'import pytest_mock; print("pytest-mock imported successfully"); import pkg_resources; print("pytest-mock version:", pkg_resources.get_distribution("pytest-mock").version)'
           echo ">>> Checking pytest plugins"
           pixi run -e ci python -m pytest --version
           echo ">>> Checking pytest configuration"
