@@ -180,7 +180,14 @@ jobs:
             export CLAUDECODE=0
 
             # Run tests with timeout and capture exit code - explicit plugins now in pyproject.toml
-            echo ">>> Running tests with simplified configuration"
+            echo ">>> Testing minimal functionality first"
+            echo ">>> Step 1: Test single file that was previously failing"
+            pixi run -e ci python -m pytest tests/test_error_formatter.py -v --tb=short
+
+            echo ">>> Step 2: Test async functionality"
+            pixi run -e ci python -m pytest tests/atoms/test_diff_cache.py::test_basic_caching -v --tb=short
+
+            echo ">>> Step 3: Run full test suite"
             set +e
             timeout 300s pixi run -e ci python -m pytest tests/ --tb=short -v
             exit_code=$?
