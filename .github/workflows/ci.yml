@@ -145,9 +145,16 @@ jobs:
           pixi task list | grep ci-test || echo "ci-test task not found"
           echo ">>> Checking pytest-asyncio availability"
           pixi run -e ci python -c 'import pytest_asyncio; print("pytest-asyncio version:", pytest_asyncio.__version__)'
+          echo ">>> Checking pytest-mock availability"
+          pixi run -e ci python -c 'import pytest_mock; print("pytest-mock version:", pytest_mock.__version__)'
           echo ">>> Checking pytest plugins"
           pixi run -e ci python -m pytest --version
-          pixi run -e ci python -m pytest --collect-only tests/atoms/test_diff_cache.py::test_basic_caching || echo "Test collection failed"
+          echo ">>> Checking pytest configuration"
+          pixi run -e ci python -c 'import pytest; print("pytest config:", pytest.main(["--collect-only", "--quiet", "tests/test_error_formatter.py::test_formats_base_application_error"]))'
+          echo ">>> Testing specific failing test that was reported"
+          pixi run -e ci python -m pytest tests/test_error_formatter.py::test_formats_specific_error_types -v --tb=short
+          echo ">>> Testing async test functionality"
+          pixi run -e ci python -m pytest tests/atoms/test_diff_cache.py::test_basic_caching -v --tb=short
           echo "::endgroup::"
 
       - name: Run tests with retry on failure
