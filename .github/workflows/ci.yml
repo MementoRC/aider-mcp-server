@@ -33,7 +33,7 @@ jobs:
           pixi-version: v0.49.0
           cache: true
           cache-key: "pixi-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
-          log-level: vvv  # Maximum verbosity for debugging
+          log-level: info  # Reduced verbosity to prevent timeout
           activate-environment: true
 
       - name: Install dependencies (quality-extended environment)
@@ -87,7 +87,7 @@ jobs:
           pixi-version: v0.49.0
           cache: true
           cache-key: "pixi-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
-          log-level: vvv  # Maximum verbosity for debugging
+          log-level: info  # Reduced verbosity to prevent timeout
           activate-environment: true
 
       - name: Install dependencies (CI environment)
@@ -137,25 +137,11 @@ jobs:
           echo "::endgroup::"
 
 
-      - name: Debug pixi task execution and pytest-asyncio
+      - name: Quick environment check
         shell: bash
         run: |
-          echo "::group::Debug pixi task and environment"
-          echo ">>> Checking pixi task definition for ci-test"
-          pixi task list | grep ci-test || echo "ci-test task not found"
-          echo ">>> Checking pytest-asyncio availability"
-          pixi run -e ci python -c 'import pytest_asyncio; print("pytest-asyncio version:", pytest_asyncio.__version__)'
-          echo ">>> Checking pytest-mock availability"
-          pixi run -e ci python -c 'import pytest_mock; print("pytest-mock imported successfully"); import pkg_resources; print("pytest-mock version:", pkg_resources.get_distribution("pytest-mock").version)'
-          echo ">>> Checking pytest plugins"
-          pixi run -e ci python -m pytest --version
-          echo ">>> Checking pytest configuration"
-          pixi run -e ci python -c 'import pytest; print("pytest config:", pytest.main(["--collect-only", "--quiet", "tests/test_error_formatter.py::test_formats_base_application_error"]))'
-          echo ">>> Testing specific failing test that was reported"
-          pixi run -e ci python -m pytest tests/test_error_formatter.py::test_formats_specific_error_types -v --tb=short
-          echo ">>> Testing async test functionality"
-          pixi run -e ci python -m pytest tests/atoms/test_diff_cache.py::test_basic_caching -v --tb=short
-          echo "::endgroup::"
+          echo ">>> Basic pytest plugin check"
+          pixi run -e ci python -c 'import pytest_asyncio, pytest_mock; print("Plugins loaded successfully")'
 
       - name: Run tests with retry on failure
         shell: bash
@@ -179,17 +165,10 @@ jobs:
             export PYTHONUNBUFFERED=1
             export CLAUDECODE=0
 
-            # Run tests with timeout and capture exit code - explicit plugins now in pyproject.toml
-            echo ">>> Testing minimal functionality first"
-            echo ">>> Step 1: Test single file that was previously failing"
-            pixi run -e ci python -m pytest tests/test_error_formatter.py -v --tb=short
-
-            echo ">>> Step 2: Test async functionality"
-            pixi run -e ci python -m pytest tests/atoms/test_diff_cache.py::test_basic_caching -v --tb=short
-
-            echo ">>> Step 3: Run full test suite"
+            # Run tests with timeout - simplified execution to avoid CI hangs
+            echo ">>> Running full test suite with timeout"
             set +e
-            timeout 300s pixi run -e ci python -m pytest tests/ --tb=short -v
+            timeout 900s pixi run -e ci python -m pytest tests/ --tb=short --maxfail=5
             exit_code=$?
             set -e
 
@@ -290,7 +269,7 @@ jobs:
           pixi-version: v0.49.0
           cache: true
           cache-key: "pixi-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
-          log-level: vvv  # Maximum verbosity for debugging
+          log-level: info  # Reduced verbosity to prevent timeout
           activate-environment: true
 
       - name: Install dependencies (CI environment)
