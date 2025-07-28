@@ -175,22 +175,14 @@ jobs:
             fi
 
             # Set CI-friendly environment variables to reduce resource usage
-            export PYTEST_ADDOPTS="--maxfail=5 --tb=short --disable-warnings"
             export PYTHONDONTWRITEBYTECODE=1
             export PYTHONUNBUFFERED=1
-
-            # CI-specific optimizations for GitHub Actions runners
-            export PYTEST_TIMEOUT=300
-            export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
             export CLAUDECODE=0
 
-            # Increase timeout for CI environment (300s vs 180s)
-            echo ">>> Running tests with extended timeout for CI environment (300s)"
-            echo ">>> Using --asyncio-mode=auto to fix async test support"
-
             # Run tests with timeout and capture exit code - explicit plugins now in pyproject.toml
+            echo ">>> Running tests with simplified configuration"
             set +e
-            timeout 600s pixi run -e ci python -m pytest tests/ --tb=short -v
+            timeout 300s pixi run -e ci python -m pytest tests/ --tb=short -v
             exit_code=$?
             set -e
 
