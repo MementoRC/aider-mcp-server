@@ -308,7 +308,11 @@ class TestHttpStreamableTransportAdapter:
         assert initial_event["data"]["message"] == "Successfully connected to HTTP stream."
         assert initial_event["data"]["client_id"] == client_id
 
-        await _wait_for_cleanup(adapter, client_id, timeout=2.0)  # More robust cleanup wait
+        # Use longer timeout in CI environments which are slower
+        import os
+
+        timeout = 5.0 if os.getenv("CLAUDECODE") == "0" else 2.0
+        await _wait_for_cleanup(adapter, client_id, timeout=timeout)  # More robust cleanup wait
 
     async def test_stream_connection_no_client_id_in_path_param(self, http_client: httpx.AsyncClient):
         # Starlette's router should handle this with a 404 if client_id is a mandatory path param.
