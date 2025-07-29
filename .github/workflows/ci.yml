@@ -28,12 +28,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install pixi
-        uses: prefix-dev/setup-pixi@v0.8.10
+        uses: prefix-dev/setup-pixi@v0.8.12
         with:
           pixi-version: v0.49.0
           cache: true
           cache-key: "pixi-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
-          log-level: info  # Reduced verbosity to prevent timeout
+          log-level: default  # Valid log-level option
           activate-environment: true
 
       - name: Install dependencies (quality-extended environment)
@@ -82,12 +82,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install pixi
-        uses: prefix-dev/setup-pixi@v0.8.10
+        uses: prefix-dev/setup-pixi@v0.8.12
         with:
           pixi-version: v0.49.0
           cache: true
           cache-key: "pixi-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
-          log-level: info  # Reduced verbosity to prevent timeout
+          log-level: default  # Valid log-level option
           activate-environment: true
 
       - name: Install dependencies (CI environment)
@@ -264,12 +264,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install pixi
-        uses: prefix-dev/setup-pixi@v0.8.10
+        uses: prefix-dev/setup-pixi@v0.8.12
         with:
           pixi-version: v0.49.0
           cache: true
           cache-key: "pixi-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ hashFiles('pixi.lock') }}"
-          log-level: info  # Reduced verbosity to prevent timeout
+          log-level: default  # Valid log-level option
           activate-environment: true
 
       - name: Install dependencies (CI environment)
