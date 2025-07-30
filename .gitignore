@@ -166,6 +166,9 @@ CLAUDE.md
 CLAUDE.local.md
 .mcp.json
 
+# Development strategy and experiment directories
+strategy_sandbox/
+
 # Other development tools
 .roomodes
 .windsurfrules
