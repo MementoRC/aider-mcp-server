@@ -68,6 +68,7 @@ class TestMaintenanceIssueCreator(unittest.TestCase):
         self.assertEqual(creator.repo_info["repo"], "test-repo")
         self.assertEqual(creator.config, self.test_config)
 
+    @patch.dict(os.environ, {"GITHUB_REPOSITORY": "test-owner/test-repo"}, clear=True)
     def test_initialization_without_token(self):
         """Test initialization failure without GitHub token."""
         with self.assertRaises(ValueError) as context:
@@ -75,6 +76,7 @@ class TestMaintenanceIssueCreator(unittest.TestCase):
 
         self.assertIn("GitHub token is required", str(context.exception))
 
+    @patch.dict(os.environ, {"GITHUB_REPOSITORY": "test-owner/test-repo"})
     def test_load_config_success(self):
         """Test successful configuration loading."""
         creator = MaintenanceIssueCreator(github_token=self.github_token, config_path=self.config_path)
@@ -82,6 +84,7 @@ class TestMaintenanceIssueCreator(unittest.TestCase):
         self.assertEqual(creator.config["maintenance_automation"]["auto_create_issues"], True)
         self.assertEqual(creator.config["maintenance_automation"]["max_open_issues"], 3)
 
+    @patch.dict(os.environ, {"GITHUB_REPOSITORY": "test-owner/test-repo"})
     def test_load_config_file_not_found(self):
         """Test configuration loading with missing file."""
         non_existent_path = Path(self.temp_dir) / "nonexistent.yml"

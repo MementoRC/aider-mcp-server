@@ -5,7 +5,7 @@ This module provides Server-Sent Events (SSE) transport capabilities for the MCP
 allowing web clients to connect and receive real-time events through an HTTP connection.
 """
 
-from __future__ import annotations  # Ensure forward references work
+# Removed __future__ annotations to fix MCP server introspection issues
 
 import asyncio
 import json

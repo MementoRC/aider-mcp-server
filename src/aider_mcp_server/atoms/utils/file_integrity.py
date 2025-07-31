@@ -84,12 +84,14 @@ class FileIntegrityManager:
             # Use --is-inside-work-tree or --is-inside-git-dir for a more robust check
             # This command exits with 0 if inside a git repo/worktree, 1 otherwise.
             # We already checked if the directory exists in __init__
+            git_env = {**os.environ, "CLAUDECODE": "0"}
             subprocess.run(  # noqa: S603,S607
                 ["git", "rev-parse", "--is-inside-work-tree"],  # noqa: S607
                 cwd=self.repo_path,
                 capture_output=True,
                 check=True,  # check=True raises CalledProcessError if exit code is non-zero
                 text=True,
+                env=git_env,
             )
             logger.debug(f"Checking if {self.repo_path} is a git repo: True")
             return True
@@ -120,6 +122,7 @@ class FileIntegrityManager:
         cmd = ["git"] + args
         try:
             logger.debug(f"Running git command: {' '.join(cmd)}")
+            git_env = {**os.environ, "CLAUDECODE": "0"}
             result = subprocess.run(  # noqa: S603, S607
                 cmd,
                 cwd=self.repo_path,
@@ -127,6 +130,7 @@ class FileIntegrityManager:
                 stdout=subprocess.PIPE if capture_output else None,
                 stderr=subprocess.PIPE if capture_output else None,
                 encoding="utf-8",
+                env=git_env,
             )
             if capture_output:
                 logger.verbose(f"Git output: {result.stdout.strip()}")

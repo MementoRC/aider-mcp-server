@@ -158,8 +158,6 @@ claude-code-knowledge-framework/
 # -----------------------------------------------------------------------------
 # TaskMaster AI
 .taskmaster/
-tasks/
-tasks.json
 .taskmasterconfig
 
 # Claude Code session files
@@ -167,6 +165,9 @@ tasks.json
 CLAUDE.md
 CLAUDE.local.md
 .mcp.json
+
+# Development strategy and experiment directories
+strategy_sandbox/
 
 # Other development tools
 .roomodes
@@ -215,4 +216,10 @@ logs
 .idea
 .vscode
 # OS specific
+
+# UV lock file (not used - this project uses pixi)
+uv.lock
+
 # Task files
+# tasks.json
+# tasks/

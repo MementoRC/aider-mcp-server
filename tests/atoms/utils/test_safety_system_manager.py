@@ -38,17 +38,20 @@ def temp_git_repo():
 
         import subprocess
 
+        # Set environment to bypass Claude Code git redirector
+        git_env = {**os.environ, "CLAUDECODE": "0"}
+
         # Initialize git repo
-        subprocess.run(["git", "init"], cwd=repo_path, check=True)  # noqa: S603,S607
-        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)  # noqa: S603,S607
-        subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True)  # noqa: S603,S607
+        subprocess.run(["git", "init"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
+        subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
 
         # Create test files
         test_file = repo_path / "test.py"
         test_file.write_text("print('hello world')")
 
-        subprocess.run(["git", "add", "test.py"], cwd=repo_path, check=True)  # noqa: S603,S607
-        subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True)  # noqa: S603,S607
+        subprocess.run(["git", "add", "test.py"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
+        subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
 
         yield repo_path
 

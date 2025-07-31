@@ -35,12 +35,21 @@ CI_SLEEP_INTERVAL = 0.2 * WIN_SLEEP_FACTOR
 @pytest.fixture
 def monitor(temp_git_repo):
     """Create a FileMonitor instance with test configuration."""
-    return FileMonitor(
+    monitor_instance = FileMonitor(
         repo_path=temp_git_repo,
         check_interval=0.1,  # Faster for testing
         size_change_threshold=0.5,
         max_consecutive_writes=3,
     )
+    yield monitor_instance
+    # Cleanup: Always stop monitoring when test completes
+    try:
+        monitor_instance.stop_monitoring()
+    except Exception as e:
+        # Log cleanup errors but don't fail test
+        import logging
+
+        logging.warning(f"FileMonitor cleanup error: {e}")
 
 
 @pytest.fixture

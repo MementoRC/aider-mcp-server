@@ -35,10 +35,12 @@ from aider_mcp_server.atoms.utils.git_diff_analyzer import (
 def fake_repo_path(tmp_path):
     """Create a proper git repository for testing."""
     # Initialize a proper git repository
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)  # noqa: S603,S607
+    # Set environment to bypass Claude Code git redirector
+    git_env = {**os.environ, "CLAUDECODE": "0"}
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, env=git_env)  # noqa: S603,S607
     # Set basic git config to avoid warnings
-    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)  # noqa: S603,S607
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)  # noqa: S603,S607
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True, env=git_env)  # noqa: S603,S607
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True, env=git_env)  # noqa: S603,S607
     return str(tmp_path)
 
 
