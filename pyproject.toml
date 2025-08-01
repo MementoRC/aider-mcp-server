@@ -152,7 +152,12 @@ python_files = "test_*.py"
 pythonpath = [ "src",]
 asyncio_mode = "auto"
 addopts = "-p pytest_asyncio -p pytest_mock"
-markers = [ "api: marks tests that require API keys", "integration: marks tests that perform integration testing",]
+markers = [
+    "api: marks tests that require API keys",
+    "integration: marks tests that perform integration testing",
+    "performance: marks performance-related tests",
+    "unit: marks unit tests"
+]
 
 [tool.pixi.project]
 channels = [ "conda-forge",]
