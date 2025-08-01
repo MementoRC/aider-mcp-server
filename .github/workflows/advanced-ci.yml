@@ -14,7 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      HATCH_ENV_ROOT: .hatch
+      # Enable git access if needed by quality tools
+      CLAUDECODE: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,19 +25,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache hatch environment
-        uses: actions/cache@v4
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.8.10
         with:
-          path: .hatch
-          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
-          restore-keys: |
-            hatch-${{ runner.os }}-
-        continue-on-error: true
+          pixi-version: v0.49.0
+          cache: true
+          log-level: vvv  # Maximum verbosity for debugging
+          activate-environment: true
 
-      - name: Install hatch and dependencies
+      - name: Install dependencies (quality-extended environment)
         run: |
-          pip install hatch
-          hatch env create dev
+          pixi install -e quality-extended
 
       - name: Create reports directory
         run: mkdir -p reports/quality
@@ -44,14 +43,14 @@ jobs:
       - name: Run complexity analysis with radon
         run: |
           echo "Running complexity analysis with radon..."
-          hatch run dev:radon mi src/ -j > reports/quality/radon-mi.txt
-          hatch run dev:radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
-          hatch run dev:radon cc src/ -a -s > reports/quality/radon-cc.txt || true
+          pixi run -e quality-extended radon mi src/ -j > reports/quality/radon-mi.txt
+          pixi run -e quality-extended radon cc src/ -a -s -j > reports/quality/radon-cc.json || true
+          pixi run -e quality-extended radon cc src/ -a -s > reports/quality/radon-cc.txt || true
 
       - name: Run dead code detection with vulture
         run: |
           echo "Running dead code detection with vulture..."
-          hatch run dev:vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
+          pixi run -e quality-extended vulture src/ --min-confidence 80 > reports/quality/vulture.txt || true
 
       - name: Upload quality reports
         uses: actions/upload-artifact@v4
@@ -64,7 +63,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      HATCH_ENV_ROOT: .hatch
+      # Enable git access if needed by SBOM tools
+      CLAUDECODE: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -74,20 +74,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Cache hatch environments
-        uses: actions/cache@v4
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.8.10
         with:
-          path: .hatch
-          key: hatch-${{ runner.os }}-${{ hashFiles('**/pyproject.toml', '**/hatch.lock') }}
-          restore-keys: |
-            hatch-${{ runner.os }}-
-        continue-on-error: true
+          pixi-version: v0.49.0
+          cache: true
+          log-level: vvv  # Maximum verbosity for debugging
+          activate-environment: true
 
-      - name: Install hatch and dependencies
+      - name: Install dependencies (quality-extended environment)
         run: |
-          pip install hatch
-          hatch env create
-          hatch env create dev
+          pixi install -e quality-extended
 
       - name: Create reports directory
         run: mkdir -p reports/sbom
@@ -95,19 +92,19 @@ jobs:
       - name: Generate requirements.txt for SBOM
         run: |
           echo "Generating requirements.txt for SBOM tools..."
-          hatch run default:pip freeze > reports/sbom/requirements.txt
+          pixi run -e quality-extended pip freeze > reports/sbom/requirements.txt
 
       - name: Generate CycloneDX SBOM
         continue-on-error: true
         run: |
           echo "Generating CycloneDX SBOM..."
-          hatch run dev:cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
+          pixi run -e quality-extended cyclonedx-py -r reports/sbom/requirements.txt --format json -o reports/sbom/bom.cyclonedx.json
 
       - name: Generate SPDX SBOM
         continue-on-error: true
         run: |
           echo "Generating SPDX SBOM..."
-          hatch run dev:spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
+          pixi run -e quality-extended spdx-tools-python -p . -r reports/sbom/requirements.txt --file-format JSON -o reports/sbom/bom.spdx.json
 
       - name: Upload SBOM reports
         uses: actions/upload-artifact@v4

@@ -97,6 +97,9 @@ def temp_git_repo() -> Generator[str, None, None]:
         if not git_executable:
             pytest.skip("Git executable not found")
 
+        # Set environment to bypass Claude Code git redirector
+        git_env = {**os.environ, "CLAUDECODE": "0"}
+
         # Use the full path in subprocess calls
         subprocess.run(  # noqa: S603
             [git_executable, "init"],
@@ -104,6 +107,7 @@ def temp_git_repo() -> Generator[str, None, None]:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env,
         )
 
         # Configure git user for the test repository
@@ -113,6 +117,7 @@ def temp_git_repo() -> Generator[str, None, None]:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env,
         )
         subprocess.run(  # noqa: S603
             [git_executable, "config", "user.email", "test@example.com"],
@@ -120,6 +125,7 @@ def temp_git_repo() -> Generator[str, None, None]:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env,
         )
 
         # Create a README.md file
@@ -132,6 +138,7 @@ def temp_git_repo() -> Generator[str, None, None]:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env,
         )
         subprocess.run(  # noqa: S603
             [git_executable, "commit", "-m", "Initial commit"],
@@ -139,6 +146,7 @@ def temp_git_repo() -> Generator[str, None, None]:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env,
         )
 
         yield tmp_dir

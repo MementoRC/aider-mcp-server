@@ -3,23 +3,16 @@
 
 set -e
 
-echo "🔄 Synchronizing all environments..."
+echo "🔄 Synchronizing pixi environment..."
 
-# Update uv lock file
-echo "📦 Updating uv lock file..."
-uv lock --upgrade
+# Update pixi environment
+echo "📦 Installing/updating pixi dependencies..."
+pixi install
 
-# Refresh uv virtual environment
-echo "🔄 Refreshing uv .venv environment..."
-uv sync --refresh --dev
-
-# Update hatch environments
-echo "🏠 Updating hatch environments..."
-hatch env prune
-hatch -e dev run pip install --upgrade pip
-
-echo "✅ All environments synchronized!"
+echo "✅ Pixi environment synchronized!"
 echo ""
 echo "Next steps:"
-echo "- Test with: hatch -e dev run pytest"
-echo "- Verify MCP server: uv run mcp-aider-server --help"
+echo "- Test with: pixi run test"
+echo "- Verify MCP server: pixi run mcp-server --help"
+echo "- Lint code: pixi run lint"
+echo "- Format code: pixi run format"

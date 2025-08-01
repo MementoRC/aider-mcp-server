@@ -35,11 +35,33 @@ webbrowser.open_new_tab = _blocked_browser_open  # noqa: E402
 if TYPE_CHECKING:
     from aider_mcp_server.interfaces.application_coordinator import IApplicationCoordinator  # noqa: E402
 
-from aider.coders import AskCoder  # noqa: E402
-from aider.io import InputOutput  # noqa: E402
-from aider.models import Model  # noqa: E402
+try:
+    from aider.coders import AskCoder  # noqa: E402
+    from aider.io import InputOutput  # noqa: E402
+    from aider.models import Model  # noqa: E402
 
+    AIDER_AVAILABLE = True
+except ImportError:
+    # Fallback classes when aider is not available
+    AIDER_AVAILABLE = False
+
+    class AskCoder:  # type: ignore  # noqa: E402
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Aider not available - install aider-chat to use this functionality")
+
+    class InputOutput:  # type: ignore  # noqa: E402
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Aider not available - install aider-chat to use this functionality")
+
+    class Model:  # type: ignore  # noqa: E402
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("Aider not available - install aider-chat to use this functionality")
+
+
+# Import logger early for fallback error handling
 from aider_mcp_server.atoms.logging.logger import get_logger  # noqa: E402
+
+logger = get_logger(__name__)  # noqa: E402
 from aider_mcp_server.atoms.types.event_types import EventTypes  # noqa: E402
 from aider_mcp_server.atoms.utils.fallback_config import (  # noqa: E402
     detect_rate_limit_error,
@@ -722,7 +744,7 @@ def _enrich_ask_response(
     return response_dict
 
 
-async def ask_with_aider(
+async def ask_with_aider(  # noqa: C901
     ai_coding_prompt: str,
     relative_readonly_files: Optional[List[str]] = None,
     model: str = "gemini/gemini-2.5-flash-preview-04-17",
@@ -745,6 +767,17 @@ async def ask_with_aider(
     Returns:
         str: JSON string containing 'success' and 'response' with the explanation.
     """
+    # Check if aider is available
+    if not AIDER_AVAILABLE:
+        logger.error("🚨 Aider is not available - cannot perform ask operation")
+        return json.dumps(
+            {
+                "success": False,
+                "response": "Aider is not available. Please install aider-chat or run in an environment where aider dependencies are available.",
+                "error": "aider_not_available",
+            }
+        )
+
     # ========== ASK MODE BROWSER POPUP INVESTIGATION START ==========
     logger.info("🔍 ========== ASK MODE EXECUTION START - BROWSER POPUP INVESTIGATION ==========")
     _log_browser_popup_phase_ask(
