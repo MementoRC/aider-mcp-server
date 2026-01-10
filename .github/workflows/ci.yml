@@ -180,10 +180,18 @@ jobs:
             export PYTHONUNBUFFERED=1
             export CLAUDECODE=0
 
-            # Run tests with timeout - simplified execution to avoid CI hangs
-            echo ">>> Running full test suite with timeout"
+            # Run tests with timeout and coverage - Task 1: REQ-QA-001
+            echo ">>> Running full test suite with coverage and timeout"
             set +e
-            timeout 900s pixi run -e ci python -m pytest tests/ --tb=short --maxfail=5
+            timeout 900s pixi run -e ci python -m pytest tests/ \
+              -n auto \
+              --cov=src/aider_mcp_server \
+              --cov-report=term-missing \
+              --cov-report=xml \
+              --cov-report=html \
+              --cov-fail-under=85 \
+              --tb=short \
+              --maxfail=5
             exit_code=$?
             set -e
 
@@ -253,12 +261,21 @@ jobs:
 
           echo "::endgroup::"
 
-      - name: Upload coverage report
-        if: success() && matrix.os == 'ubuntu-latest'
+      - name: Upload coverage HTML report
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.os }}
+          path: htmlcov/
+          retention-days: 30
+
+      - name: Upload coverage to Codecov
+        if: always() && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
-          fail_ci_if_error: false
+          fail_ci_if_error: true
+          flags: ${{ matrix.os }}
 
   test-compatibility:
     runs-on: ubuntu-latest
