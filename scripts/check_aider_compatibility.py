@@ -23,7 +23,7 @@ def check_aider_compatibility():
         with open(pyproject_path, "rb") as f:
             config = tomllib.load(f)
     else:
-        with open(pyproject_path) as f:
+        with open(pyproject_path, encoding="utf-8") as f:
             config = tomllib.load(f)
 
     dependencies = config["project"]["dependencies"]

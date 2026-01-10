@@ -48,7 +48,7 @@ def temp_git_repo():
 
         # Create test files
         test_file = repo_path / "test.py"
-        test_file.write_text("print('hello world')")
+        test_file.write_text("print('hello world')", encoding="utf-8")
 
         subprocess.run(["git", "add", "test.py"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
         subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True, env=git_env)  # noqa: S603,S607
@@ -262,7 +262,7 @@ class TestCreateSafetySystemManager:
     def test_create_with_config_file(self, temp_git_repo):
         """Test factory function loading from a config file."""
         config_data = {"profile": "maximum"}
-        with (temp_git_repo / ".aider-safety.yaml").open("w") as f:
+        with (temp_git_repo / ".aider-safety.yaml").open("w", encoding="utf-8") as f:
             yaml.dump(config_data, f)
 
         manager = create_safety_system_manager(project_root=temp_git_repo)
@@ -272,7 +272,7 @@ class TestCreateSafetySystemManager:
     def test_create_with_file_and_overrides(self, temp_git_repo):
         """Test factory with file and CLI overrides."""
         config_data = {"profile": "maximum", "enable_diff_analysis": False}
-        with (temp_git_repo / ".aider-safety.yaml").open("w") as f:
+        with (temp_git_repo / ".aider-safety.yaml").open("w", encoding="utf-8") as f:
             yaml.dump(config_data, f)
 
         overrides = {"enable_diff_analysis": True, "validation_level": "basic"}

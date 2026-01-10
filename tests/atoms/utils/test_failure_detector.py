@@ -221,7 +221,7 @@ class TestEmptyFileDetection:
         """Test detection of empty files through direct file system check."""
         # Create an actual empty file
         empty_file_path = os.path.join(temp_git_repo, "empty_test.py")
-        open(empty_file_path, "w").close()  # Create empty file
+        open(empty_file_path, "w", encoding="utf-8").close()  # Create empty file
 
         triggers = failure_detector.detect_empty_files(None, ["empty_test.py"])
 

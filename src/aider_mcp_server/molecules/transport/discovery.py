@@ -256,7 +256,7 @@ class CoordinatorDiscovery:
                     return []
 
                 # Read the registry file
-                registry_data = json.loads(self.discovery_file.read_text())
+                registry_data = json.loads(self.discovery_file.read_text(encoding="utf-8"))
                 coordinators = [CoordinatorInfo.from_dict(data) for data in registry_data]
 
                 # Filter for active coordinators
@@ -315,7 +315,7 @@ class CoordinatorDiscovery:
                 registry_data = []
                 if self.discovery_file.exists():
                     try:
-                        registry_data = json.loads(self.discovery_file.read_text())
+                        registry_data = json.loads(self.discovery_file.read_text(encoding="utf-8"))
                     except json.JSONDecodeError:
                         logger.warning(f"Invalid JSON in discovery file {self.discovery_file}, starting fresh")
 
@@ -387,7 +387,7 @@ class CoordinatorDiscovery:
             try:
                 async with self._file_lock:
                     if self.discovery_file.exists():
-                        registry_data = json.loads(self.discovery_file.read_text())
+                        registry_data = json.loads(self.discovery_file.read_text(encoding="utf-8"))
                         coordinators = [CoordinatorInfo.from_dict(data) for data in registry_data]
                         # Remove our coordinator
                         coordinators = [

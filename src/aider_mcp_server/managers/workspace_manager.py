@@ -149,13 +149,13 @@ class WorkspaceManager:
             stdout, stderr = await process.communicate()
 
             if process.returncode == 0:
-                decoded_stdout = stdout.decode().strip() if stdout else ""
+                decoded_stdout = stdout.decode("utf-8").strip() if stdout else ""
                 self.logger.info(
                     f"Successfully initialized Git repository in {workspace_path}. Output: {decoded_stdout}"
                 )
                 return True
             else:
-                decoded_stderr = stderr.decode().strip() if stderr else ""
+                decoded_stderr = stderr.decode("utf-8").strip() if stderr else ""
                 self.logger.error(f"Failed to initialize Git repository in {workspace_path}. Error: {decoded_stderr}")
                 return False
         except FileNotFoundError:
@@ -214,11 +214,11 @@ class WorkspaceManager:
                 stdout, stderr = await process.communicate()
 
                 if process.returncode == 0:
-                    git_output = stdout.decode().strip() if stdout else ""
+                    git_output = stdout.decode("utf-8").strip() if stdout else ""
                     status["git_status_output"] = git_output
                     self.logger.debug(f"Git status for {workspace_path}: {git_output if git_output else 'clean'}")
                 else:
-                    error_msg = stderr.decode().strip() if stderr else "Unknown Git error"
+                    error_msg = stderr.decode("utf-8").strip() if stderr else "Unknown Git error"
                     status["error"] = f"Git status command failed: {error_msg}"
                     self.logger.error(f"Failed to get Git status for {workspace_path}. Error: {error_msg}")
             except FileNotFoundError:

@@ -184,7 +184,7 @@ def test_aider_version_vs_pyproject():
         with open(pyproject_path, "rb") as f:
             pyproject = tomllib.load(f)
     else:
-        with open(pyproject_path) as f:
+        with open(pyproject_path, encoding="utf-8") as f:
             pyproject = tomllib.load(f)
 
     # Get expected version from dependencies

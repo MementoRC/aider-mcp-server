@@ -79,6 +79,7 @@ def git_repo_with_files() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
 
@@ -88,6 +89,7 @@ def git_repo_with_files() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         subprocess.run(  # noqa: S603
@@ -95,6 +97,7 @@ def git_repo_with_files() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
 
@@ -107,6 +110,7 @@ def git_repo_with_files() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         subprocess.run(  # noqa: S603
@@ -114,6 +118,7 @@ def git_repo_with_files() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
 
@@ -141,6 +146,7 @@ def temp_dir() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
 
@@ -150,6 +156,7 @@ def temp_dir() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         subprocess.run(  # noqa: S603
@@ -157,6 +164,7 @@ def temp_dir() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
 
@@ -169,6 +177,7 @@ def temp_dir() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         subprocess.run(  # noqa: S603
@@ -176,6 +185,7 @@ def temp_dir() -> Generator[str, None, None]:
             cwd=tmp_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
 

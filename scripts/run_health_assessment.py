@@ -86,7 +86,7 @@ class HealthAssessmentRunner:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Save main assessment report
-            with open(output_path, "w") as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(assessment_result, f, indent=2)
             print(f"✅ Saved assessment report to {output_path}")
 
@@ -94,17 +94,17 @@ class HealthAssessmentRunner:
             reports_dir = output_dir
 
             # Health score for easy reading
-            with open(reports_dir / "health_score.txt", "w") as f:
+            with open(reports_dir / "health_score.txt", "w", encoding="utf-8") as f:
                 f.write(str(int(assessment_result["overall_score"])))
 
             # Maintenance needed flag
             needs_maintenance = assessment_result["assessment_metadata"]["maintenance_needed"]
-            with open(reports_dir / "maintenance_needed.txt", "w") as f:
+            with open(reports_dir / "maintenance_needed.txt", "w", encoding="utf-8") as f:
                 f.write("true" if needs_maintenance else "false")
 
             # Urgency level
             urgency = assessment_result["assessment_metadata"]["urgency_level"]
-            with open(reports_dir / "urgency_level.txt", "w") as f:
+            with open(reports_dir / "urgency_level.txt", "w", encoding="utf-8") as f:
                 f.write(urgency)
 
             # Project health JSON for detailed analysis
@@ -118,7 +118,7 @@ class HealthAssessmentRunner:
                 "urgency_level": urgency,
             }
 
-            with open(reports_dir / "project_health.json", "w") as f:
+            with open(reports_dir / "project_health.json", "w", encoding="utf-8") as f:
                 json.dump(project_health, f, indent=2)
 
             print(f"✅ Saved workflow reports to {reports_dir}")

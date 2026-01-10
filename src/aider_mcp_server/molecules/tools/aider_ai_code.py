@@ -581,6 +581,7 @@ def _get_git_diff(normalized_paths: List[str], working_dir: Optional[str] = None
         git_cmd,
         capture_output=True,
         text=True,
+        encoding="utf-8",  # Explicitly specify UTF-8 encoding for Windows
         check=False,  # Don't raise exception on non-zero exit
     )
 

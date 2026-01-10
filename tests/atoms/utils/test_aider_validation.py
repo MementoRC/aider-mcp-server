@@ -28,7 +28,7 @@ class TestValidateFileReferences:
         """Test validation passes with existing readonly files."""
         # Create test files
         readonly_file = tmp_path / "existing.py"
-        readonly_file.write_text("def test(): pass")
+        readonly_file.write_text("def test(): pass", encoding="utf-8")
 
         # Should not raise any exception
         validate_file_references(
@@ -97,7 +97,7 @@ class TestValidateAiderParameters:
     def test_validate_successful_parameters(self, tmp_path: Path) -> None:
         """Test validation passes with valid parameters."""
         readonly_file = tmp_path / "existing.py"
-        readonly_file.write_text("def helper(): pass")
+        readonly_file.write_text("def helper(): pass", encoding="utf-8")
 
         # Should not raise any exception
         validate_aider_parameters(
@@ -110,7 +110,7 @@ class TestValidateAiderParameters:
     def test_validate_architect_mode_with_valid_files(self, tmp_path: Path) -> None:
         """Test validation passes in architect mode with existing readonly files."""
         readonly_file = tmp_path / "config.py"
-        readonly_file.write_text("CONFIG = {'key': 'value'}")
+        readonly_file.write_text("CONFIG = {'key': 'value'}", encoding="utf-8")
 
         # Should not raise any exception
         validate_aider_parameters(
@@ -147,7 +147,7 @@ class TestDetectAiderMisfire:
         """Test no misfire detected with meaningful file content."""
         # Create file with meaningful content
         content_file = tmp_path / "implementation.py"
-        content_file.write_text("def main():\n    print('Hello, World!')\n")
+        content_file.write_text("def main():\n    print('Hello, World!')\n", encoding="utf-8")
 
         aider_result = {"success": True, "changes_summary": {"summary": "Implementation added"}}
 
@@ -191,7 +191,7 @@ class TestDetectAiderMisfire:
         """Test misfire detection with minimal content below threshold."""
         # Create file with very little content
         minimal_file = tmp_path / "minimal.py"
-        minimal_file.write_text("# TODO")
+        minimal_file.write_text("# TODO", encoding="utf-8")
 
         aider_result = {"success": True, "changes_summary": {"summary": "File created"}}
 
@@ -233,7 +233,7 @@ class TestRaiseOnAiderMisfire:
         """Test no exception raised with valid file content."""
         # Create file with meaningful content
         content_file = tmp_path / "valid.py"
-        content_file.write_text("def calculate(x, y):\n    return x + y\n")
+        content_file.write_text("def calculate(x, y):\n    return x + y\n", encoding="utf-8")
 
         aider_result = {"success": True, "changes_summary": {"summary": "Function added"}}
 
@@ -276,12 +276,12 @@ class TestIntegrationScenarios:
         api_validation_dir = tmp_path / "src" / "aider_mcp_server" / "molecules" / "tools" / "aider"
         api_validation_dir.mkdir(parents=True)
         api_validation_file = api_validation_dir / "api_validation.py"
-        api_validation_file.write_text("def validate_api_keys(): pass")
+        api_validation_file.write_text("def validate_api_keys(): pass", encoding="utf-8")
 
         tests_dir = tmp_path / "tests"
         tests_dir.mkdir()
         conftest_file = tests_dir / "conftest.py"
-        conftest_file.write_text("import pytest")
+        conftest_file.write_text("import pytest", encoding="utf-8")
 
         # Should not raise any exception
         validate_aider_parameters(

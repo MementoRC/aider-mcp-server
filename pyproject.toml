@@ -18,7 +18,6 @@ text = "MIT"
 [project.scripts]
 mcp-aider-server = "aider_mcp_server:main"
 mcp-aider = "aider_mcp_server:main"
-
 [tool.ruff]
 target-version = "py312"
 line-length = 120
@@ -53,6 +52,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "toml"
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "dotenv"
@@ -149,7 +152,50 @@ python_files = "test_*.py"
 pythonpath = [ "src",]
 asyncio_mode = "auto"
 addopts = "-p pytest_asyncio -p pytest_mock"
-markers = [ "api: marks tests that require API keys", "integration: marks tests that perform integration testing",]
+markers = [
+    "api: marks tests that require API keys",
+    "integration: marks tests that perform integration testing",
+    "performance: marks performance-related tests",
+    "perf: alias for performance tests",
+    "security: marks security-related tests",
+    "unit: marks unit tests",
+    "slow: marks slow-running tests",
+    "e2e: marks end-to-end tests"
+]
+
+[tool.coverage.run]
+source = ["src/aider_mcp_server"]
+branch = true
+parallel = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/stubs/*"
+]
+
+[tool.coverage.report]
+# Fail if coverage falls below 85% (minimum gate per Task 1: REQ-QA-001)
+fail_under = 85
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod"
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.pixi.project]
 channels = [ "conda-forge",]
@@ -249,7 +295,8 @@ install-editable = "pip install -e ."
 
 # Testing (ZERO-TOLERANCE QUALITY GATES) - with Claude Code git bypass
 test = { cmd = "python -m pytest tests/ -v", env = { CLAUDECODE = "0" } }
-test-cov = { cmd = "python -m pytest tests/ --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml", env = { CLAUDECODE = "0" } }
+test-cov = { cmd = "python -m pytest tests/ -n auto --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml --cov-report=html", env = { CLAUDECODE = "0" } }
+test-cov-check = { cmd = "python -m pytest tests/ -n auto --cov=src/aider_mcp_server --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=85", env = { CLAUDECODE = "0" } }
 test-unit = { cmd = "python -m pytest tests/atoms/ tests/molecules/ -v", env = { CLAUDECODE = "0" } }
 test-integration = { cmd = "python -m pytest tests/organisms/ -v", env = { CLAUDECODE = "0" } }
 

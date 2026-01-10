@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from aider_mcp_server.atoms.errors.application_errors import BaseApplicationError
 
@@ -166,5 +166,4 @@ class ProcessInfo(BaseModel):
     last_health_check: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     restart_count: int = 0
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

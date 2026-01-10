@@ -73,7 +73,7 @@ class TestRequestMonitorIntegration:
 
         # Create the editable file with non-empty content before running aider
         test_file = tmp_path / "test.py"
-        test_file.write_text("# test content\n")
+        test_file.write_text("# test content\n", encoding="utf-8")
 
         # Mock API key check
         with patch(
@@ -188,7 +188,7 @@ class TestRequestMonitorIntegration:
                     with patch("aider_mcp_server.molecules.tools.aider_ai_code._finalize_aider_response"):
                         # Create the editable file with non-empty content before running aider
                         test_file = tmp_path / "test.py"
-                        test_file.write_text("# test content\n")
+                        test_file.write_text("# test content\n", encoding="utf-8")
 
                         # Execute without coordinator
                         result = await code_with_aider(
